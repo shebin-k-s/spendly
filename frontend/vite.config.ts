@@ -28,8 +28,10 @@ export default defineConfig({
         scope: '/',
         orientation: 'portrait',
         icons: [
-          { src: 'logo.png', sizes: '192x192 512x512', type: 'image/png', purpose: 'any' },
-          { src: 'icon-maskable.png', sizes: '192x192 512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'logo-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

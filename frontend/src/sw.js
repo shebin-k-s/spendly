@@ -11,7 +11,7 @@ const WB_MANIFEST = self.__WB_MANIFEST || [];
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   const precacheUrls = [
-    '/', '/index.html', '/logo.png', '/manifest.webmanifest',
+    '/', '/index.html', '/logo.png', '/logo-192.png', '/manifest.webmanifest',
     ...WB_MANIFEST.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
   ];
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(precacheUrls)));
