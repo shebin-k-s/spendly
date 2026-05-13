@@ -23,7 +23,7 @@ export class ExpenseController {
     };
 
     getById = async (req: Request, res: Response) => {
-        res.json(await service.getById(req.params.id));
+        res.json(await service.getById(req.params.id as string));
     };
 
     create = async (req: Request, res: Response) => {
@@ -31,11 +31,11 @@ export class ExpenseController {
     };
 
     update = async (req: Request, res: Response) => {
-        res.json(await service.update(req.params.id, req.body));
+        res.json(await service.update(req.params.id as string, req.body));
     };
 
     delete = async (req: Request, res: Response) => {
-        await service.delete(req.params.id);
+        await service.delete(req.params.id as string);
         res.sendStatus(204);
     };
 }
