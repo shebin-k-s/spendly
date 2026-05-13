@@ -1,0 +1,63 @@
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatINR } from '@/lib/utils';
+import type { CategoryBreakdown } from '@/features/expenses/types';
+
+interface CategoryPieChartProps {
+  breakdown: CategoryBreakdown[];
+  total: number;
+  isLoading?: boolean;
+}
+
+export default function CategoryPieChart({ breakdown, total, isLoading }: CategoryPieChartProps) {
+  if (isLoading) {
+    return <div className="h-64 bg-card rounded-2xl animate-pulse border border-border" />;
+  }
+
+  if (breakdown.length === 0) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-4">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4">Category Split</p>
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie
+            data={breakdown}
+            dataKey="total"
+            nameKey="name"
+            cx="50%"
+            cy="50%"
+            innerRadius={55}
+            outerRadius={80}
+            paddingAngle={3}
+          >
+            {breakdown.map((item, index) => (
+              <Cell key={index} fill={item.color} />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              background: 'hsl(0 0% 8%)',
+              border: '1px solid hsl(0 0% 16%)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: 'hsl(0 0% 95%)',
+            }}
+            itemStyle={{ color: 'hsl(0 0% 95%)' }}
+            labelStyle={{ color: 'hsl(0 0% 60%)' }}
+            formatter={(value: number, name: string) => [formatINR(value), name]}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+
+      {/* Legend */}
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        {breakdown.slice(0, 6).map((item) => (
+          <div key={item.categoryId} className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+            <span className="text-xs text-muted-foreground truncate">{item.icon} {item.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

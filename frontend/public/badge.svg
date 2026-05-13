@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" width="72" height="72">
+  <!-- Coin ring -->
+  <circle cx="36" cy="36" r="33" fill="none" stroke="white" stroke-width="5"/>
+  <circle cx="36" cy="36" r="27" fill="none" stroke="white" stroke-width="1.5" opacity="0.5"/>
+  <!-- S letterform for Spendly -->
+  <path d="M28 26 C28 22 44 22 44 29 C44 36 28 36 28 43 C28 50 44 50 44 46"
+        fill="none" stroke="white" stroke-width="5.5" stroke-linecap="round"/>
+</svg>

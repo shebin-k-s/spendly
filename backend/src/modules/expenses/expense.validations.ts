@@ -1,0 +1,30 @@
+import Joi from 'joi';
+
+const PAYMENT_METHODS = ['cash', 'card', 'upi', 'bank_transfer', 'other'];
+
+export const createExpenseSchema = Joi.object({
+    amount: Joi.number().positive().precision(2).required(),
+    description: Joi.string().min(1).max(200).required(),
+    date: Joi.string()
+        .pattern(/^\d{4}-\d{2}-\d{2}$/)
+        .required()
+        .messages({ 'string.pattern.base': 'date must be in yyyy-MM-dd format' }),
+    time: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(null, '').optional(),
+    note: Joi.string().max(500).allow('', null).optional(),
+    paymentMethod: Joi.string()
+        .valid(...PAYMENT_METHODS)
+        .default('other'),
+    categoryId: Joi.string().uuid().allow(null).optional(),
+});
+
+export const updateExpenseSchema = Joi.object({
+    amount: Joi.number().positive().precision(2).optional(),
+    description: Joi.string().min(1).max(200).optional(),
+    date: Joi.string()
+        .pattern(/^\d{4}-\d{2}-\d{2}$/)
+        .optional(),
+    time: Joi.string().pattern(/^\d{2}:\d{2}$/).allow(null, '').optional(),
+    note: Joi.string().max(500).allow('', null).optional(),
+    paymentMethod: Joi.string().valid(...PAYMENT_METHODS).optional(),
+    categoryId: Joi.string().uuid().allow(null).optional(),
+});

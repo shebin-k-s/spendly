@@ -1,0 +1,50 @@
+import {
+    Entity,
+    PrimaryGeneratedColumn,
+    Column,
+    ManyToOne,
+    CreateDateColumn,
+    UpdateDateColumn,
+    JoinColumn,
+} from 'typeorm';
+import { Category } from '../categories/category.entity';
+
+export type PaymentMethod = 'cash' | 'card' | 'upi' | 'bank_transfer' | 'other';
+
+@Entity('expenses')
+export class Expense {
+    @PrimaryGeneratedColumn('uuid')
+    id: string;
+
+    @Column('decimal', { precision: 12, scale: 2 })
+    amount: number;
+
+    @Column()
+    description: string;
+
+    @Column({ type: 'date' })
+    date: string;
+
+    @Column({ type: 'varchar', length: 5, nullable: true, default: null })
+    time: string | null;
+
+    @Column({ nullable: true })
+    note: string;
+
+    @Column({ default: 'other' })
+    paymentMethod: PaymentMethod;
+
+    @ManyToOne(() => Category, (category) => category.expenses, {
+        onDelete: 'SET NULL',
+        nullable: true,
+        eager: true,
+    })
+    @JoinColumn()
+    category: Category;
+
+    @CreateDateColumn()
+    createdAt: Date;
+
+    @UpdateDateColumn()
+    updatedAt: Date;
+}
