@@ -3,17 +3,18 @@
 //  – Caches the app shell for offline use
 // ============================================================
 
-self.__WB_MANIFEST;
-
 const CACHE_NAME = 'spendly-cache-v1';
+
+// Injected by vite-plugin-pwa at build time — versioned asset URLs for precaching
+const WB_MANIFEST = self.__WB_MANIFEST || [];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(['/', '/index.html', '/logo.png', '/manifest.webmanifest'])
-    )
-  );
+  const precacheUrls = [
+    '/', '/index.html', '/logo.png', '/manifest.webmanifest',
+    ...WB_MANIFEST.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
+  ];
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(precacheUrls)));
 });
 
 self.addEventListener('activate', (event) => {
