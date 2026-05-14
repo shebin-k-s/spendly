@@ -127,4 +127,13 @@
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
+
+  @keyframes slideDownExit {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+
+  .sheet-exit[data-state="closed"] {
+    animation: slideDownExit 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards !important;
+  }
 }

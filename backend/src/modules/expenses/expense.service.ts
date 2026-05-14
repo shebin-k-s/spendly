@@ -15,15 +15,36 @@ export class ExpenseService {
         const qb = this.repo
             .createQueryBuilder('expense')
             .leftJoinAndSelect('expense.category', 'category')
-            .where('expense.date >= :start AND expense.date <= :end', { start, end })
-            .orderBy('expense.date', 'DESC')
-            .addOrderBy('expense.createdAt', 'DESC');
+            .where('expense.date >= :start AND expense.date <= :end', { start, end });
 
         if (categoryId) {
             qb.andWhere('category.id = :categoryId', { categoryId });
         }
 
-        return qb.getMany();
+        const expenses = await qb.getMany();
+
+        // Sort reliably combining user-provided time and createdAt normalized to HH:mm
+        return expenses.sort((a, b) => {
+            if (a.date !== b.date) {
+                return a.date > b.date ? -1 : 1; // date DESC
+            }
+            
+            const getHHMM = (d: Date) => {
+                const hh = d.getHours().toString().padStart(2, '0');
+                const mm = d.getMinutes().toString().padStart(2, '0');
+                return `${hh}:${mm}`;
+            };
+            
+            const timeA = a.time || getHHMM(new Date(a.createdAt));
+            const timeB = b.time || getHHMM(new Date(b.createdAt));
+            
+            if (timeA !== timeB) {
+                return timeA > timeB ? -1 : 1; // effective time DESC
+            }
+            
+            // Fallback absolute ms 
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
     }
 
     async getById(id: string) {

@@ -20,8 +20,11 @@ export default function Layout() {
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
     if (mainRef.current && mainRef.current.scrollTop <= 1) { // 1px tolerance
-      startY.current = e.touches[0].clientY;
-      startX.current = e.touches[0].clientX;
+      // MUST start swipe from the top area of the screen (top 150px)
+      if (e.touches[0].clientY < 150) {
+        startY.current = e.touches[0].clientY;
+        startX.current = e.touches[0].clientX;
+      }
     }
   };
 
@@ -34,10 +37,10 @@ export default function Layout() {
     
     // Only pull down if vertical distance dominates horizontal
     if (distanceY > 0 && distanceY > Math.abs(distanceX) * 1.5) {
-      if (distanceY < 150) {
+      if (distanceY < 250) {
         setPullDistance(distanceY);
       } else {
-        setPullDistance(150);
+        setPullDistance(250);
       }
     } else if (Math.abs(distanceX) > 30) {
       // Horizontal swipe detected; abort pull-to-refresh
@@ -48,7 +51,7 @@ export default function Layout() {
   };
 
   const handleTouchEnd = () => {
-    if (pullDistance > 80 && !isRefreshing) {
+    if (pullDistance > 160 && !isRefreshing) {
       setIsRefreshing(true);
       window.location.reload();
     }

@@ -221,6 +221,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     if (handlePointerStartY.current === null || !modalRef.current) return;
     
     if (handleCurrentY.current > 120) {
+      modalRef.current.style.transform = '';
       setOpen(false); // Close threshold reached
     } else {
       // Snap back if threshold not reached
@@ -270,7 +271,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 animate-in fade-in duration-200" />
+        <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-500 ease-in-out" />
         <Dialog.Content
           ref={modalRef}
           onTouchStart={(e) => e.stopPropagation()}
@@ -285,7 +286,9 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
             'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
             'bg-card border-t border-border rounded-t-3xl',
             'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto',
-            'animate-in slide-in-from-bottom duration-300',
+            'duration-500 ease-in-out',
+            'data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom',
+            'sheet-exit'
           )}
         >
           {/* Extended Drag Handle Hitbox */}
