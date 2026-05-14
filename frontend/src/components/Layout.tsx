@@ -1,5 +1,6 @@
+import { useState, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Receipt, Tag, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Receipt, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AnimatedOutlet from './AnimatedOutlet';
 
@@ -11,9 +12,55 @@ const NAV_TABS = [
 ];
 
 export default function Layout() {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const startY = useRef<number | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
+    if (mainRef.current && mainRef.current.scrollTop === 0) {
+      startY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLElement>) => {
+    if (startY.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const distance = currentY - startY.current;
+    
+    // Only pull down, max 150px visual limit
+    if (distance > 0 && distance < 150) {
+      setPullDistance(distance);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance > 60 && !isRefreshing) {
+      setIsRefreshing(true);
+      window.location.reload();
+    }
+    setPullDistance(0);
+    startY.current = null;
+  };
+
   return (
     <div className="h-full flex flex-col bg-background sm:max-w-md sm:mx-auto sm:border-x sm:border-border sm:shadow-2xl relative overflow-hidden">
-      <main className="flex-1 overflow-y-auto overflow-x-hidden relative disable-scrollbars">
+      {/* Pull To Refresh Indicator */}
+      <div 
+        className="absolute left-0 right-0 top-0 flex justify-center items-center overflow-hidden transition-all duration-300 z-0 bg-background"
+        style={{ height: pullDistance > 0 ? pullDistance : isRefreshing ? 60 : 0 }}
+      >
+        <Loader2 className={`w-6 h-6 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullDistance * 2}deg)` }} />
+      </div>
+
+      <main 
+        ref={mainRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden relative disable-scrollbars z-10 transition-transform duration-200 bg-background"
+        style={{ transform: `translateY(${isRefreshing ? 60 : pullDistance}px)` }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <AnimatedOutlet />
       </main>
 

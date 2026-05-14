@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   format, parse, isValid,
   startOfMonth, endOfMonth,
@@ -10,6 +10,7 @@ import {
 import * as Dialog from '@radix-ui/react-dialog';
 import { Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Clock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
 const WEEK_DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
@@ -58,7 +59,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
     
     // Swipe distance threshold
     if (Math.abs(diff) > 12) {
-      onAdjust(diff > 0 ? -step : step);
+      onAdjust(diff > 0 ? step : -step);
       setTouchY(currentY); // Reset to allow continuous swiping
     }
   };
@@ -66,7 +67,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
   const handleWheel = (e: React.WheelEvent) => {
     e.stopPropagation();
     if (e.deltaY !== 0) {
-      onAdjust(e.deltaY > 0 ? step : -step);
+      onAdjust(e.deltaY > 0 ? -step : step);
     }
   };
 
@@ -101,6 +102,14 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 
 export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+
+  useEffect(() => {
+    if (open) disableGlobalSwipe();
+    else enableGlobalSwipe();
+    
+    return () => enableGlobalSwipe();
+  }, [open, disableGlobalSwipe, enableGlobalSwipe]);
 
   const parsedInitial = useMemo(() => {
     const d = parse(date, 'yyyy-MM-dd', new Date());
@@ -113,6 +122,38 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
   const [hour12, setHour12] = useState(12);
   const [minute, setMinute] = useState(0);
   const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
+
+  const calendarTouchStartX = useRef<number | null>(null);
+  const calendarTouchStartY = useRef<number | null>(null);
+
+  const handleCalendarTouchStart = (e: React.TouchEvent) => {
+    calendarTouchStartX.current = e.touches[0].clientX;
+    calendarTouchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleCalendarTouchMove = (e: React.TouchEvent) => {
+    if (calendarTouchStartX.current === null || calendarTouchStartY.current === null) return;
+    
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = calendarTouchStartX.current - currentX;
+    const deltaY = calendarTouchStartY.current - currentY;
+
+    if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      if (deltaX > 0) {
+        setViewMonth((m) => addMonths(m, 1));
+      } else {
+        setViewMonth((m) => subMonths(m, 1));
+      }
+      calendarTouchStartX.current = null;
+      calendarTouchStartY.current = null;
+    }
+  };
+
+  const handleCalendarTouchEnd = () => {
+    calendarTouchStartX.current = null;
+    calendarTouchStartY.current = null;
+  };
 
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(viewMonth), { weekStartsOn: 1 });
@@ -180,67 +221,82 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 animate-in fade-in duration-200" />
         <Dialog.Content
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
           className={cn(
-            'fixed bottom-0 inset-x-0 z-50',
-            'sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:rounded-3xl',
-            'bg-card border-t sm:border border-border rounded-t-3xl sm:rounded-3xl',
+            'fixed bottom-0 z-50 w-full',
+            'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
+            'bg-card border-t border-border rounded-t-3xl',
             'px-4 pt-3 pb-6 max-h-[92vh] overflow-y-auto',
-            'animate-in slide-in-from-bottom sm:zoom-in-95 duration-300',
+            'animate-in slide-in-from-bottom duration-300',
           )}
         >
           <div className="w-10 h-1 bg-border rounded-full mx-auto mb-4" />
 
-          {/* Month navigation */}
-          <div className="flex items-center justify-between mb-4">
-            <button
-              type="button"
-              onClick={() => setViewMonth(subMonths(viewMonth, 1))}
-              className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="font-semibold text-sm">{format(viewMonth, 'MMMM yyyy')}</span>
-            <button
-              type="button"
-              onClick={() => setViewMonth(addMonths(viewMonth, 1))}
-              className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Swipeable Calendar Container */}
+          <div 
+            onTouchStart={handleCalendarTouchStart}
+            onTouchMove={handleCalendarTouchMove}
+            onTouchEnd={handleCalendarTouchEnd}
+            className="touch-pan-y relative"
+          >
+            {/* Month navigation */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                type="button"
+                onClick={() => setViewMonth(subMonths(viewMonth, 1))}
+                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="font-semibold text-sm">{format(viewMonth, 'MMMM yyyy')}</span>
+              <button
+                type="button"
+                onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
 
-          {/* Week day headers */}
-          <div className="grid grid-cols-7 mb-1">
-            {WEEK_DAYS.map((d) => (
-              <span key={d} className="text-center text-[10px] font-medium text-muted-foreground py-1">
-                {d}
-              </span>
-            ))}
-          </div>
+            {/* Week day headers */}
+            <div className="grid grid-cols-7 mb-1">
+              {WEEK_DAYS.map((d) => (
+                <span key={d} className="text-center text-[10px] font-medium text-muted-foreground py-1">
+                  {d}
+                </span>
+              ))}
+            </div>
 
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {calendarDays.map((day) => {
-              const inMonth = isSameMonth(day, viewMonth);
-              const isSelected = isSameDay(day, selectedDate);
-              const isCurrDay = isToday(day);
-              return (
-                <button
-                  key={day.toISOString()}
-                  type="button"
-                  onClick={() => handleDayClick(day)}
-                  className={cn(
-                    'h-9 w-full rounded-xl text-sm font-medium transition-colors',
-                    !inMonth && 'opacity-20 pointer-events-none',
-                    isSelected && 'bg-primary text-primary-foreground',
-                    !isSelected && isCurrDay && 'border border-primary text-primary',
-                    !isSelected && !isCurrDay && inMonth && 'active:bg-secondary',
-                  )}
-                >
-                  {format(day, 'd')}
-                </button>
-              );
-            })}
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7 gap-0.5">
+              {calendarDays.map((day) => {
+                const inMonth = isSameMonth(day, viewMonth);
+                const isSelected = isSameDay(day, selectedDate);
+                const isCurrDay = isToday(day);
+                return (
+                  <button
+                    key={day.toISOString()}
+                    type="button"
+                    onClick={() => handleDayClick(day)}
+                    className={cn(
+                      'h-9 w-full rounded-xl text-sm font-medium transition-colors',
+                      !inMonth && 'opacity-20 pointer-events-none',
+                      isSelected && 'bg-primary text-primary-foreground',
+                      !isSelected && isCurrDay && 'border border-primary text-primary',
+                      !isSelected && !isCurrDay && inMonth && 'active:bg-secondary',
+                    )}
+                  >
+                    {format(day, 'd')}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="border-t border-border my-4" />
