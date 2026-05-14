@@ -24,7 +24,7 @@ export default function CategoryCard({ category }: CategoryCardProps) {
       {/* Icon */}
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-        style={{ backgroundColor: `${category.color}25` }}
+        style={{ backgroundColor: category.color }}
       >
         {category.icon}
       </div>

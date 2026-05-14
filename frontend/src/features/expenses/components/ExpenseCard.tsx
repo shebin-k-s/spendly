@@ -25,7 +25,7 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
     >
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-        style={{ backgroundColor: expense.category ? `${expense.category.color}22` : '#94a3b822' }}
+        style={{ backgroundColor: expense.category ? expense.category.color : '#475569' }}
       >
         {expense.category?.icon || '📦'}
       </div>

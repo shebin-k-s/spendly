@@ -17,27 +17,36 @@ export default function AnimatedOutlet() {
   const { isGlobalSwipeEnabled } = useSwipeGesture();
   const isTransitioning = useRef(false);
   const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || !isGlobalSwipeEnabled || isTransitioning.current) return;
+    if (touchStartX.current === null || touchStartY.current === null || !isGlobalSwipeEnabled || isTransitioning.current) return;
     
     const touchEndX = e.changedTouches[0].clientX;
-    const distance = touchStartX.current - touchEndX;
+    const touchEndY = e.changedTouches[0].clientY;
     
-    // Swipe left (positive distance) -> Next tab
-    if (distance > 50 && currentIndex < NAV_TABS.length - 1) {
-      navigateTo(currentIndex + 1);
-    } 
-    // Swipe right (negative distance) -> Prev tab
-    else if (distance < -50 && currentIndex > 0) {
-      navigateTo(currentIndex - 1);
+    const distanceX = touchStartX.current - touchEndX;
+    const distanceY = touchStartY.current - touchEndY;
+    
+    // Ensure it's primarily a horizontal swipe
+    if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(distanceX) > 50) {
+      // Swipe left (positive distanceX) -> Next tab
+      if (distanceX > 0 && currentIndex < NAV_TABS.length - 1) {
+        navigateTo(currentIndex + 1);
+      } 
+      // Swipe right (negative distanceX) -> Prev tab
+      else if (distanceX < 0 && currentIndex > 0) {
+        navigateTo(currentIndex - 1);
+      }
     }
     
     touchStartX.current = null;
+    touchStartY.current = null;
   };
 
   const currentIndex = NAV_TABS.findIndex((path) =>
