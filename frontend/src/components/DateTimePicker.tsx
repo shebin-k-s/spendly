@@ -51,10 +51,13 @@ function toTime24(h12: number, minute: number, period: 'AM' | 'PM'): string {
 function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; onAdjust: (delta: number) => void; step?: number }) {
   const [touchY, setTouchY] = useState<number | null>(null);
 
-  const handleTouchStart = (e: React.TouchEvent) => setTouchY(e.touches[0].clientY);
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setTouchY(e.clientY);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
     if (touchY === null) return;
-    const currentY = e.touches[0].clientY;
+    const currentY = e.clientY;
     const diff = touchY - currentY;
     
     // Swipe distance threshold
@@ -62,6 +65,10 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
       onAdjust(diff > 0 ? step : -step);
       setTouchY(currentY); // Reset to allow continuous swiping
     }
+  };
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setTouchY(null);
+    e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -73,10 +80,11 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 
   return (
     <div
-      className="flex flex-col items-center gap-2 touch-none select-none py-1"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={() => setTouchY(null)}
+      className="flex flex-col items-center gap-2 touch-none select-none py-1 cursor-ns-resize"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onWheel={handleWheel}
     >
       <button
@@ -126,18 +134,19 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
   const calendarTouchStartX = useRef<number | null>(null);
   const calendarTouchStartY = useRef<number | null>(null);
 
-  const handleCalendarTouchStart = (e: React.TouchEvent) => {
-    calendarTouchStartX.current = e.touches[0].clientX;
-    calendarTouchStartY.current = e.touches[0].clientY;
+  const handleCalendarPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    calendarTouchStartX.current = e.clientX;
+    calendarTouchStartY.current = e.clientY;
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handleCalendarTouchMove = (e: React.TouchEvent) => {
+  const handleCalendarPointerMove = (e: React.PointerEvent) => {
+    e.stopPropagation();
     if (calendarTouchStartX.current === null || calendarTouchStartY.current === null) return;
     
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const deltaX = calendarTouchStartX.current - currentX;
-    const deltaY = calendarTouchStartY.current - currentY;
+    const deltaX = calendarTouchStartX.current - e.clientX;
+    const deltaY = calendarTouchStartY.current - e.clientY;
 
     if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
       if (deltaX > 0) {
@@ -150,9 +159,11 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     }
   };
 
-  const handleCalendarTouchEnd = () => {
+  const handleCalendarPointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
     calendarTouchStartX.current = null;
     calendarTouchStartY.current = null;
+    e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const calendarDays = useMemo(() => {
@@ -179,6 +190,32 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     setMinute(m);
     setPeriod(p);
     setOpen(true);
+  };
+
+  const modalPointerStartY = useRef<number | null>(null);
+
+  const handleModalPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (e.currentTarget.scrollTop <= 0) {
+      modalPointerStartY.current = e.clientY;
+    }
+  };
+
+  const handleModalPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (modalPointerStartY.current === null) return;
+    const distanceDown = e.clientY - modalPointerStartY.current;
+    
+    // Swipe down to dismiss
+    if (distanceDown > 120) {
+      setOpen(false);
+      modalPointerStartY.current = null;
+    }
+  };
+
+  const handleModalPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    modalPointerStartY.current = null;
   };
 
   const handleDayClick = (day: Date) => {
@@ -224,9 +261,9 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
           onTouchStart={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerMove={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
+          onPointerDown={handleModalPointerDown}
+          onPointerMove={handleModalPointerMove}
+          onPointerUp={handleModalPointerUp}
           onWheel={(e) => e.stopPropagation()}
           className={cn(
             'fixed bottom-0 z-50 w-full',
@@ -240,9 +277,9 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
 
           {/* Swipeable Calendar Container */}
           <div 
-            onTouchStart={handleCalendarTouchStart}
-            onTouchMove={handleCalendarTouchMove}
-            onTouchEnd={handleCalendarTouchEnd}
+            onPointerDown={handleCalendarPointerDown}
+            onPointerMove={handleCalendarPointerMove}
+            onPointerUp={handleCalendarPointerUp}
             className="touch-pan-y relative"
           >
             {/* Month navigation */}
