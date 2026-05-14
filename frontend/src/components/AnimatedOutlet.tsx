@@ -16,6 +16,29 @@ export default function AnimatedOutlet() {
   const navigate = useNavigate();
   const { isGlobalSwipeEnabled } = useSwipeGesture();
   const isTransitioning = useRef(false);
+  const touchStartX = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || !isGlobalSwipeEnabled || isTransitioning.current) return;
+    
+    const touchEndX = e.changedTouches[0].clientX;
+    const distance = touchStartX.current - touchEndX;
+    
+    // Swipe left (positive distance) -> Next tab
+    if (distance > 50 && currentIndex < NAV_TABS.length - 1) {
+      navigateTo(currentIndex + 1);
+    } 
+    // Swipe right (negative distance) -> Prev tab
+    else if (distance < -50 && currentIndex > 0) {
+      navigateTo(currentIndex - 1);
+    }
+    
+    touchStartX.current = null;
+  };
 
   const currentIndex = NAV_TABS.findIndex((path) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
@@ -42,6 +65,8 @@ export default function AnimatedOutlet() {
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2, ease: "easeInOut" }}
         className="w-full h-full"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         onWheel={(e) => {
           if (!isGlobalSwipeEnabled || isTransitioning.current) return;
           // Check if horizontal scroll is dominant
