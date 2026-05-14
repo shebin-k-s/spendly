@@ -15,32 +15,46 @@ export default function Layout() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
+  const startX = useRef<number | null>(null);
   const mainRef = useRef<HTMLElement>(null);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
-    if (mainRef.current && mainRef.current.scrollTop === 0) {
+    if (mainRef.current && mainRef.current.scrollTop <= 1) { // 1px tolerance
       startY.current = e.touches[0].clientY;
+      startX.current = e.touches[0].clientX;
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent<HTMLElement>) => {
-    if (startY.current === null) return;
+    if (startY.current === null || startX.current === null) return;
     const currentY = e.touches[0].clientY;
-    const distance = currentY - startY.current;
+    const currentX = e.touches[0].clientX;
+    const distanceY = currentY - startY.current;
+    const distanceX = currentX - startX.current;
     
-    // Only pull down, max 150px visual limit
-    if (distance > 0 && distance < 150) {
-      setPullDistance(distance);
+    // Only pull down if vertical distance dominates horizontal
+    if (distanceY > 0 && distanceY > Math.abs(distanceX) * 1.5) {
+      if (distanceY < 150) {
+        setPullDistance(distanceY);
+      } else {
+        setPullDistance(150);
+      }
+    } else if (Math.abs(distanceX) > 30) {
+      // Horizontal swipe detected; abort pull-to-refresh
+      startY.current = null;
+      startX.current = null;
+      setPullDistance(0);
     }
   };
 
   const handleTouchEnd = () => {
-    if (pullDistance > 60 && !isRefreshing) {
+    if (pullDistance > 80 && !isRefreshing) {
       setIsRefreshing(true);
       window.location.reload();
     }
     setPullDistance(0);
     startY.current = null;
+    startX.current = null;
   };
 
   return (

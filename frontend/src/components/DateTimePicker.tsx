@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, useDragControls } from 'framer-motion';
 import {
   format, parse, isValid,
   startOfMonth, endOfMonth,
@@ -111,7 +110,6 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 
 export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
-  const dragControls = useDragControls();
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
   useEffect(() => {
@@ -194,6 +192,46 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     setOpen(true);
   };
 
+  const modalRef = useRef<HTMLDivElement>(null);
+  const handlePointerStartY = useRef<number | null>(null);
+  const handleCurrentY = useRef<number>(0);
+
+  const onHandlePointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    handlePointerStartY.current = e.clientY;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onHandlePointerMove = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (handlePointerStartY.current === null || !modalRef.current) return;
+    
+    let distance = e.clientY - handlePointerStartY.current;
+    if (distance < 0) distance = 0; // Don't pull above top boundary
+    
+    handleCurrentY.current = distance;
+    modalRef.current.style.transition = 'none';
+    modalRef.current.style.transform = `translateY(${distance}px)`;
+  };
+
+  const onHandlePointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    
+    if (handlePointerStartY.current === null || !modalRef.current) return;
+    
+    if (handleCurrentY.current > 120) {
+      setOpen(false); // Close threshold reached
+    } else {
+      // Snap back if threshold not reached
+      modalRef.current.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)';
+      modalRef.current.style.transform = 'translateY(0px)';
+    }
+    
+    handlePointerStartY.current = null;
+    handleCurrentY.current = 0;
+  };
+
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     if (!isSameMonth(day, viewMonth)) setViewMonth(day);
@@ -233,37 +271,33 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 animate-in fade-in duration-200" />
-        <Dialog.Content asChild>
-          <motion.div
-            drag="y"
-            dragControls={dragControls}
-            dragListener={false}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.5 }}
-            onDragEnd={(e, { offset, velocity }) => {
-              if (offset.y > 150 || velocity.y > 500) {
-                setOpen(false);
-              }
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            className={cn(
-              'fixed bottom-0 z-50 w-full',
-              'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
-              'bg-card border-t border-border rounded-t-3xl',
-              'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto',
-              'animate-in slide-in-from-bottom duration-300',
-            )}
+        <Dialog.Content
+          ref={modalRef}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          className={cn(
+            'fixed bottom-0 z-50 w-full',
+            'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
+            'bg-card border-t border-border rounded-t-3xl',
+            'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto',
+            'animate-in slide-in-from-bottom duration-300',
+          )}
+        >
+          {/* Extended Drag Handle Hitbox */}
+          <div 
+            onPointerDown={onHandlePointerDown}
+            onPointerMove={onHandlePointerMove}
+            onPointerUp={onHandlePointerUp}
+            onPointerCancel={onHandlePointerUp}
+            className="pt-2 pb-3 mb-2 w-full flex justify-center cursor-grab active:cursor-grabbing touch-none select-none"
           >
-            {/* Extended Drag Handle Hitbox */}
-            <div 
-              onPointerDown={(e) => dragControls.start(e)}
-              className="pt-2 pb-3 mb-2 w-full flex justify-center cursor-grab active:cursor-grabbing touch-none select-none"
-            >
-              <div className="w-10 h-1 bg-border rounded-full pointer-events-none" />
-            </div>
+            <div className="w-10 h-1 bg-border rounded-full pointer-events-none" />
+          </div>
 
           {/* Swipeable Calendar Container */}
           <div 
@@ -404,7 +438,6 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
               Set Date & Time
             </button>
           </div>
-          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
