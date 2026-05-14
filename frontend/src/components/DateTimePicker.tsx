@@ -47,6 +47,58 @@ function toTime24(h12: number, minute: number, period: 'AM' | 'PM'): string {
   return `${h24.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
+function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; onAdjust: (delta: number) => void; step?: number }) {
+  const [touchY, setTouchY] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => setTouchY(e.touches[0].clientY);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchY === null) return;
+    const currentY = e.touches[0].clientY;
+    const diff = touchY - currentY;
+    
+    // Swipe distance threshold
+    if (Math.abs(diff) > 12) {
+      onAdjust(diff > 0 ? -step : step);
+      setTouchY(currentY); // Reset to allow continuous swiping
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    if (e.deltaY !== 0) {
+      onAdjust(e.deltaY > 0 ? step : -step);
+    }
+  };
+
+  return (
+    <div
+      className="flex flex-col items-center gap-2 touch-none select-none py-1"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={() => setTouchY(null)}
+      onWheel={handleWheel}
+    >
+      <button
+        type="button"
+        onClick={() => onAdjust(step)}
+        className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+      >
+        <ChevronUp className="w-5 h-5" />
+      </button>
+      <span className="text-3xl font-bold w-14 text-center tabular-nums pointer-events-none">
+        {value.toString().padStart(2, '0')}
+      </span>
+      <button
+        type="button"
+        onClick={() => onAdjust(-step)}
+        className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+      >
+        <ChevronDown className="w-5 h-5" />
+      </button>
+    </div>
+  );
+}
+
 export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
 
@@ -110,7 +162,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     setHour12((h) => { const n = h + delta; return n > 12 ? 1 : n < 1 ? 12 : n; });
 
   const adjustMinute = (delta: number) =>
-    setMinute((m) => { const n = m + delta; return n >= 60 ? 0 : n < 0 ? 55 : n; });
+    setMinute((m) => { const n = m + delta; return n >= 60 ? 0 : n < 0 ? 59 : n; });
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -130,10 +182,10 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
         <Dialog.Content
           className={cn(
             'fixed bottom-0 inset-x-0 z-50',
-            'sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
-            'bg-card border-t border-border rounded-t-3xl',
+            'sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 sm:rounded-3xl',
+            'bg-card border-t sm:border border-border rounded-t-3xl sm:rounded-3xl',
             'px-4 pt-3 pb-6 max-h-[92vh] overflow-y-auto',
-            'animate-in slide-in-from-bottom duration-300',
+            'animate-in slide-in-from-bottom sm:zoom-in-95 duration-300',
           )}
         >
           <div className="w-10 h-1 bg-border rounded-full mx-auto mb-4" />
@@ -222,59 +274,31 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
             </div>
 
             {timeEnabled && (
-              <div className="flex items-center justify-center gap-3">
-                {/* Hour column */}
-                <div className="flex flex-col items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => adjustHour(1)}
-                    className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
-                  >
-                    <ChevronUp className="w-5 h-5" />
-                  </button>
-                  <span className="text-3xl font-bold w-14 text-center tabular-nums">
-                    {hour12.toString().padStart(2, '0')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => adjustHour(-1)}
-                    className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
-                  >
-                    <ChevronDown className="w-5 h-5" />
-                  </button>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 w-full animate-fade-in">
+                {/* Left empty container to push center visually */}
+                <div />
+
+                {/* Center layout */}
+                <div className="flex items-center justify-center gap-2">
+                  {/* Hour column */}
+                  <ScrollableNumberColumn value={hour12} onAdjust={adjustHour} step={1} />
+
+                  <span className="text-3xl font-bold text-muted-foreground self-center pb-1">:</span>
+
+                  {/* Minute column — steps of 1 */}
+                  <ScrollableNumberColumn value={minute} onAdjust={adjustMinute} step={1} />
                 </div>
 
-                <span className="text-3xl font-bold text-muted-foreground self-center">:</span>
-
-                {/* Minute column — steps of 5 */}
-                <div className="flex flex-col items-center gap-2">
+                {/* Right side AM/PM toggle */}
+                <div className="flex justify-end pr-1">
                   <button
                     type="button"
-                    onClick={() => adjustMinute(5)}
-                    className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+                    onClick={() => setPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
+                    className="px-4 py-4 rounded-xl bg-secondary text-sm font-bold active:opacity-60 transition-opacity"
                   >
-                    <ChevronUp className="w-5 h-5" />
-                  </button>
-                  <span className="text-3xl font-bold w-14 text-center tabular-nums">
-                    {minute.toString().padStart(2, '0')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => adjustMinute(-5)}
-                    className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
-                  >
-                    <ChevronDown className="w-5 h-5" />
+                    {period}
                   </button>
                 </div>
-
-                {/* AM / PM toggle */}
-                <button
-                  type="button"
-                  onClick={() => setPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
-                  className="px-4 py-3 rounded-xl bg-secondary text-sm font-bold active:opacity-60 transition-opacity self-center"
-                >
-                  {period}
-                </button>
               </div>
             )}
           </div>

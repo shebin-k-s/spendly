@@ -114,6 +114,15 @@ export default function EditExpensePage() {
         </div>
 
         <div>
+          <label className="form-label">Date & Time</label>
+          <DateTimePicker
+            date={date || new Date().toISOString().slice(0, 10)}
+            time={time}
+            onChange={(d, t) => { setDate(d); setTime(t); }}
+          />
+        </div>
+
+        <div>
           <label className="form-label">Category</label>
           <div className="grid grid-cols-3 gap-2">
             <button
@@ -156,15 +165,6 @@ export default function EditExpensePage() {
         <div>
           <label className="form-label">Note (Optional)</label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="form-input resize-none" />
-        </div>
-
-        <div>
-          <label className="form-label">Date & Time</label>
-          <DateTimePicker
-            date={date || new Date().toISOString().slice(0, 10)}
-            time={time}
-            onChange={(d, t) => { setDate(d); setTime(t); }}
-          />
         </div>
 
         <button onClick={handleUpdate} disabled={!canSubmit} className="btn-primary">

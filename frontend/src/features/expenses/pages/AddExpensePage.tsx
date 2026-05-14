@@ -76,6 +76,16 @@ export default function AddExpensePage() {
           />
         </div>
 
+        {/* Date & Time */}
+        <div>
+          <label className="form-label">Date & Time</label>
+          <DateTimePicker
+            date={date}
+            time={time}
+            onChange={(d, t) => { setDate(d); setTime(t); }}
+          />
+        </div>
+
         {/* Category */}
         <div>
           <label className="form-label">Category</label>
@@ -127,16 +137,6 @@ export default function AddExpensePage() {
             placeholder="Any additional details..."
             rows={2}
             className="form-input resize-none"
-          />
-        </div>
-
-        {/* Date & Time */}
-        <div>
-          <label className="form-label">Date & Time</label>
-          <DateTimePicker
-            date={date}
-            time={time}
-            onChange={(d, t) => { setDate(d); setTime(t); }}
           />
         </div>
 
