@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { motion, useDragControls } from 'framer-motion';
 import {
   format, parse, isValid,
   startOfMonth, endOfMonth,
@@ -110,6 +111,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 
 export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
+  const dragControls = useDragControls();
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
   useEffect(() => {
@@ -192,32 +194,6 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     setOpen(true);
   };
 
-  const modalPointerStartY = useRef<number | null>(null);
-
-  const handleModalPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (e.currentTarget.scrollTop <= 0) {
-      modalPointerStartY.current = e.clientY;
-    }
-  };
-
-  const handleModalPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (modalPointerStartY.current === null) return;
-    const distanceDown = e.clientY - modalPointerStartY.current;
-    
-    // Swipe down to dismiss
-    if (distanceDown > 120) {
-      setOpen(false);
-      modalPointerStartY.current = null;
-    }
-  };
-
-  const handleModalPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    modalPointerStartY.current = null;
-  };
-
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     if (!isSameMonth(day, viewMonth)) setViewMonth(day);
@@ -257,23 +233,37 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 animate-in fade-in duration-200" />
-        <Dialog.Content
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
-          onPointerDown={handleModalPointerDown}
-          onPointerMove={handleModalPointerMove}
-          onPointerUp={handleModalPointerUp}
-          onWheel={(e) => e.stopPropagation()}
-          className={cn(
-            'fixed bottom-0 z-50 w-full',
-            'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
-            'bg-card border-t border-border rounded-t-3xl',
-            'px-4 pt-3 pb-6 max-h-[92vh] overflow-y-auto',
-            'animate-in slide-in-from-bottom duration-300',
-          )}
-        >
-          <div className="w-10 h-1 bg-border rounded-full mx-auto mb-4" />
+        <Dialog.Content asChild>
+          <motion.div
+            drag="y"
+            dragControls={dragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            onDragEnd={(e, { offset, velocity }) => {
+              if (offset.y > 150 || velocity.y > 500) {
+                setOpen(false);
+              }
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className={cn(
+              'fixed bottom-0 z-50 w-full',
+              'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
+              'bg-card border-t border-border rounded-t-3xl',
+              'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto',
+              'animate-in slide-in-from-bottom duration-300',
+            )}
+          >
+            {/* Extended Drag Handle Hitbox */}
+            <div 
+              onPointerDown={(e) => dragControls.start(e)}
+              className="pt-2 pb-3 mb-2 w-full flex justify-center cursor-grab active:cursor-grabbing touch-none select-none"
+            >
+              <div className="w-10 h-1 bg-border rounded-full pointer-events-none" />
+            </div>
 
           {/* Swipeable Calendar Container */}
           <div 
@@ -414,6 +404,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
               Set Date & Time
             </button>
           </div>
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
