@@ -10,7 +10,8 @@ export default function AnalyticsPage() {
   const { year, month } = useAppSelector((state) => state.date);
   const dispatch = useAppDispatch();
 
-  const { data: analytics = [], isLoading: analyticsLoading } = useAnalytics(6);
+  // Load 12 months for horizontal scrolling comparison
+  const { data: analytics = [], isLoading: analyticsLoading } = useAnalytics(12);
   const { data: summary, isLoading: summaryLoading } = useMonthlySummary(year, month);
 
   return (
@@ -22,8 +23,11 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="page-content space-y-4">
-        {/* 6-month trend */}
-        <MonthlyTrendChart data={analytics} isLoading={analyticsLoading} />
+        {/* Horizontally scrollable trend line */}
+        <MonthlyTrendChart 
+          data={analytics} 
+          isLoading={analyticsLoading} 
+        />
 
         {/* Per-month deep dive */}
         <div className="bg-card border border-border rounded-2xl p-4">

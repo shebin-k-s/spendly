@@ -219,9 +219,9 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     e.currentTarget.releasePointerCapture(e.pointerId);
     
     if (handlePointerStartY.current === null || !modalRef.current) return;
-    
+
     if (handleCurrentY.current > 120) {
-      modalRef.current.style.transform = '';
+      // Do not clear transform—allow CSS to natively interpolate from current finger drop location
       setOpen(false); // Close threshold reached
     } else {
       // Snap back if threshold not reached
