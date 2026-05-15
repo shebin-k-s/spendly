@@ -16,6 +16,20 @@ export default function DashboardPage() {
   const { data: prevSummary } = useMonthlySummary(prev.year, prev.month);
   const { data: expenses = [] } = useExpensesQuery(year, month);
 
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+
+  let dailyDivisor: number;
+  let divisorLabel: string;
+  if (isCurrentMonth && expenses.length > 0) {
+    const firstDay = Math.min(...expenses.map((e) => new Date(e.date).getDate()));
+    dailyDivisor = Math.max(1, now.getDate() - firstDay + 1);
+    divisorLabel = `${dailyDivisor} day${dailyDivisor !== 1 ? 's' : ''} tracked`;
+  } else {
+    dailyDivisor = new Date(year, month, 0).getDate();
+    divisorLabel = `${dailyDivisor} days`;
+  }
+
   return (
     <div className="animate-fade-in">
       <div className="page-header">
@@ -41,8 +55,9 @@ export default function DashboardPage() {
             <div className="bg-card border border-border rounded-2xl p-4">
               <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
               <p className="text-xl font-bold">
-                {formatINR(Math.round(summary.total / new Date(year, month, 0).getDate()))}
+                {formatINR(Math.round(summary.total / dailyDivisor))}
               </p>
+              <p className="text-[10px] text-muted-foreground mt-1">{divisorLabel}</p>
             </div>
             <div className="bg-card border border-border rounded-2xl p-4">
               <p className="text-xs text-muted-foreground mb-1">Avg per Expense</p>
