@@ -1,20 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
-import { useCategoriesQuery, useUpdateCategory } from '../hooks/useCategories';
+import { ArrowLeft, Trash2 } from 'lucide-react';
+import { useCategoriesQuery, useUpdateCategory, useDeleteCategory } from '../hooks/useCategories';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
-const PRESET_COLORS = [
-  '#f97316', '#3b82f6', '#22c55e', '#ef4444',
-  '#a855f7', '#ec4899', '#eab308', '#06b6d4',
-  '#0ea5e9', '#64748b', '#8b5cf6', '#78716c',
-];
 
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: categories = [] } = useCategoriesQuery();
   const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const category = categories.find((c) => c.id === id);
 
@@ -70,7 +68,14 @@ export default function EditCategoryPage() {
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <h1 className="text-xl font-bold">Edit Category</h1>
+        <h1 className="text-xl font-bold flex-1">Edit Category</h1>
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          disabled={deleteCategory.isPending}
+          className="w-9 h-9 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive active:opacity-60 transition-opacity"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
 
       <div className="page-content space-y-6">
@@ -152,6 +157,16 @@ export default function EditCategoryPage() {
         <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
           {updateCategory.isPending ? 'Saving...' : 'Save Changes'}
         </button>
+
+        <ConfirmModal
+          open={showDeleteModal}
+          onOpenChange={setShowDeleteModal}
+          title="Delete Category"
+          description={`Delete "${category?.name}"? Expenses using it won't be deleted.`}
+          onConfirm={() =>
+            deleteCategory.mutate(id!, { onSuccess: () => navigate('/categories') })
+          }
+        />
       </div>
     </div>
   );

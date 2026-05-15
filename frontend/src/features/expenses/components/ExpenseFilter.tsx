@@ -70,17 +70,27 @@ export default function ExpenseFilter({
           </div>
 
           {/* Search */}
-          <div className="relative">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+              }
+            }}
+            className="relative"
+          >
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
-              type="text"
+              type="search"
+              enterKeyHint="done"
               placeholder="Search description or note..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:ring-1 focus:ring-primary transition-all"
+              className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
             />
             {searchTerm && (
               <button
+                type="button"
                 onClick={() => onSearchChange('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 flex items-center justify-center rounded-full hover:bg-background/50 text-muted-foreground transition-colors"
                 aria-label="Clear search"
@@ -88,7 +98,7 @@ export default function ExpenseFilter({
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-          </div>
+          </form>
 
           {/* Category */}
           <div>
