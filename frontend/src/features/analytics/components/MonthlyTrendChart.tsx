@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { currentYearMonth } from '@/lib/utils';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import type { MonthlyAnalytic } from '@/features/expenses/types';
 
 interface MonthlyTrendChartProps {
@@ -13,12 +14,20 @@ const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChartProps) {
   const { year: currentYear, month: currentMonth } = currentYearMonth();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
   useEffect(() => {
     if (scrollRef.current && data.length > 0) {
       scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
     }
   }, [data]);
+
+  // Clean up in case component unmounts while user is interacting
+  useEffect(() => {
+    return () => {
+      enableGlobalSwipe();
+    };
+  }, [enableGlobalSwipe]);
 
   if (isLoading) {
     return <div className="h-48 bg-card rounded-2xl animate-pulse border border-border" />;
@@ -39,7 +48,24 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
       {/* Scrollable Wrapper */}
       <div
         ref={scrollRef}
-        className="overflow-x-auto disable-scrollbars -mx-4 px-4 scroll-smooth"
+        className="overflow-x-auto overscroll-x-contain disable-scrollbars -mx-4 px-4 scroll-smooth"
+        onPointerDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerEnter={disableGlobalSwipe}
+        onPointerLeave={enableGlobalSwipe}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          disableGlobalSwipe();
+        }}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
+          enableGlobalSwipe();
+        }}
+        onTouchCancel={(e) => {
+          e.stopPropagation();
+          enableGlobalSwipe();
+        }}
       >
         <div style={{ width: Math.max(chartData.length * 45, 300), height: 160 }}>
           <ResponsiveContainer width="100%" height="100%">
