@@ -1,5 +1,6 @@
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Receipt } from 'lucide-react';
+import { Plus, Receipt, Filter } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { currentYearMonth, formatINR } from '@/lib/utils';
 import { useExpensesQuery } from '../hooks/useExpenses';
@@ -7,6 +8,7 @@ import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
 import ExpenseCard from '../components/ExpenseCard';
+import ExpenseFilter from '../components/ExpenseFilter';
 import ExpenseListSkeleton from '../components/ExpenseListSkeleton';
 import MonthNavigator from '../components/MonthNavigator';
 import EmptyState from '@/components/EmptyState';
@@ -17,9 +19,35 @@ export default function ExpensesPage() {
 
   const { data: expenses = [], isLoading } = useExpensesQuery(year, month);
 
-  const grouped = groupByDate(expenses);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((ex) => {
+      if (searchTerm) {
+        const query = searchTerm.toLowerCase();
+        if (
+          !ex.description.toLowerCase().includes(query) &&
+          !ex.note?.toLowerCase().includes(query)
+        ) {
+          return false;
+        }
+      }
+      if (selectedCategoryId && ex.category?.id !== selectedCategoryId) {
+        return false;
+      }
+      if (selectedPaymentMethod && ex.paymentMethod !== selectedPaymentMethod) {
+        return false;
+      }
+      return true;
+    });
+  }, [expenses, searchTerm, selectedCategoryId, selectedPaymentMethod]);
+
+  const grouped = groupByDate(filteredExpenses);
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-  const monthTotal = totalAmount(expenses);
+  const monthTotal = totalAmount(filteredExpenses);
 
   return (
     <div className="animate-fade-in">
@@ -30,12 +58,23 @@ export default function ExpensesPage() {
             <p className="text-xs text-muted-foreground">Monthly</p>
             <h1 className="text-xl font-bold">Expenses</h1>
           </div>
-          <Link
-            to="/expenses/new"
-            className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center active:opacity-80 transition-opacity"
-          >
-            <Plus className="w-5 h-5 text-primary-foreground" />
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors 
+                ${isFilterOpen || searchTerm || selectedCategoryId || selectedPaymentMethod 
+                  ? 'bg-secondary text-secondary-foreground' 
+                  : 'bg-transparent text-muted-foreground hover:bg-secondary/50'}`}
+            >
+              <Filter className="w-5 h-5" />
+            </button>
+            <Link
+              to="/expenses/new"
+              className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center active:opacity-80 transition-opacity"
+            >
+              <Plus className="w-5 h-5 text-primary-foreground" />
+            </Link>
+          </div>
         </div>
 
         {/* Month navigation + total */}
@@ -48,16 +87,31 @@ export default function ExpensesPage() {
             </div>
           )}
         </div>
+        <ExpenseFilter
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          selectedCategoryId={selectedCategoryId}
+          onCategoryChange={setSelectedCategoryId}
+          selectedPaymentMethod={selectedPaymentMethod}
+          onPaymentMethodChange={setSelectedPaymentMethod}
+          onClearFilters={() => {
+            setSearchTerm('');
+            setSelectedCategoryId('');
+            setSelectedPaymentMethod('');
+          }}
+        />
       </div>
 
       <div className="page-content">
         {isLoading ? (
           <ExpenseListSkeleton />
-        ) : expenses.length === 0 ? (
+        ) : filteredExpenses.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title="No expenses this month"
-            description="Tap + to record your first expense."
+            title={expenses.length === 0 ? "No expenses this month" : "No matching expenses"}
+            description={expenses.length === 0 ? "Tap + to record your first expense." : "Try adjusting your filters to find what you're looking for."}
             action={
               <Link to="/expenses/new" className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Add Expense
