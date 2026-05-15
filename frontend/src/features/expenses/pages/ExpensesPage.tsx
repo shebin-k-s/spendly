@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Receipt, Filter } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { currentYearMonth, formatINR } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
+import { setSearchTerm, setCategoryId, setFilterOpen, clearFilters } from '@/store/filterSlice';
 import ExpenseCard from '../components/ExpenseCard';
 import ExpenseFilter from '../components/ExpenseFilter';
 import ExpenseListSkeleton from '../components/ExpenseListSkeleton';
@@ -18,20 +19,29 @@ export default function ExpensesPage() {
   const dispatch = useAppDispatch();
 
   const { data: expenses = [], isLoading } = useExpensesQuery(year, month);
-  const [searchParams] = useSearchParams();
 
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const { isFilterOpen, searchTerm, selectedCategoryId } = useAppSelector((state) => state.filters);
 
-  // Sync category filter from URL search params (e.g., from Dashboard clicks)
+  // Automatically close filter menu on scroll
   useEffect(() => {
-    const categoryId = searchParams.get('category');
-    if (categoryId) {
-      setSelectedCategoryId(categoryId);
-      setIsFilterOpen(true);
-    }
-  }, [searchParams]);
+    if (!isFilterOpen) return;
+
+    let lastScrollY = 0;
+
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement;
+      // Do not close if the user is just horizontally scrolling the category row
+      if (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight) {
+        return;
+      }
+      
+      // Close filter on vertical content scroll
+      dispatch(setFilterOpen(false));
+    };
+
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isFilterOpen, dispatch]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((ex) => {
@@ -66,7 +76,7 @@ export default function ExpensesPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsFilterOpen(!isFilterOpen)}
+              onClick={() => dispatch(setFilterOpen(!isFilterOpen))}
               className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors 
                 ${isFilterOpen || searchTerm || selectedCategoryId 
                   ? 'bg-secondary text-secondary-foreground' 
@@ -98,15 +108,12 @@ export default function ExpensesPage() {
         </div>
         <ExpenseFilter
           isOpen={isFilterOpen}
-          onClose={() => setIsFilterOpen(false)}
+          onClose={() => dispatch(setFilterOpen(false))}
           searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
+          onSearchChange={(v) => dispatch(setSearchTerm(v))}
           selectedCategoryId={selectedCategoryId}
-          onCategoryChange={setSelectedCategoryId}
-          onClearFilters={() => {
-            setSearchTerm('');
-            setSelectedCategoryId('');
-          }}
+          onCategoryChange={(v) => dispatch(setCategoryId(v))}
+          onClearFilters={() => dispatch(clearFilters())}
         />
       </div>
 

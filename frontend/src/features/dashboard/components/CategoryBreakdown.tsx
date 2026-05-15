@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useAppDispatch } from '@/store/hooks';
+import { setCategoryId, setFilterOpen } from '@/store/filterSlice';
 import { formatINR } from '@/lib/utils';
 import type { CategoryBreakdown as Breakdown } from '@/features/expenses/types';
 
@@ -9,6 +11,15 @@ interface CategoryBreakdownProps {
 }
 
 export default function CategoryBreakdown({ breakdown, total, isLoading }: CategoryBreakdownProps) {
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+
+  const handleCategoryClick = (categoryId: string) => {
+    dispatch(setCategoryId(categoryId));
+    dispatch(setFilterOpen(true));
+    navigate('/expenses');
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -28,10 +39,10 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
         {breakdown.map((item) => {
           const pct = total > 0 ? (item.total / total) * 100 : 0;
           return (
-            <Link 
+            <button 
               key={item.categoryId}
-              to={`/expenses?category=${item.categoryId}`}
-              className="block hover:bg-secondary/30 p-2 -mx-2 rounded-xl transition-colors"
+              onClick={() => handleCategoryClick(item.categoryId)}
+              className="block w-full text-left hover:bg-secondary/30 p-2 -mx-2 rounded-xl transition-colors"
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
@@ -47,7 +58,7 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
                   style={{ width: `${pct}%`, backgroundColor: item.color }}
                 />
               </div>
-            </Link>
+            </button>
           );
         })}
       </div>

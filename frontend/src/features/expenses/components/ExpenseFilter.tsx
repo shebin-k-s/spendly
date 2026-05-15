@@ -65,9 +65,6 @@ export default function ExpenseFilter({
                   Clear all
                 </button>
               )}
-              <button onClick={onClose} className="p-1 rounded-full bg-secondary/80 hover:bg-secondary transition-colors">
-                <X className="w-4 h-4" />
-              </button>
             </div>
           </div>
 
@@ -79,8 +76,17 @@ export default function ExpenseFilter({
               placeholder="Search description or note..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-4 text-sm outline-none focus:ring-1 focus:ring-primary transition-all"
+              className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:ring-1 focus:ring-primary transition-all"
             />
+            {searchTerm && (
+              <button
+                onClick={() => onSearchChange('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 flex items-center justify-center rounded-full hover:bg-background/50 text-muted-foreground transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Category */}
