@@ -47,6 +47,12 @@ export default function ExpenseFilter({
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.2 }}
           className="border-b border-border bg-card/50 px-4 py-4 space-y-4"
+          onPointerDown={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onTouchCancel={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Filter Transactions</h3>
@@ -80,15 +86,7 @@ export default function ExpenseFilter({
           {/* Category */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 block">Category</label>
-            <div 
-              className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
-              onPointerDown={(e) => e.stopPropagation()}
-              onWheel={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
-              onTouchCancel={(e) => e.stopPropagation()}
-            >
+            <div className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1">
               <button
                 onClick={() => onCategoryChange('')}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap

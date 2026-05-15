@@ -1,9 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import dateReducer from './dateSlice';
+import filterReducer from './filterSlice';
 
 export const store = configureStore({
   reducer: {
     date: dateReducer,
+    filters: filterReducer,
   },
 });
 
