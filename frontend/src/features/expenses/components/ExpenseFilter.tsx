@@ -27,9 +27,10 @@ export default function ExpenseFilter({
   const hasActiveFilters = searchTerm || selectedCategoryId;
 
   useEffect(() => {
-    if (isOpen && selectedCategoryId) {
+    if (isOpen) {
       const timer = setTimeout(() => {
-        const el = document.getElementById(`category-filter-${selectedCategoryId}`);
+        const elId = selectedCategoryId ? `category-filter-${selectedCategoryId}` : 'category-filter-all';
+        const el = document.getElementById(elId);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
@@ -92,8 +93,17 @@ export default function ExpenseFilter({
           {/* Category */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 block">Category</label>
-            <div className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1">
+            <div 
+              className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
+              onPointerDown={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              onTouchCancel={(e) => e.stopPropagation()}
+            >
               <button
+                id="category-filter-all"
                 onClick={() => onCategoryChange('')}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
                   ${!selectedCategoryId ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}

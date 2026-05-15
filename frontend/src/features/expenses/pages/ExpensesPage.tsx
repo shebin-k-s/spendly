@@ -26,9 +26,17 @@ export default function ExpensesPage() {
   useEffect(() => {
     if (!isFilterOpen) return;
 
-    let lastScrollY = 0;
+    // Wait for the open animation to finish before listening to scroll,
+    // otherwise the height expansion causes an immediate layout scroll event
+    // that instantly closes it again.
+    let isActive = false;
+    const timer = setTimeout(() => {
+      isActive = true;
+    }, 400);
 
     const handleScroll = (e: Event) => {
+      if (!isActive) return;
+      
       const target = e.target as HTMLElement;
       // Do not close if the user is just horizontally scrolling the category row
       if (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight) {
@@ -40,7 +48,10 @@ export default function ExpensesPage() {
     };
 
     window.addEventListener('scroll', handleScroll, true);
-    return () => window.removeEventListener('scroll', handleScroll, true);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, [isFilterOpen, dispatch]);
 
   const filteredExpenses = useMemo(() => {
