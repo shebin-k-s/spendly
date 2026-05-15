@@ -1,10 +1,7 @@
+import { useEffect } from 'react';
 import { Search, X } from 'lucide-react';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
-import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
-import type { PaymentMethod } from '../types';
 import { AnimatePresence, motion } from 'framer-motion';
-
-const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 
 interface ExpenseFilterProps {
   isOpen: boolean;
@@ -13,8 +10,6 @@ interface ExpenseFilterProps {
   onSearchChange: (value: string) => void;
   selectedCategoryId: string;
   onCategoryChange: (id: string) => void;
-  selectedPaymentMethod: string;
-  onPaymentMethodChange: (method: string) => void;
   onClearFilters: () => void;
 }
 
@@ -25,13 +20,23 @@ export default function ExpenseFilter({
   onSearchChange,
   selectedCategoryId,
   onCategoryChange,
-  selectedPaymentMethod,
-  onPaymentMethodChange,
   onClearFilters,
 }: ExpenseFilterProps) {
   const { data: categories = [] } = useCategoriesQuery();
 
-  const hasActiveFilters = searchTerm || selectedCategoryId || selectedPaymentMethod;
+  const hasActiveFilters = searchTerm || selectedCategoryId;
+
+  useEffect(() => {
+    if (isOpen && selectedCategoryId) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`category-filter-${selectedCategoryId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, selectedCategoryId]);
 
   return (
     <AnimatePresence>
@@ -75,7 +80,15 @@ export default function ExpenseFilter({
           {/* Category */}
           <div>
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 block">Category</label>
-            <div className="flex gap-2 overflow-x-auto disable-scrollbars pb-1">
+            <div 
+              className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
+              onPointerDown={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              onTouchCancel={(e) => e.stopPropagation()}
+            >
               <button
                 onClick={() => onCategoryChange('')}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
@@ -86,36 +99,13 @@ export default function ExpenseFilter({
               {categories.map((cat) => (
                 <button
                   key={cat.id}
+                  id={`category-filter-${cat.id}`}
                   onClick={() => onCategoryChange(cat.id)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap
                     ${selectedCategoryId === cat.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
                 >
                   <span>{cat.icon}</span>
                   <span>{cat.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Payment Method */}
-          <div>
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 block">Payment Method</label>
-            <div className="flex gap-2 overflow-x-auto disable-scrollbars pb-1">
-              <button
-                onClick={() => onPaymentMethodChange('')}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
-                  ${!selectedPaymentMethod ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-              >
-                All
-              </button>
-              {PAYMENT_METHODS.map((method) => (
-                <button
-                  key={method}
-                  onClick={() => onPaymentMethodChange(method)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
-                    ${selectedPaymentMethod === method ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-                >
-                  {PAYMENT_METHOD_LABELS[method]}
                 </button>
               ))}
             </div>

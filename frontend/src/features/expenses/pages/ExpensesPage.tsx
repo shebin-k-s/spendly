@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, Filter } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { currentYearMonth, formatINR } from '@/lib/utils';
@@ -18,11 +18,20 @@ export default function ExpensesPage() {
   const dispatch = useAppDispatch();
 
   const { data: expenses = [], isLoading } = useExpensesQuery(year, month);
+  const [searchParams] = useSearchParams();
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+
+  // Sync category filter from URL search params (e.g., from Dashboard clicks)
+  useEffect(() => {
+    const categoryId = searchParams.get('category');
+    if (categoryId) {
+      setSelectedCategoryId(categoryId);
+      setIsFilterOpen(true);
+    }
+  }, [searchParams]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((ex) => {
@@ -38,12 +47,9 @@ export default function ExpensesPage() {
       if (selectedCategoryId && ex.category?.id !== selectedCategoryId) {
         return false;
       }
-      if (selectedPaymentMethod && ex.paymentMethod !== selectedPaymentMethod) {
-        return false;
-      }
       return true;
     });
-  }, [expenses, searchTerm, selectedCategoryId, selectedPaymentMethod]);
+  }, [expenses, searchTerm, selectedCategoryId]);
 
   const grouped = groupByDate(filteredExpenses);
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
@@ -61,12 +67,15 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors 
-                ${isFilterOpen || searchTerm || selectedCategoryId || selectedPaymentMethod 
+              className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors 
+                ${isFilterOpen || searchTerm || selectedCategoryId 
                   ? 'bg-secondary text-secondary-foreground' 
                   : 'bg-transparent text-muted-foreground hover:bg-secondary/50'}`}
             >
               <Filter className="w-5 h-5" />
+              {(searchTerm || selectedCategoryId) && (
+                <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-secondary" />
+              )}
             </button>
             <Link
               to="/expenses/new"
@@ -94,12 +103,9 @@ export default function ExpensesPage() {
           onSearchChange={setSearchTerm}
           selectedCategoryId={selectedCategoryId}
           onCategoryChange={setSelectedCategoryId}
-          selectedPaymentMethod={selectedPaymentMethod}
-          onPaymentMethodChange={setSelectedPaymentMethod}
           onClearFilters={() => {
             setSearchTerm('');
             setSelectedCategoryId('');
-            setSelectedPaymentMethod('');
           }}
         />
       </div>

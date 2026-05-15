@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { formatINR } from '@/lib/utils';
 import type { CategoryBreakdown as Breakdown } from '@/features/expenses/types';
 
@@ -27,7 +28,11 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
         {breakdown.map((item) => {
           const pct = total > 0 ? (item.total / total) * 100 : 0;
           return (
-            <div key={item.categoryId}>
+            <Link 
+              key={item.categoryId}
+              to={`/expenses?category=${item.categoryId}`}
+              className="block hover:bg-secondary/30 p-2 -mx-2 rounded-xl transition-colors"
+            >
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="text-base">{item.icon}</span>
@@ -42,7 +47,7 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
                   style={{ width: `${pct}%`, backgroundColor: item.color }}
                 />
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
