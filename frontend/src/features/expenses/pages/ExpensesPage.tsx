@@ -34,8 +34,12 @@ export default function ExpensesPage() {
     const handleScroll = (e: Event) => {
       if (!isActive) return;
       const target = e.target as HTMLElement;
-      if (target.closest('[data-radix-portal]')) return;
-      if (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight) return;
+      if (typeof target.closest === 'function' && (target.closest('[data-radix-portal]') || target.closest('[data-filter-panel]'))) {
+        return;
+      }
+      if (typeof target.closest !== 'function' || (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight)) {
+        return;
+      }
       dispatch(setFilterOpen(false));
     };
     window.addEventListener('scroll', handleScroll, true);
