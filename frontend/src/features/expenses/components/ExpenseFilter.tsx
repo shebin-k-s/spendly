@@ -72,17 +72,12 @@ export default function ExpenseFilter({
   return (
     <>
       <div
+        data-filter-panel
         className="overflow-hidden border-b border-border transition-all duration-300 ease-in-out"
         style={{
           maxHeight: isOpen ? '400px' : '0',
           opacity: isOpen ? 1 : 0,
         }}
-        onPointerDown={(e) => e.stopPropagation()}
-        onWheel={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
-        onTouchCancel={(e) => e.stopPropagation()}
       >
         <div className="bg-card/50 px-4 py-4 space-y-4">
           <div className="flex items-center justify-between">
@@ -142,12 +137,6 @@ export default function ExpenseFilter({
             </div>
             <div
               className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
-              onPointerDown={(e) => e.stopPropagation()}
-              onWheel={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchMove={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => e.stopPropagation()}
-              onTouchCancel={(e) => e.stopPropagation()}
             >
               <button
                 id="category-filter-all"
@@ -186,12 +175,6 @@ export default function ExpenseFilter({
           <Dialog.Content
             ref={modalRef}
             data-filter-panel
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchMove={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
             className="fixed bottom-0 inset-x-0 w-full sm:max-w-md sm:mx-auto z-50 bg-card border-t border-border rounded-t-3xl max-h-[80vh] flex flex-col duration-500 ease-in-out data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom sheet-exit"
           >
             {/* Drag handle */}
