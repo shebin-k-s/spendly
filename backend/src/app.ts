@@ -28,11 +28,11 @@ app.use(cors({
     },
     credentials: true,
 }));
-app.use((req, res, next) => {
-    setTimeout(() => {
-        next();
-    }, 4000); // 4 seconds delay
-})
+// app.use((req, res, next) => {
+//     setTimeout(() => {
+//         next();
+//     }, 4000); // 4 seconds delay
+// })
 
 app.use(express.json());
 app.use(cookieParser());
