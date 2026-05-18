@@ -276,7 +276,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
             'fixed bottom-0 z-50 w-full',
             'inset-x-0 sm:max-w-md sm:mx-auto',
             'bg-card border-t border-border rounded-t-3xl',
-            'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto disable-scrollbars',
+            'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto overscroll-contain disable-scrollbars',
             'duration-500 ease-in-out',
             'data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom',
             'sheet-exit'
@@ -299,7 +299,6 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
             onPointerMove={handleCalendarPointerMove}
             onPointerUp={handleCalendarPointerUp}
             onWheel={(e) => {
-              e.stopPropagation();
               if (wheelCooldown.current) return;
               if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 10) {
                 wheelCooldown.current = true;
