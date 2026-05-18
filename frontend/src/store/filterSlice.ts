@@ -35,8 +35,11 @@ const filterSlice = createSlice({
       state.searchTerm = '';
       state.selectedCategoryIds = [];
     },
+    clearCategories: (state) => {
+      state.selectedCategoryIds = [];
+    },
   },
 });
 
-export const { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters } = filterSlice.actions;
+export const { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } = filterSlice.actions;
 export default filterSlice.reducer;

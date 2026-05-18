@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Search, X, Check, ChevronsUpDown } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
 interface ExpenseFilterProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface ExpenseFilterProps {
   selectedCategoryIds: string[];
   onCategoryToggle: (id: string) => void;
   onClearFilters: () => void;
+  onClearCategories: () => void;
 }
 
 export default function ExpenseFilter({
@@ -20,9 +22,11 @@ export default function ExpenseFilter({
   selectedCategoryIds,
   onCategoryToggle,
   onClearFilters,
+  onClearCategories,
 }: ExpenseFilterProps) {
   const { data: categories = [] } = useCategoriesQuery();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
   const modalRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);
@@ -73,6 +77,24 @@ export default function ExpenseFilter({
     <>
       <div
         data-filter-panel
+        data-no-swipe
+        onPointerDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerEnter={disableGlobalSwipe}
+        onPointerLeave={enableGlobalSwipe}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          disableGlobalSwipe();
+        }}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => {
+          e.stopPropagation();
+          enableGlobalSwipe();
+        }}
+        onTouchCancel={(e) => {
+          e.stopPropagation();
+          enableGlobalSwipe();
+        }}
         className="overflow-hidden border-b border-border transition-all duration-300 ease-in-out"
         style={{
           maxHeight: isOpen ? '400px' : '0',
@@ -140,7 +162,7 @@ export default function ExpenseFilter({
             >
               <button
                 id="category-filter-all"
-                onClick={() => selectedCategoryIds.length > 0 && onClearFilters()}
+                onClick={() => selectedCategoryIds.length > 0 && onClearCategories()}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
                   ${selectedCategoryIds.length === 0
                     ? 'bg-primary text-primary-foreground'
@@ -193,7 +215,7 @@ export default function ExpenseFilter({
                 <span className="text-base font-semibold">Select Categories</span>
                 {selectedCategoryIds.length > 0 && (
                   <button
-                    onClick={onClearFilters}
+                    onClick={onClearCategories}
                     className="text-xs text-muted-foreground px-2 py-1"
                   >
                     Clear
@@ -205,7 +227,7 @@ export default function ExpenseFilter({
             <div className="flex-1 overflow-y-auto overscroll-contain disable-scrollbars px-4 pt-3 pb-4">
               {/* All option — full width */}
               <button
-                onClick={() => selectedCategoryIds.length > 0 && onClearFilters()}
+                onClick={() => selectedCategoryIds.length > 0 && onClearCategories()}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mb-3
                   ${selectedCategoryIds.length === 0
                     ? 'bg-primary/10 text-primary'

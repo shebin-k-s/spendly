@@ -7,7 +7,7 @@ import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
-import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters } from '@/store/filterSlice';
+import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import ExpenseCard from '../components/ExpenseCard';
@@ -167,6 +167,7 @@ export default function ExpensesPage() {
           selectedCategoryIds={selectedCategoryIds}
           onCategoryToggle={(id) => dispatch(toggleCategoryId(id))}
           onClearFilters={() => dispatch(clearFilters())}
+          onClearCategories={() => dispatch(clearCategories())}
         />
 
         {/* Active filter chip row — always visible when filters are on */}
