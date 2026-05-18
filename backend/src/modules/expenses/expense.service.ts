@@ -126,7 +126,7 @@ export class ExpenseService {
     }
 
     async getAnalytics(months: number = 6) {
-        const result: Array<{ year: number; month: number; total: number; count: number }> = [];
+        const result: Array<{ year: number; month: number; total: number; cashbackTotal: number; count: number }> = [];
 
         const now = new Date();
         for (let i = months - 1; i >= 0; i--) {
