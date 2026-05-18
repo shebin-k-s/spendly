@@ -148,7 +148,7 @@ export default function ExpenseFilter({
 
       {/* Category picker bottom sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="bottom" className="rounded-t-3xl px-0 max-h-[80vh] flex flex-col border-t border-x border-border">
+        <SheetContent side="bottom" className="rounded-t-3xl px-0 max-h-[80vh] flex flex-col border-t border-x border-border sm:max-w-md sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full">
           {/* Drag handle */}
           <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />

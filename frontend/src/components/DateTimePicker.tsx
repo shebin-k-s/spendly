@@ -133,22 +133,22 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
 
   const calendarTouchStartX = useRef<number | null>(null);
   const calendarTouchStartY = useRef<number | null>(null);
+  const wheelCooldown = useRef(false);
 
   const handleCalendarPointerDown = (e: React.PointerEvent) => {
-    e.stopPropagation();
     calendarTouchStartX.current = e.clientX;
     calendarTouchStartY.current = e.clientY;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    // Do NOT call setPointerCapture here — it would swallow click events on day buttons
   };
 
   const handleCalendarPointerMove = (e: React.PointerEvent) => {
-    e.stopPropagation();
     if (calendarTouchStartX.current === null || calendarTouchStartY.current === null) return;
-    
+
     const deltaX = calendarTouchStartX.current - e.clientX;
     const deltaY = calendarTouchStartY.current - e.clientY;
 
-    if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+    // Only trigger month switch on clearly horizontal swipe
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 2) {
       if (deltaX > 0) {
         setViewMonth((m) => addMonths(m, 1));
       } else {
@@ -159,11 +159,9 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
     }
   };
 
-  const handleCalendarPointerUp = (e: React.PointerEvent) => {
-    e.stopPropagation();
+  const handleCalendarPointerUp = () => {
     calendarTouchStartX.current = null;
     calendarTouchStartY.current = null;
-    e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const calendarDays = useMemo(() => {
@@ -307,6 +305,16 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
             onPointerDown={handleCalendarPointerDown}
             onPointerMove={handleCalendarPointerMove}
             onPointerUp={handleCalendarPointerUp}
+            onWheel={(e) => {
+              e.stopPropagation();
+              if (wheelCooldown.current) return;
+              if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 10) {
+                wheelCooldown.current = true;
+                if (e.deltaX > 0) setViewMonth((m) => addMonths(m, 1));
+                else setViewMonth((m) => subMonths(m, 1));
+                setTimeout(() => { wheelCooldown.current = false; }, 400);
+              }
+            }}
             className="touch-pan-y relative"
           >
             {/* Month navigation */}
