@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -27,23 +27,64 @@ export default function ExpensesPage() {
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
   // Close filter panel on vertical scroll
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
   useEffect(() => {
     if (!isFilterOpen) return;
-    let isActive = false;
-    const timer = setTimeout(() => { isActive = true; }, 400);
-    const handleScroll = (e: Event) => {
-      if (!isActive) return;
+    
+    // Small grace period so the filter open animation doesn't immediately trigger close
+    let armed = false;
+    const armTimer = setTimeout(() => { armed = true; }, 350);
+
+    const onTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
-      if (typeof target.closest === 'function' && (target.closest('[data-radix-portal]') || target.closest('[data-filter-panel]'))) {
-        return;
-      }
-      if (typeof target.closest !== 'function' || (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight)) {
-        return;
-      }
-      dispatch(setFilterOpen(false));
+      // Ignore touches that start inside the filter panel / chip row / radix portal
+      if (typeof target.closest === 'function' && (target.closest('[data-no-swipe]') || target.closest('[data-filter-panel]') || target.closest('[data-radix-portal]'))) return;
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
-    window.addEventListener('scroll', handleScroll, true);
-    return () => { clearTimeout(timer); window.removeEventListener('scroll', handleScroll, true); };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!armed || !touchStartRef.current) return;
+      const target = e.target as HTMLElement;
+      if (typeof target.closest === 'function' && (target.closest('[data-no-swipe]') || target.closest('[data-filter-panel]') || target.closest('[data-radix-portal]'))) return;
+
+      const dx = Math.abs(e.touches[0].clientX - touchStartRef.current.x);
+      // When scrolling down the page, finger moves UP, meaning clientY decreases.
+      const dy = touchStartRef.current.y - e.touches[0].clientY;
+
+      // Only close on clearly downward scroll (dy > 30px, heavily vertical)
+      if (dy > 30 && dy > dx * 1.5) {
+        dispatch(setFilterOpen(false));
+        touchStartRef.current = null;
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (!armed) return;
+      const target = e.target as HTMLElement;
+      if (typeof target.closest === 'function' && (target.closest('[data-no-swipe]') || target.closest('[data-filter-panel]') || target.closest('[data-radix-portal]'))) return;
+
+      // Only close on clearly downward scroll (e.deltaY > positive threshold)
+      if (e.deltaY > 15 && e.deltaY > Math.abs(e.deltaX) * 1.5) {
+        dispatch(setFilterOpen(false));
+      }
+    };
+
+    const onTouchEnd = () => { touchStartRef.current = null; };
+
+    // Use passive capture to ensure we read touches before any preventDefault
+    window.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true, capture: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+    window.addEventListener('wheel', onWheel, { passive: true, capture: true });
+
+    return () => {
+      clearTimeout(armTimer);
+      window.removeEventListener('touchstart', onTouchStart, true);
+      window.removeEventListener('touchmove', onTouchMove, true);
+      window.removeEventListener('touchend', onTouchEnd, true);
+      window.removeEventListener('wheel', onWheel, true);
+    };
   }, [isFilterOpen, dispatch]);
 
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
