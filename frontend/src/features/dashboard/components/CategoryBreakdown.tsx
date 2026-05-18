@@ -24,10 +24,19 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-12 bg-card rounded-xl animate-pulse border border-border" />
-        ))}
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide opacity-50">By Category</p>
+        <div className="space-y-3 mt-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex justify-between items-center p-2 -mx-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-secondary animate-pulse" />
+                <div className="w-24 h-4 rounded bg-secondary animate-pulse" />
+              </div>
+              <div className="w-16 h-4 rounded bg-secondary animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

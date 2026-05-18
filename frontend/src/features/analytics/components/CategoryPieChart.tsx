@@ -13,7 +13,19 @@ export default function CategoryPieChart({ breakdown, total, isLoading }: Catego
   const showGross = useAppSelector((state) => state.prefs.showGross);
 
   if (isLoading) {
-    return <div className="h-64 bg-card rounded-2xl animate-pulse border border-border" />;
+    return (
+      <div className="bg-card border border-border rounded-2xl p-4">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4 opacity-50">Category Split</p>
+        <div className="flex justify-center mb-6 mt-8">
+          <div className="w-[160px] h-[160px] rounded-full bg-secondary animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-8">
+          {[1, 2, 3, 4].map((i) => (
+             <div key={i} className="h-3 bg-secondary/70 rounded animate-pulse w-full max-w-[100px]" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (breakdown.length === 0) return null;

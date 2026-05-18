@@ -74,9 +74,12 @@ export default function EditExpensePage() {
           </button>
           <h1 className="text-xl font-bold flex-1">Edit Expense</h1>
         </div>
-        <div className="page-content space-y-4">
+        <div className="page-content space-y-5 mt-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-14 bg-card rounded-xl animate-pulse border border-border" />
+            <div key={i} className="space-y-2">
+              <div className="h-3 w-24 bg-secondary/80 animate-pulse rounded" />
+              <div className="h-12 bg-card border border-border rounded-xl animate-pulse" />
+            </div>
           ))}
         </div>
       </div>

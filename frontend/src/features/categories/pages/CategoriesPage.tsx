@@ -59,7 +59,10 @@ export default function CategoriesPage() {
         {isLoading ? (
           <div className="flex flex-wrap gap-2">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-14 w-36 bg-card rounded-2xl animate-pulse border border-border" />
+              <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl border border-border bg-card">
+                <div className="w-9 h-9 rounded-xl bg-secondary animate-pulse shrink-0" />
+                <div className="w-20 h-4 bg-secondary animate-pulse rounded" />
+              </div>
             ))}
           </div>
         ) : sorted.length === 0 ? (

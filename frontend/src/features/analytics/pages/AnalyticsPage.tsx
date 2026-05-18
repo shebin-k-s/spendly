@@ -38,7 +38,14 @@ export default function AnalyticsPage() {
           </div>
 
           {summaryLoading ? (
-            <div className="h-6 bg-secondary rounded animate-pulse" />
+            <div className="grid grid-cols-3 gap-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-secondary/50 rounded-xl p-3 flex flex-col items-center gap-2">
+                  <div className="h-3 w-12 bg-secondary rounded animate-pulse" />
+                  <div className="h-5 w-16 bg-secondary rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
           ) : summary && summary.count > 0 ? (
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2">

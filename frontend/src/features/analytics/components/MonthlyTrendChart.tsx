@@ -32,7 +32,12 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
   }, [enableGlobalSwipe]);
 
   if (isLoading) {
-    return <div className="h-48 bg-card rounded-2xl animate-pulse border border-border" />;
+    return (
+      <div className="bg-card border border-border rounded-2xl p-4 flex flex-col">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-4 opacity-50">Monthly Trend</p>
+        <div className="h-[160px] w-full bg-secondary rounded-lg animate-pulse" />
+      </div>
+    );
   }
 
   const chartData = data.map((d) => ({

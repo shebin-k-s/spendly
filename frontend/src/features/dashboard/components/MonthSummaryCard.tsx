@@ -36,7 +36,16 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
   };
 
   if (isLoading) {
-    return <div className="h-28 bg-card rounded-2xl animate-pulse border border-border" />;
+    return (
+      <div className="bg-card border border-border rounded-2xl p-4 flex flex-col">
+        <p className="text-xs text-muted-foreground mb-1 opacity-50">Total Spent This Month</p>
+        <div className="h-9 w-32 bg-secondary animate-pulse rounded my-1" />
+        <div className="flex items-center justify-between mt-2">
+          <div className="h-4 w-20 bg-secondary animate-pulse rounded" />
+          <div className="h-4 w-24 bg-secondary animate-pulse rounded" />
+        </div>
+      </div>
+    );
   }
 
   return (
