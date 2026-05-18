@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '@/store/hooks';
-import { setCategoryId, setFilterOpen } from '@/store/filterSlice';
+import { clearFilters, toggleCategoryId, setFilterOpen } from '@/store/filterSlice';
 import { formatINR } from '@/lib/utils';
 import type { CategoryBreakdown as Breakdown } from '@/features/expenses/types';
 
@@ -15,7 +15,8 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
   const dispatch = useAppDispatch();
 
   const handleCategoryClick = (categoryId: string) => {
-    dispatch(setCategoryId(categoryId));
+    dispatch(clearFilters());
+    dispatch(toggleCategoryId(categoryId));
     dispatch(setFilterOpen(true));
     navigate('/expenses');
   };

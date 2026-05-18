@@ -2,13 +2,13 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 export interface FilterState {
   searchTerm: string;
-  selectedCategoryId: string;
+  selectedCategoryIds: string[];
   isFilterOpen: boolean;
 }
 
 const initialState: FilterState = {
   searchTerm: '',
-  selectedCategoryId: '',
+  selectedCategoryIds: [],
   isFilterOpen: false,
 };
 
@@ -19,18 +19,24 @@ const filterSlice = createSlice({
     setSearchTerm: (state, action: PayloadAction<string>) => {
       state.searchTerm = action.payload;
     },
-    setCategoryId: (state, action: PayloadAction<string>) => {
-      state.selectedCategoryId = action.payload;
+    toggleCategoryId: (state, action: PayloadAction<string>) => {
+      const id = action.payload;
+      const idx = state.selectedCategoryIds.indexOf(id);
+      if (idx === -1) {
+        state.selectedCategoryIds.push(id);
+      } else {
+        state.selectedCategoryIds.splice(idx, 1);
+      }
     },
     setFilterOpen: (state, action: PayloadAction<boolean>) => {
       state.isFilterOpen = action.payload;
     },
     clearFilters: (state) => {
       state.searchTerm = '';
-      state.selectedCategoryId = '';
+      state.selectedCategoryIds = [];
     },
   },
 });
 
-export const { setSearchTerm, setCategoryId, setFilterOpen, clearFilters } = filterSlice.actions;
+export const { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters } = filterSlice.actions;
 export default filterSlice.reducer;

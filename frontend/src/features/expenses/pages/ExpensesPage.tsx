@@ -1,13 +1,15 @@
 import { useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Receipt, Filter } from 'lucide-react';
+import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import { currentYearMonth, formatINR } from '@/lib/utils';
+import { formatINR } from '@/lib/utils';
 import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
-import { setSearchTerm, setCategoryId, setFilterOpen, clearFilters } from '@/store/filterSlice';
+import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters } from '@/store/filterSlice';
+import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import ExpenseCard from '../components/ExpenseCard';
 import ExpenseFilter from '../components/ExpenseFilter';
 import ExpenseListSkeleton from '../components/ExpenseListSkeleton';
@@ -19,58 +21,44 @@ export default function ExpensesPage() {
   const dispatch = useAppDispatch();
 
   const { data: expenses = [], isLoading } = useExpensesQuery(year, month);
+  const { data: categories = [] } = useCategoriesQuery();
+  const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
 
-  const { isFilterOpen, searchTerm, selectedCategoryId } = useAppSelector((state) => state.filters);
+  const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
-  // Automatically close filter menu on scroll
+  // Close filter panel on vertical scroll
   useEffect(() => {
     if (!isFilterOpen) return;
-
-    // Wait for the open animation to finish before listening to scroll,
-    // otherwise the height expansion causes an immediate layout scroll event
-    // that instantly closes it again.
     let isActive = false;
-    const timer = setTimeout(() => {
-      isActive = true;
-    }, 400);
-
+    const timer = setTimeout(() => { isActive = true; }, 400);
     const handleScroll = (e: Event) => {
       if (!isActive) return;
-      
       const target = e.target as HTMLElement;
-      // Do not close if the user is just horizontally scrolling the category row
-      if (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight) {
-        return;
-      }
-      
-      // Close filter on vertical content scroll
+      if (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight) return;
       dispatch(setFilterOpen(false));
     };
-
     window.addEventListener('scroll', handleScroll, true);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('scroll', handleScroll, true);
-    };
+    return () => { clearTimeout(timer); window.removeEventListener('scroll', handleScroll, true); };
   }, [isFilterOpen, dispatch]);
+
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+
+  useEffect(() => {
+    return () => {
+      enableGlobalSwipe();
+    };
+  }, [enableGlobalSwipe]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((ex) => {
       if (searchTerm) {
-        const query = searchTerm.toLowerCase();
-        if (
-          !ex.description.toLowerCase().includes(query) &&
-          !ex.note?.toLowerCase().includes(query)
-        ) {
-          return false;
-        }
+        const q = searchTerm.toLowerCase();
+        if (!ex.description.toLowerCase().includes(q) && !ex.note?.toLowerCase().includes(q)) return false;
       }
-      if (selectedCategoryId && ex.category?.id !== selectedCategoryId) {
-        return false;
-      }
+      if (selectedCategoryIds.length > 0 && !selectedCategoryIds.includes(ex.category?.id ?? '')) return false;
       return true;
     });
-  }, [expenses, searchTerm, selectedCategoryId]);
+  }, [expenses, searchTerm, selectedCategoryIds]);
 
   const grouped = groupByDate(filteredExpenses);
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
@@ -78,8 +66,10 @@ export default function ExpensesPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Header */}
+      {/* Sticky header */}
       <div className="sticky top-0 z-20 bg-background border-b border-border flex flex-col w-full">
+
+        {/* Title row */}
         <div className="px-4 pt-4 pb-3 flex items-center justify-between w-full">
           <div>
             <p className="text-xs text-muted-foreground">Monthly</p>
@@ -88,14 +78,16 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => dispatch(setFilterOpen(!isFilterOpen))}
-              className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors 
-                ${isFilterOpen || searchTerm || selectedCategoryId 
-                  ? 'bg-secondary text-secondary-foreground' 
-                  : 'bg-transparent text-muted-foreground hover:bg-secondary/50'}`}
+              className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors
+                ${isFilterOpen || activeFilterCount > 0
+                  ? 'bg-secondary text-secondary-foreground'
+                  : 'bg-transparent text-muted-foreground'}`}
             >
               <Filter className="w-5 h-5" />
-              {(searchTerm || selectedCategoryId) && (
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary ring-2 ring-secondary" />
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
               )}
             </button>
             <Link
@@ -107,39 +99,118 @@ export default function ExpensesPage() {
           </div>
         </div>
 
-        {/* Month navigation + total */}
+        {/* Month nav + total */}
         <div className="px-4 pb-3 flex items-center justify-between w-full">
           <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
           {!isLoading && expenses.length > 0 && (
             <div className="text-right">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {activeFilterCount > 0 ? 'Filtered' : 'Total'}
+              </p>
               <p className="text-base font-bold text-primary">{formatINR(monthTotal)}</p>
             </div>
           )}
         </div>
+
+        {/* Collapsible filter panel */}
         <ExpenseFilter
           isOpen={isFilterOpen}
           onClose={() => dispatch(setFilterOpen(false))}
           searchTerm={searchTerm}
           onSearchChange={(v) => dispatch(setSearchTerm(v))}
-          selectedCategoryId={selectedCategoryId}
-          onCategoryChange={(v) => dispatch(setCategoryId(v))}
+          selectedCategoryIds={selectedCategoryIds}
+          onCategoryToggle={(id) => dispatch(toggleCategoryId(id))}
           onClearFilters={() => dispatch(clearFilters())}
         />
+
+        {/* Active filter chip row — always visible when filters are on */}
+        <div
+          className="overflow-hidden transition-all duration-300 ease-in-out"
+          style={{ maxHeight: activeFilterCount > 0 ? '64px' : '0', opacity: activeFilterCount > 0 ? 1 : 0 }}
+        >
+          <div
+            data-no-swipe
+            className="flex items-center gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars px-4 pt-3 pb-3"
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onPointerEnter={disableGlobalSwipe}
+            onPointerLeave={enableGlobalSwipe}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              disableGlobalSwipe();
+            }}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => {
+              e.stopPropagation();
+              enableGlobalSwipe();
+            }}
+            onTouchCancel={(e) => {
+              e.stopPropagation();
+              enableGlobalSwipe();
+            }}
+          >
+            {searchTerm && (
+              <span className="flex items-center gap-1.5 flex-shrink-0 bg-secondary border border-border rounded-xl pl-2.5 pr-1 py-1.5 text-xs font-medium">
+                <Search className="w-3 h-3 text-muted-foreground shrink-0" />
+                <span className="max-w-[110px] truncate text-foreground">"{searchTerm}"</span>
+                <button
+                  onClick={() => dispatch(setSearchTerm(''))}
+                  className="ml-0.5 w-5 h-5 rounded-lg bg-muted flex items-center justify-center text-muted-foreground active:opacity-60"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {selectedCategoryIds.map((id) => {
+              const cat = categories.find((c) => c.id === id);
+              if (!cat) return null;
+              return (
+                <span
+                  key={id}
+                  className="flex items-center gap-1.5 flex-shrink-0 bg-secondary border border-border rounded-xl pl-1.5 pr-1 py-1.5 text-xs font-medium"
+                >
+                  <span
+                    className="w-5 h-5 rounded-md flex items-center justify-center text-sm shrink-0"
+                    style={{ backgroundColor: cat.color }}
+                  >
+                    {cat.icon}
+                  </span>
+                  <span className="max-w-[90px] truncate text-foreground">{cat.name}</span>
+                  <button
+                    onClick={() => dispatch(toggleCategoryId(id))}
+                    className="ml-0.5 w-5 h-5 rounded-lg bg-muted flex items-center justify-center text-muted-foreground active:opacity-60"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
+      {/* Content */}
       <div className="page-content">
         {isLoading ? (
           <ExpenseListSkeleton />
         ) : filteredExpenses.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title={expenses.length === 0 ? "No expenses this month" : "No matching expenses"}
-            description={expenses.length === 0 ? "Tap + to record your first expense." : "Try adjusting your filters to find what you're looking for."}
+            title={expenses.length === 0 ? 'No expenses this month' : 'No matching expenses'}
+            description={
+              expenses.length === 0
+                ? 'Tap + to record your first expense.'
+                : 'Try adjusting your filters.'
+            }
             action={
-              <Link to="/expenses/new" className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Add Expense
-              </Link>
+              expenses.length === 0 ? (
+                <Link
+                  to="/expenses/new"
+                  className="px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add Expense
+                </Link>
+              ) : undefined
             }
           />
         ) : (
@@ -148,7 +219,6 @@ export default function ExpensesPage() {
               const dayExpenses = grouped[dateStr];
               const dayTotal = totalAmount(dayExpenses);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
-
               return (
                 <div key={dateStr}>
                   <div className="flex items-center justify-between mb-2">
