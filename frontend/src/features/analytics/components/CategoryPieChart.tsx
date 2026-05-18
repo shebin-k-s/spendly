@@ -1,6 +1,7 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { formatINR } from '@/lib/utils';
 import type { CategoryBreakdown } from '@/features/expenses/types';
+import { useAppSelector } from '@/store/hooks';
 
 interface CategoryPieChartProps {
   breakdown: CategoryBreakdown[];
@@ -9,6 +10,8 @@ interface CategoryPieChartProps {
 }
 
 export default function CategoryPieChart({ breakdown, total, isLoading }: CategoryPieChartProps) {
+  const showGross = useAppSelector((state) => state.prefs.showGross);
+
   if (isLoading) {
     return <div className="h-64 bg-card rounded-2xl animate-pulse border border-border" />;
   }
@@ -31,7 +34,7 @@ export default function CategoryPieChart({ breakdown, total, isLoading }: Catego
       <div style={{ background: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 16%)', borderRadius: '8px', fontSize: '12px', color: 'hsl(0 0% 95%)', padding: '8px 12px' }}>
         <p style={{ color: 'hsl(0 0% 60%)', marginBottom: '4px' }}>{item.icon} {item.name}</p>
         <p>{formatINR(item.net)}</p>
-        {hasCashback && (
+        {showGross && hasCashback && (
           <p style={{ color: 'hsl(0 0% 50%)', textDecoration: 'line-through', fontSize: '10px' }}>{formatINR(item.total)}</p>
         )}
       </div>

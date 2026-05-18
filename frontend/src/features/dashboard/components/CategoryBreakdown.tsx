@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '@/store/hooks';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { clearFilters, toggleCategoryId, setFilterOpen } from '@/store/filterSlice';
 import { formatINR } from '@/lib/utils';
 import type { CategoryBreakdown as Breakdown } from '@/features/expenses/types';
@@ -13,6 +13,7 @@ interface CategoryBreakdownProps {
 export default function CategoryBreakdown({ breakdown, total, isLoading }: CategoryBreakdownProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const showGross = useAppSelector((state) => state.prefs.showGross);
 
   const handleCategoryClick = (categoryId: string) => {
     dispatch(clearFilters());
@@ -54,7 +55,7 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-sm font-semibold">{formatINR(net)}</span>
-                  {(item.cashbackTotal ?? 0) > 0 && (
+                  {showGross && (item.cashbackTotal ?? 0) > 0 && (
                     <span className="text-[10px] text-muted-foreground line-through">{formatINR(item.total)}</span>
                   )}
                 </div>

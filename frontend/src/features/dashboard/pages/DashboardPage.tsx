@@ -9,6 +9,7 @@ import RecentExpenses from '../components/RecentExpenses';
 
 export default function DashboardPage() {
   const { year, month } = useAppSelector((state) => state.date);
+  const showGross = useAppSelector((state) => state.prefs.showGross);
   const dispatch = useAppDispatch();
   const prev = prevMonth(year, month);
 
@@ -54,7 +55,7 @@ export default function DashboardPage() {
         {summary && summary.count > 0 && (() => {
           const grossTotal = summary.total;
           const netTotal = summary.total - (summary.cashbackTotal ?? 0);
-          const hasCashback = (summary.cashbackTotal ?? 0) > 0;
+          const hasCashback = showGross && (summary.cashbackTotal ?? 0) > 0;
           return (
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-card border border-border rounded-2xl p-4">

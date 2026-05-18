@@ -8,6 +8,7 @@ import { setDate } from '@/store/dateSlice';
 
 export default function AnalyticsPage() {
   const { year, month } = useAppSelector((state) => state.date);
+  const showGross = useAppSelector((state) => state.prefs.showGross);
   const dispatch = useAppDispatch();
 
   // Load 12 months for horizontal scrolling comparison
@@ -44,7 +45,7 @@ export default function AnalyticsPage() {
                 <div className="bg-secondary rounded-xl p-3 text-center">
                   <p className="text-[10px] text-muted-foreground">Spent</p>
                   <p className="text-sm font-bold mt-0.5">₹{(summary.total - (summary.cashbackTotal ?? 0)).toLocaleString('en-IN')}</p>
-                  {(summary.cashbackTotal ?? 0) > 0 && (
+                  {showGross && (summary.cashbackTotal ?? 0) > 0 && (
                     <p className="text-[10px] text-muted-foreground line-through">₹{summary.total.toLocaleString('en-IN')}</p>
                   )}
                 </div>

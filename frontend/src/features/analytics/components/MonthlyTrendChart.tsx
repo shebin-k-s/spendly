@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { currentYearMonth } from '@/lib/utils';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import type { MonthlyAnalytic } from '@/features/expenses/types';
+import { useAppSelector } from '@/store/hooks';
 
 interface MonthlyTrendChartProps {
   data: MonthlyAnalytic[];
@@ -15,6 +16,7 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
   const { year: currentYear, month: currentMonth } = currentYearMonth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+  const showGross = useAppSelector((state) => state.prefs.showGross);
 
   useEffect(() => {
     if (scrollRef.current && data.length > 0) {
@@ -51,7 +53,7 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
       <div style={{ background: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 16%)', borderRadius: '8px', fontSize: '12px', color: 'hsl(0 0% 95%)', padding: '8px 12px' }}>
         <p style={{ color: 'hsl(0 0% 60%)', marginBottom: '4px' }}>{label}</p>
         <p>₹{net.toLocaleString('en-IN')}</p>
-        {hasCashback && (
+        {showGross && hasCashback && (
           <p style={{ color: 'hsl(0 0% 50%)', textDecoration: 'line-through', fontSize: '10px' }}>₹{gross.toLocaleString('en-IN')}</p>
         )}
       </div>

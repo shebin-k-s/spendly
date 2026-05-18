@@ -3,12 +3,15 @@ import { ChevronRight } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { PAYMENT_METHOD_ICONS, netAmount } from '@/features/expenses/utils/expenseUtils';
 import type { Expense } from '@/features/expenses/types';
+import { useAppSelector } from '@/store/hooks';
 
 interface RecentExpensesProps {
   expenses: Expense[];
 }
 
 export default function RecentExpenses({ expenses }: RecentExpensesProps) {
+  const showGross = useAppSelector((state) => state.prefs.showGross);
+
   if (expenses.length === 0) return null;
 
   const recent = expenses.slice(0, 5);
@@ -40,7 +43,7 @@ export default function RecentExpenses({ expenses }: RecentExpensesProps) {
             </div>
             <div className="flex flex-col items-end">
               <p className="text-sm font-semibold">{formatINR(netAmount(expense))}</p>
-              {Number(expense.cashback) > 0 && (
+              {showGross && Number(expense.cashback) > 0 && (
                 <p className="text-[10px] text-muted-foreground line-through">{formatINR(Number(expense.amount))}</p>
               )}
             </div>

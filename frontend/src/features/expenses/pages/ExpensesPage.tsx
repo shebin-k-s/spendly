@@ -23,6 +23,7 @@ export default function ExpensesPage() {
   const { data: expenses = [], isLoading } = useExpensesQuery(year, month);
   const { data: categories = [] } = useCategoriesQuery();
   const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
+  const showGross = useAppSelector((state) => state.prefs.showGross);
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
@@ -155,7 +156,7 @@ export default function ExpensesPage() {
                 {activeFilterCount > 0 ? 'Filtered' : 'Total'}
               </p>
               <p className="text-base font-bold text-primary">{formatINR(monthNet)}</p>
-              {monthGross > monthNet && (
+              {showGross && monthGross > monthNet && (
                 <p className="text-[10px] text-muted-foreground line-through">{formatINR(monthGross)}</p>
               )}
             </div>
@@ -277,7 +278,7 @@ export default function ExpensesPage() {
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
                     <div className="flex flex-col items-end">
                       <p className="text-xs font-semibold text-muted-foreground">{formatINR(dayNet)}</p>
-                      {dayGross > dayNet && (
+                      {showGross && dayGross > dayNet && (
                         <p className="text-[10px] text-muted-foreground/50 line-through">{formatINR(dayGross)}</p>
                       )}
                     </div>

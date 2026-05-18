@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { PAYMENT_METHOD_ICONS, netAmount } from '../utils/expenseUtils';
 import type { Expense } from '../types';
+import { useAppSelector } from '@/store/hooks';
 
 function fmtTime(t: string): string {
   const [h, m] = t.split(':').map(Number);
@@ -17,6 +18,7 @@ interface ExpenseCardProps {
 
 export default function ExpenseCard({ expense }: ExpenseCardProps) {
   const navigate = useNavigate();
+  const showGross = useAppSelector((state) => state.prefs.showGross);
 
   return (
     <div
@@ -48,7 +50,7 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
       <div className="flex items-center gap-2">
         <div className="flex flex-col items-end">
           <span className="font-semibold text-sm">{formatINR(netAmount(expense))}</span>
-          {Number(expense.cashback) > 0 && (
+          {showGross && Number(expense.cashback) > 0 && (
             <span className="text-[10px] text-muted-foreground line-through">{formatINR(Number(expense.amount))}</span>
           )}
         </div>
