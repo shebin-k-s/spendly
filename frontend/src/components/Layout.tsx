@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Receipt, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AnimatedOutlet from './AnimatedOutlet';
@@ -17,6 +17,13 @@ export default function Layout() {
   const startY = useRef<number | null>(null);
   const startX = useRef<number | null>(null);
   const mainRef = useRef<HTMLElement>(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo(0, 0);
+    }
+  }, [location.pathname]);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
     if (mainRef.current && mainRef.current.scrollTop <= 1) { // 1px tolerance

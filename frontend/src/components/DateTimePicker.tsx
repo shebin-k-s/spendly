@@ -283,7 +283,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
             'fixed bottom-0 z-50 w-full',
             'inset-x-0 sm:max-w-md sm:mx-auto',
             'bg-card border-t border-border rounded-t-3xl',
-            'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto',
+            'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto disable-scrollbars',
             'duration-500 ease-in-out',
             'data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom',
             'sheet-exit'
