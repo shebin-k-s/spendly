@@ -43,7 +43,10 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-secondary rounded-xl p-3 text-center">
                   <p className="text-[10px] text-muted-foreground">Spent</p>
-                  <p className="text-sm font-bold mt-0.5">₹{summary.total.toLocaleString('en-IN')}</p>
+                  <p className="text-sm font-bold mt-0.5">₹{(summary.total - (summary.cashbackTotal ?? 0)).toLocaleString('en-IN')}</p>
+                  {(summary.cashbackTotal ?? 0) > 0 && (
+                    <p className="text-[10px] text-muted-foreground line-through">₹{summary.total.toLocaleString('en-IN')}</p>
+                  )}
                 </div>
                 <div className="bg-secondary rounded-xl p-3 text-center">
                   <p className="text-[10px] text-muted-foreground">Entries</p>

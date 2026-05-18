@@ -4,6 +4,7 @@ const PAYMENT_METHODS = ['cash', 'card', 'upi', 'bank_transfer', 'other'];
 
 export const createExpenseSchema = Joi.object({
     amount: Joi.number().positive().precision(2).required(),
+    cashback: Joi.number().min(0).precision(2).optional(),
     description: Joi.string().min(1).max(200).required(),
     date: Joi.string()
         .pattern(/^\d{4}-\d{2}-\d{2}$/)
@@ -19,6 +20,7 @@ export const createExpenseSchema = Joi.object({
 
 export const updateExpenseSchema = Joi.object({
     amount: Joi.number().positive().precision(2).optional(),
+    cashback: Joi.number().min(0).precision(2).optional(),
     description: Joi.string().min(1).max(200).optional(),
     date: Joi.string()
         .pattern(/^\d{4}-\d{2}-\d{2}$/)

@@ -38,9 +38,10 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
       <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">By Category</p>
       <div className="space-y-3">
         {breakdown.map((item) => {
-          const pct = total > 0 ? (item.total / total) * 100 : 0;
+          const net = item.total - (item.cashbackTotal ?? 0);
+          const pct = total > 0 ? Math.max(0, (net / total) * 100) : 0;
           return (
-            <button 
+            <button
               key={item.categoryId}
               onClick={() => handleCategoryClick(item.categoryId)}
               className="block w-full text-left hover:bg-secondary/30 p-2 -mx-2 rounded-xl transition-colors"
@@ -51,7 +52,12 @@ export default function CategoryBreakdown({ breakdown, total, isLoading }: Categ
                   <span className="text-sm font-medium">{item.name}</span>
                   <span className="text-xs text-muted-foreground">({item.count})</span>
                 </div>
-                <span className="text-sm font-semibold">{formatINR(item.total)}</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-sm font-semibold">{formatINR(net)}</span>
+                  {(item.cashbackTotal ?? 0) > 0 && (
+                    <span className="text-[10px] text-muted-foreground line-through">{formatINR(item.total)}</span>
+                  )}
+                </div>
               </div>
               <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
                 <div

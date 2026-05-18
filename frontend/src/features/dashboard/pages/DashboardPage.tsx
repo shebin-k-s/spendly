@@ -43,35 +43,43 @@ export default function DashboardPage() {
       <div className="page-content space-y-4">
         {/* Total spend */}
         <MonthSummaryCard
-          total={summary?.total ?? 0}
+          total={(summary?.total ?? 0) - (summary?.cashbackTotal ?? 0)}
+          cashbackTotal={summary?.cashbackTotal}
           count={summary?.count ?? 0}
-          prevTotal={prevSummary?.total}
+          prevTotal={prevSummary ? prevSummary.total - (prevSummary.cashbackTotal ?? 0) : undefined}
           isLoading={summaryLoading}
         />
 
         {/* Quick stats */}
-        {summary && summary.count > 0 && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-card border border-border rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
-              <p className="text-xl font-bold">
-                {formatINR(Math.round(summary.total / dailyDivisor))}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">{divisorLabel}</p>
+        {summary && summary.count > 0 && (() => {
+          const grossTotal = summary.total;
+          const netTotal = summary.total - (summary.cashbackTotal ?? 0);
+          const hasCashback = (summary.cashbackTotal ?? 0) > 0;
+          return (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-card border border-border rounded-2xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
+                <p className="text-xl font-bold">{formatINR(Math.round(netTotal / dailyDivisor))}</p>
+                {hasCashback && (
+                  <p className="text-xs text-muted-foreground line-through">{formatINR(Math.round(grossTotal / dailyDivisor))}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1">{divisorLabel}</p>
+              </div>
+              <div className="bg-card border border-border rounded-2xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Avg per Expense</p>
+                <p className="text-xl font-bold">{formatINR(Math.round(netTotal / summary.count))}</p>
+                {hasCashback && (
+                  <p className="text-xs text-muted-foreground line-through">{formatINR(Math.round(grossTotal / summary.count))}</p>
+                )}
+              </div>
             </div>
-            <div className="bg-card border border-border rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground mb-1">Avg per Expense</p>
-              <p className="text-xl font-bold">
-                {formatINR(Math.round(summary.total / summary.count))}
-              </p>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Category breakdown */}
         <CategoryBreakdown
           breakdown={summary?.breakdown ?? []}
-          total={summary?.total ?? 0}
+          total={(summary?.total ?? 0) - (summary?.cashbackTotal ?? 0)}
           isLoading={summaryLoading}
         />
 

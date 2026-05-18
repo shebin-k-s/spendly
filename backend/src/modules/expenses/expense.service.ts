@@ -93,8 +93,9 @@ export class ExpenseService {
             .getMany();
 
         const total = rows.reduce((sum, e) => sum + Number(e.amount), 0);
+        const cashbackTotal = rows.reduce((sum, e) => sum + Number(e.cashback || 0), 0);
 
-        const byCategory: Record<string, { categoryId: string; name: string; icon: string; color: string; total: number; count: number }> = {};
+        const byCategory: Record<string, { categoryId: string; name: string; icon: string; color: string; total: number; cashbackTotal: number; count: number }> = {};
 
         for (const expense of rows) {
             const catId = expense.category?.id || 'uncategorized';
@@ -105,10 +106,12 @@ export class ExpenseService {
                     icon: expense.category?.icon || '📦',
                     color: expense.category?.color || '#94a3b8',
                     total: 0,
+                    cashbackTotal: 0,
                     count: 0,
                 };
             }
             byCategory[catId].total += Number(expense.amount);
+            byCategory[catId].cashbackTotal += Number(expense.cashback || 0);
             byCategory[catId].count += 1;
         }
 
@@ -116,8 +119,9 @@ export class ExpenseService {
             year,
             month,
             total: Math.round(total * 100) / 100,
+            cashbackTotal: Math.round(cashbackTotal * 100) / 100,
             count: rows.length,
-            breakdown: Object.values(byCategory).sort((a, b) => b.total - a.total),
+            breakdown: Object.values(byCategory).sort((a, b) => (b.total - b.cashbackTotal) - (a.total - a.cashbackTotal)),
         };
     }
 
@@ -137,6 +141,7 @@ export class ExpenseService {
             const rows = await this.repo
                 .createQueryBuilder('expense')
                 .select('SUM(expense.amount)', 'total')
+                .addSelect('SUM(expense.cashback)', 'cashbackTotal')
                 .addSelect('COUNT(*)', 'count')
                 .where('expense.date >= :start AND expense.date <= :end', { start, end })
                 .getRawOne();
@@ -145,6 +150,7 @@ export class ExpenseService {
                 year,
                 month,
                 total: Math.round(Number(rows?.total || 0) * 100) / 100,
+                cashbackTotal: Math.round(Number(rows?.cashbackTotal || 0) * 100) / 100,
                 count: Number(rows?.count || 0),
             });
         }

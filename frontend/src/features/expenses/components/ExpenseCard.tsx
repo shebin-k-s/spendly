@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
-import { PAYMENT_METHOD_ICONS } from '../utils/expenseUtils';
+import { PAYMENT_METHOD_ICONS, netAmount } from '../utils/expenseUtils';
 import type { Expense } from '../types';
 
 function fmtTime(t: string): string {
@@ -46,7 +46,12 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="font-semibold text-sm">{formatINR(Number(expense.amount))}</span>
+        <div className="flex flex-col items-end">
+          <span className="font-semibold text-sm">{formatINR(netAmount(expense))}</span>
+          {Number(expense.cashback) > 0 && (
+            <span className="text-[10px] text-muted-foreground line-through">{formatINR(Number(expense.amount))}</span>
+          )}
+        </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground" />
       </div>
     </div>

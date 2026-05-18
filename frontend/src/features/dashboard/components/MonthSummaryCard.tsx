@@ -3,12 +3,13 @@ import { formatINR } from '@/lib/utils';
 
 interface MonthSummaryCardProps {
   total: number;
+  cashbackTotal?: number;
   count: number;
   prevTotal?: number;
   isLoading?: boolean;
 }
 
-export default function MonthSummaryCard({ total, count, prevTotal, isLoading }: MonthSummaryCardProps) {
+export default function MonthSummaryCard({ total, cashbackTotal, count, prevTotal, isLoading }: MonthSummaryCardProps) {
   const diff = prevTotal !== undefined ? total - prevTotal : undefined;
   const pct = prevTotal && prevTotal > 0 ? ((diff! / prevTotal) * 100).toFixed(1) : undefined;
   const isUp = diff !== undefined && diff > 0;
@@ -21,6 +22,9 @@ export default function MonthSummaryCard({ total, count, prevTotal, isLoading }:
     <div className="bg-card border border-border rounded-2xl p-4">
       <p className="text-xs text-muted-foreground mb-1">Total Spent This Month</p>
       <p className="text-3xl font-bold text-primary">{formatINR(total)}</p>
+      {cashbackTotal !== undefined && cashbackTotal > 0 && (
+        <p className="text-sm text-muted-foreground line-through">{formatINR(total + cashbackTotal)}</p>
+      )}
       <div className="flex items-center justify-between mt-2">
         <p className="text-xs text-muted-foreground">{count} expense{count !== 1 ? 's' : ''}</p>
         {pct !== undefined && (

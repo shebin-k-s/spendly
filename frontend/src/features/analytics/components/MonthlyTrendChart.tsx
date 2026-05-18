@@ -35,11 +35,28 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
 
   const chartData = data.map((d) => ({
     label: `${MONTH_SHORT[d.month - 1]} '${d.year.toString().slice(2)}`,
-    total: d.total,
+    net: d.total - (d.cashbackTotal ?? 0),
+    barHeight: Math.max(0, d.total - (d.cashbackTotal ?? 0)),
+    gross: d.total,
     isCurrent: d.year === currentYear && d.month === currentMonth,
   }));
 
-  const maxTotal = Math.max(...data.map((d) => d.total), 1);
+  const maxNet = Math.max(...chartData.map((d) => d.barHeight), 1);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    const { net, gross } = payload[0].payload as { net: number; gross: number };
+    const hasCashback = gross > net;
+    return (
+      <div style={{ background: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 16%)', borderRadius: '8px', fontSize: '12px', color: 'hsl(0 0% 95%)', padding: '8px 12px' }}>
+        <p style={{ color: 'hsl(0 0% 60%)', marginBottom: '4px' }}>{label}</p>
+        <p>₹{net.toLocaleString('en-IN')}</p>
+        {hasCashback && (
+          <p style={{ color: 'hsl(0 0% 50%)', textDecoration: 'line-through', fontSize: '10px' }}>₹{gross.toLocaleString('en-IN')}</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4 flex flex-col">
@@ -76,21 +93,9 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
                 tickLine={false}
                 tick={{ fontSize: 10, fill: 'hsl(0 0% 50%)' }}
               />
-              <YAxis hide domain={[0, maxTotal * 1.15]} />
-              <Tooltip
-                cursor={{ fill: 'hsl(0 0% 12%)' }}
-                contentStyle={{
-                  background: 'hsl(0 0% 8%)',
-                  border: '1px solid hsl(0 0% 16%)',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                  color: 'hsl(0 0% 95%)',
-                }}
-                itemStyle={{ color: 'hsl(0 0% 95%)' }}
-                labelStyle={{ color: 'hsl(0 0% 60%)' }}
-                formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, 'Spent']}
-              />
-              <Bar dataKey="total" radius={[6, 6, 0, 0]}>
+              <YAxis hide domain={[0, maxNet * 1.15]} />
+              <Tooltip cursor={{ fill: 'hsl(0 0% 12%)' }} content={<CustomTooltip />} />
+              <Bar dataKey="barHeight" radius={[6, 6, 0, 0]}>
                 {chartData.map((entry, index) => (
                   <Cell
                     key={index}

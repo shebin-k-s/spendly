@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Trash2 } from 'lucide-react';
 import { useExpenseById, useUpdateExpense, useDeleteExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -20,6 +20,7 @@ export default function EditExpensePage() {
   const deleteExpense = useDeleteExpense();
 
   const [amount, setAmount] = useState('');
+  const [cashback, setCashback] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export default function EditExpensePage() {
   useEffect(() => {
     if (expense) {
       setAmount(String(expense.amount));
+      setCashback(expense.cashback ? String(expense.cashback) : '');
       setDescription(expense.description);
       setDate(expense.date);
       setTime(expense.time ?? null);
@@ -48,6 +50,7 @@ export default function EditExpensePage() {
       {
         id: id!,
         amount: parseFloat(amount),
+        cashback: cashback ? parseFloat(cashback) : 0,
         description: description.trim(),
         date,
         time: time || undefined,
@@ -88,11 +91,18 @@ export default function EditExpensePage() {
         </button>
         <h1 className="text-xl font-bold flex-1">Edit Expense</h1>
         <button
+          onClick={handleUpdate}
+          disabled={!canSubmit}
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
+        >
+          <Check className="w-4 h-4 text-primary" />
+        </button>
+        <button
           onClick={handleDelete}
           disabled={deleteExpense.isPending}
-          className="w-9 h-9 rounded-xl bg-destructive/15 flex items-center justify-center text-destructive"
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-4 h-4 text-destructive" />
         </button>
       </div>
 
@@ -111,6 +121,25 @@ export default function EditExpensePage() {
         <div>
           <label className="form-label">Description</label>
           <input value={description} onChange={(e) => setDescription(e.target.value)} className="form-input" />
+        </div>
+
+        <div>
+          <label className="form-label">
+            Cashback (₹) <span className="text-muted-foreground font-normal">— Optional</span>
+          </label>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={cashback}
+            onChange={(e) => setCashback(e.target.value)}
+            placeholder="0.00"
+            className="form-input"
+          />
+          {cashback && parseFloat(cashback) > 0 && amount && parseFloat(amount) > 0 && (
+            <p className="text-xs text-emerald-500 mt-1.5">
+              Net: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(amount) - parseFloat(cashback))}
+            </p>
+          )}
         </div>
 
         <div>

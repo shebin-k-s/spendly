@@ -14,8 +14,12 @@ export function groupByDate(expenses: Expense[]): Record<string, Expense[]> {
   }, {});
 }
 
+export function netAmount(expense: Expense): number {
+  return Number(expense.amount) - Number(expense.cashback || 0);
+}
+
 export function totalAmount(expenses: Expense[]): number {
-  return expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  return expenses.reduce((sum, e) => sum + netAmount(e), 0);
 }
 
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {

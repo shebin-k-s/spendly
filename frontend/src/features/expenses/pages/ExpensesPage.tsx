@@ -108,7 +108,8 @@ export default function ExpensesPage() {
 
   const grouped = groupByDate(filteredExpenses);
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-  const monthTotal = totalAmount(filteredExpenses);
+  const monthNet = totalAmount(filteredExpenses);
+  const monthGross = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
   return (
     <div className="animate-fade-in">
@@ -153,7 +154,10 @@ export default function ExpensesPage() {
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
                 {activeFilterCount > 0 ? 'Filtered' : 'Total'}
               </p>
-              <p className="text-base font-bold text-primary">{formatINR(monthTotal)}</p>
+              <p className="text-base font-bold text-primary">{formatINR(monthNet)}</p>
+              {monthGross > monthNet && (
+                <p className="text-[10px] text-muted-foreground line-through">{formatINR(monthGross)}</p>
+              )}
             </div>
           )}
         </div>
@@ -264,13 +268,19 @@ export default function ExpensesPage() {
           <div className="space-y-5">
             {sortedDates.map((dateStr) => {
               const dayExpenses = grouped[dateStr];
-              const dayTotal = totalAmount(dayExpenses);
+              const dayNet = totalAmount(dayExpenses);
+              const dayGross = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
               return (
                 <div key={dateStr}>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
-                    <p className="text-xs font-semibold text-muted-foreground">{formatINR(dayTotal)}</p>
+                    <div className="flex flex-col items-end">
+                      <p className="text-xs font-semibold text-muted-foreground">{formatINR(dayNet)}</p>
+                      {dayGross > dayNet && (
+                        <p className="text-[10px] text-muted-foreground/50 line-through">{formatINR(dayGross)}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-2">
                     {dayExpenses.map((expense) => (

@@ -19,6 +19,9 @@ export class Expense {
     @Column('decimal', { precision: 12, scale: 2 })
     amount: number;
 
+    @Column('decimal', { precision: 12, scale: 2, nullable: true, default: 0 })
+    cashback: number;
+
     @Column()
     description: string;
 

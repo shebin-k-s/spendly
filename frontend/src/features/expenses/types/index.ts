@@ -5,6 +5,7 @@ export type PaymentMethod = 'cash' | 'card' | 'upi' | 'bank_transfer' | 'other';
 export interface Expense {
   id: string;
   amount: number;
+  cashback?: number;
   description: string;
   date: string;
   time?: string | null;
@@ -17,6 +18,7 @@ export interface Expense {
 
 export interface CreateExpensePayload {
   amount: number;
+  cashback?: number;
   description: string;
   date: string;
   time?: string | null;
@@ -35,6 +37,7 @@ export interface CategoryBreakdown {
   icon: string;
   color: string;
   total: number;
+  cashbackTotal: number;
   count: number;
 }
 
@@ -42,6 +45,7 @@ export interface MonthlySummary {
   year: number;
   month: number;
   total: number;
+  cashbackTotal: number;
   count: number;
   breakdown: CategoryBreakdown[];
 }
@@ -50,5 +54,6 @@ export interface MonthlyAnalytic {
   year: number;
   month: number;
   total: number;
+  cashbackTotal?: number;
   count: number;
 }

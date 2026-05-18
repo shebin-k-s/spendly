@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -17,6 +17,7 @@ export default function AddExpensePage() {
 
   const now = new Date();
   const [amount, setAmount] = useState('');
+  const [cashback, setCashback] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(format(now, 'yyyy-MM-dd'));
   const [time, setTime] = useState<string | null>(format(now, 'HH:mm'));
@@ -31,6 +32,7 @@ export default function AddExpensePage() {
     createExpense.mutate(
       {
         amount: parseFloat(amount),
+        cashback: cashback ? parseFloat(cashback) : undefined,
         description: description.trim(),
         date,
         time: time || undefined,
@@ -48,7 +50,14 @@ export default function AddExpensePage() {
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <h1 className="text-xl font-bold">Add Expense</h1>
+        <h1 className="text-xl font-bold flex-1">Add Expense</h1>
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
+        >
+          <Check className="w-4 h-4 text-primary" />
+        </button>
       </div>
 
       <div className="page-content space-y-5">
@@ -74,6 +83,26 @@ export default function AddExpensePage() {
             placeholder="What did you spend on?"
             className="form-input"
           />
+        </div>
+
+        {/* Cashback */}
+        <div>
+          <label className="form-label">
+            Cashback (₹) <span className="text-muted-foreground font-normal">— Optional</span>
+          </label>
+          <input
+            type="number"
+            inputMode="decimal"
+            value={cashback}
+            onChange={(e) => setCashback(e.target.value)}
+            placeholder="0.00"
+            className="form-input"
+          />
+          {cashback && parseFloat(cashback) > 0 && amount && parseFloat(amount) > 0 && (
+            <p className="text-xs text-emerald-500 mt-1.5">
+              Net: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(amount) - parseFloat(cashback))}
+            </p>
+          )}
         </div>
 
         {/* Date & Time */}
