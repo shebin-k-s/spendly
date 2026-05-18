@@ -281,7 +281,7 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
           onWheel={(e) => e.stopPropagation()}
           className={cn(
             'fixed bottom-0 z-50 w-full',
-            'inset-x-0 sm:left-1/2 sm:-translate-x-1/2 sm:max-w-md sm:right-auto',
+            'inset-x-0 sm:max-w-md sm:mx-auto',
             'bg-card border-t border-border rounded-t-3xl',
             'px-4 pt-1 pb-6 max-h-[92vh] overflow-y-auto',
             'duration-500 ease-in-out',

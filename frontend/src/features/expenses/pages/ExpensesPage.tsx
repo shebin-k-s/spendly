@@ -34,6 +34,7 @@ export default function ExpensesPage() {
     const handleScroll = (e: Event) => {
       if (!isActive) return;
       const target = e.target as HTMLElement;
+      if (target.closest('[data-radix-portal]')) return;
       if (target.scrollWidth > target.clientWidth && target.scrollHeight === target.clientHeight) return;
       dispatch(setFilterOpen(false));
     };
