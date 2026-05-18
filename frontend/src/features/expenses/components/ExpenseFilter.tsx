@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, X, Check, ChevronsUpDown } from 'lucide-react';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 interface ExpenseFilterProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export default function ExpenseFilter({
   onClearFilters,
 }: ExpenseFilterProps) {
   const { data: categories = [] } = useCategoriesQuery();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const hasActiveFilters = searchTerm || selectedCategoryIds.length > 0;
 
@@ -35,106 +37,183 @@ export default function ExpenseFilter({
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div
-      className="overflow-hidden border-b border-border transition-all duration-300 ease-in-out"
-      style={{
-        maxHeight: isOpen ? '400px' : '0',
-        opacity: isOpen ? 1 : 0,
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onWheel={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchMove={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
-      onTouchCancel={(e) => e.stopPropagation()}
-    >
-      <div className="bg-card/50 px-4 py-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Filter Transactions</h3>
-          {hasActiveFilters && (
-            <button onClick={onClearFilters} className="text-xs text-muted-foreground px-2 py-1">
-              Clear all
-            </button>
-          )}
-        </div>
-
-        {/* Search */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-          }}
-          className="relative"
-        >
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="search"
-            enterKeyHint="done"
-            placeholder="Search description or note..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-muted-foreground"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </form>
-
-        {/* Category multi-select */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Category
-            </label>
-            {selectedCategoryIds.length > 1 && (
-              <span className="text-xs text-primary font-medium">
-                {selectedCategoryIds.length} selected
-              </span>
+    <>
+      <div
+        className="overflow-hidden border-b border-border transition-all duration-300 ease-in-out"
+        style={{
+          maxHeight: isOpen ? '400px' : '0',
+          opacity: isOpen ? 1 : 0,
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onTouchCancel={(e) => e.stopPropagation()}
+      >
+        <div className="bg-card/50 px-4 py-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Filter Transactions</h3>
+            {hasActiveFilters && (
+              <button onClick={onClearFilters} className="text-xs text-muted-foreground px-2 py-1">
+                Clear all
+              </button>
             )}
           </div>
-          <div
-            className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
-            onPointerDown={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchMove={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-            onTouchCancel={(e) => e.stopPropagation()}
+
+          {/* Search */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+            }}
+            className="relative"
           >
-            <button
-              id="category-filter-all"
-              onClick={() => selectedCategoryIds.length > 0 && onClearFilters()}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
-                ${selectedCategoryIds.length === 0
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground'}`}
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              enterKeyHint="done"
+              placeholder="Search description or note..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => onSearchChange('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-muted-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </form>
+
+          {/* Category multi-select */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Category
+              </label>
+              <button
+                onClick={() => setSheetOpen(true)}
+                className="flex items-center gap-1 text-xs text-primary font-medium px-1.5 py-0.5"
+              >
+                {selectedCategoryIds.length > 1
+                  ? `${selectedCategoryIds.length} selected`
+                  : selectedCategoryIds.length === 1
+                    ? '1 selected'
+                    : 'All'}
+                <ChevronsUpDown className="w-3 h-3" />
+              </button>
+            </div>
+            <div
+              className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
+              onPointerDown={(e) => e.stopPropagation()}
+              onWheel={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+              onTouchCancel={(e) => e.stopPropagation()}
             >
-              All
-            </button>
-            {categories.map((cat) => {
-              const active = selectedCategoryIds.includes(cat.id);
-              return (
-                <button
-                  key={cat.id}
-                  id={`category-filter-${cat.id}`}
-                  onClick={() => onCategoryToggle(cat.id)}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap
-                    ${active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.name}</span>
-                </button>
-              );
-            })}
+              <button
+                id="category-filter-all"
+                onClick={() => selectedCategoryIds.length > 0 && onClearFilters()}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
+                  ${selectedCategoryIds.length === 0
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground'}`}
+              >
+                All
+              </button>
+              {categories.map((cat) => {
+                const active = selectedCategoryIds.includes(cat.id);
+                return (
+                  <button
+                    key={cat.id}
+                    id={`category-filter-${cat.id}`}
+                    onClick={() => onCategoryToggle(cat.id)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap
+                      ${active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Category picker bottom sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-3xl px-0 max-h-[80vh] flex flex-col border-t border-x border-border">
+          {/* Drag handle */}
+          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          </div>
+          <SheetHeader className="px-4 pt-2 pb-3 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-base">Select Categories</SheetTitle>
+              {selectedCategoryIds.length > 0 && (
+                <button
+                  onClick={onClearFilters}
+                  className="text-xs text-muted-foreground px-2 py-1"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-4">
+            {/* All option — full width */}
+            <button
+              onClick={() => selectedCategoryIds.length > 0 && onClearFilters()}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mb-3
+                ${selectedCategoryIds.length === 0
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-secondary text-foreground active:opacity-70'}`}
+            >
+              <span>All categories</span>
+              {selectedCategoryIds.length === 0 && <Check className="w-4 h-4" />}
+            </button>
+
+            {/* 2-column icon grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {categories.map((cat) => {
+                const active = selectedCategoryIds.includes(cat.id);
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => onCategoryToggle(cat.id)}
+                    className={`relative flex flex-col items-center gap-2 p-4 rounded-2xl border transition-colors
+                      ${active
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border bg-secondary/50 active:opacity-70'}`}
+                  >
+                    {active && (
+                      <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                      </span>
+                    )}
+                    <span
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                      style={{ backgroundColor: cat.color }}
+                    >
+                      {cat.icon}
+                    </span>
+                    <span className={`text-xs font-medium text-center leading-tight ${active ? 'text-primary' : 'text-foreground'}`}>
+                      {cat.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
