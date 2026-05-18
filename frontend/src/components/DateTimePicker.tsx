@@ -272,13 +272,6 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
         <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-500 ease-in-out" />
         <Dialog.Content
           ref={modalRef}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerMove={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-          onWheel={(e) => e.stopPropagation()}
           className={cn(
             'fixed bottom-0 z-50 w-full',
             'inset-x-0 sm:max-w-md sm:mx-auto',
