@@ -16,7 +16,6 @@ export default function DashboardPage() {
   const { data: summary, isLoading: summaryLoading } = useMonthlySummary(year, month);
   const { data: prevSummary } = useMonthlySummary(prev.year, prev.month);
   const { data: expenses = [] } = useExpensesQuery(year, month);
-
   const now = new Date();
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
@@ -58,8 +57,11 @@ export default function DashboardPage() {
           const hasCashback = showGross && (summary.cashbackTotal ?? 0) > 0;
 
           const daysInMonth = new Date(year, month, 0).getDate();
-          const projectedTotal = Math.round((netTotal / dailyDivisor) * daysInMonth);
-          const projectedGross = Math.round((grossTotal / dailyDivisor) * daysInMonth);
+          const remainingDays = daysInMonth - now.getDate();
+          const dailyAvg = netTotal / dailyDivisor;
+          const projectedTotal = Math.round(netTotal + dailyAvg * remainingDays);
+          const dailyAvgGross = grossTotal / dailyDivisor;
+          const projectedGross = Math.round(grossTotal + dailyAvgGross * remainingDays);
 
           // Peak week: split month into 4 buckets (days 1-7, 8-14, 15-21, 22+)
           const weekTotals = [0, 0, 0, 0];
@@ -90,7 +92,7 @@ export default function DashboardPage() {
                   {hasCashback && (
                     <p className="text-xs text-muted-foreground line-through">{formatINR(projectedGross)}</p>
                   )}
-                  <p className="text-[10px] text-muted-foreground mt-1">end of month</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">expected spend this month</p>
                 </div>
               ) : (
                 <div className="bg-card border border-border rounded-2xl p-4">
