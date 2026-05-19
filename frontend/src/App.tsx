@@ -32,8 +32,24 @@ export default function App() {
         <SwipeGestureProvider>
         <Toaster
           theme="dark"
-          position="top-center"
-          toastOptions={{ style: { background: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 16%)', color: 'hsl(0 0% 95%)' } }}
+          position="bottom-center"
+          gap={8}
+          toastOptions={{
+            style: {
+              background: 'hsl(0 0% 12%)',
+              border: '1px solid hsl(0 0% 18%)',
+              color: 'hsl(0 0% 92%)',
+              borderRadius: '16px',
+              fontSize: '13px',
+              fontWeight: '500',
+              padding: '12px 16px',
+              boxShadow: '0 8px 32px hsl(0 0% 0% / 0.4)',
+            },
+            classNames: {
+              success: 'toast-success',
+              error: 'toast-error',
+            },
+          }}
         />
         <BrowserRouter>
           <Routes>

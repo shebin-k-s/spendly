@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatINR } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { toggleShowGross } from '@/store/prefsSlice';
@@ -23,8 +24,10 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
 
   const onPressStart = () => {
     timerRef.current = setTimeout(() => {
+      const next = !showGross;
       dispatch(toggleShowGross());
       navigator.vibrate?.(40);
+      toast(next ? 'Cashback view on' : 'Cashback view off', { duration: 1500 });
     }, 600);
   };
 
@@ -60,7 +63,12 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
         {formatINR(total)}
       </p>
       {showGross && cashbackTotal !== undefined && cashbackTotal > 0 && (
-        <p className="text-sm text-muted-foreground line-through">{formatINR(total + cashbackTotal)}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-sm text-muted-foreground line-through">{formatINR(total + cashbackTotal)}</span>
+          <span className="px-2 py-0.5 rounded-full bg-success/15 text-success/90 text-[11px] font-medium">
+            saved {formatINR(cashbackTotal)}
+          </span>
+        </div>
       )}
       <div className="flex items-center justify-between mt-2">
         <p className="text-xs text-muted-foreground">{count} expense{count !== 1 ? 's' : ''}</p>
