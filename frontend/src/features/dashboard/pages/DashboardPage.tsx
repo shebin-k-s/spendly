@@ -63,16 +63,8 @@ export default function DashboardPage() {
           const dailyAvgGross = grossTotal / dailyDivisor;
           const projectedGross = Math.round(grossTotal + dailyAvgGross * remainingDays);
 
-          // Peak week: split month into 4 buckets (days 1-7, 8-14, 15-21, 22+)
-          const weekTotals = [0, 0, 0, 0];
-          for (const e of expenses) {
-            const day = new Date(e.date).getDate();
-            const idx = Math.min(Math.floor((day - 1) / 7), 3);
-            weekTotals[idx] += e.amount - (e.cashback ?? 0);
-          }
-          const peakWeekIdx = weekTotals.indexOf(Math.max(...weekTotals));
-          const peakWeekAmount = weekTotals[peakWeekIdx];
-          const peakWeekLabel = ['Week 1', 'Week 2', 'Week 3', 'Week 4'][peakWeekIdx];
+          const spentDays = new Set(expenses.map((e) => e.date)).size;
+          const noSpendDays = daysInMonth - spentDays;
 
           return (
             <div className="grid grid-cols-2 gap-3">
@@ -96,9 +88,9 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="bg-card border border-border rounded-2xl p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Peak Week</p>
-                  <p className="text-xl font-bold">{formatINR(Math.round(peakWeekAmount))}</p>
-                  <p className="text-[10px] text-muted-foreground mt-1">{peakWeekLabel} · most spent</p>
+                  <p className="text-xs text-muted-foreground mb-1">No-spend Days</p>
+                  <p className="text-xl font-bold">{noSpendDays} <span className="text-sm font-normal text-muted-foreground">/ {daysInMonth}</span></p>
+                  <p className="text-[10px] text-muted-foreground mt-1">days with no expenses</p>
                 </div>
               )}
             </div>
