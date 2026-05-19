@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { ExpenseService } from './expense.service';
+import { CategoryService } from '../categories/category.service';
 
 const log = {
     info: (msg: string, meta?: Record<string, unknown>) =>
@@ -14,24 +15,34 @@ const log = {
 
 const service = new ExpenseService();
 
-const GEMINI_PROMPT = `You are an expense parsing assistant. Analyze this UPI payment screenshot and extract expense details.
+interface CategoryOption { id: string; name: string; icon: string; }
+
+function buildPrompt(categories: CategoryOption[]): string {
+    const categoryBlock = categories.length
+        ? `Available categories — pick the best matching id, or null if nothing fits:\n${JSON.stringify(categories.map(c => ({ id: c.id, name: c.name, icon: c.icon })))}`
+        : 'No categories available — use null for category_id.';
+
+    return `You are an expense parsing assistant. Analyze this payment screenshot and extract expense details.
 
 Return ONLY a JSON object with these fields (no markdown, no explanation):
 {
-  "amount": "<number as string, e.g. \"1299.00\">",
-  "description": "<what the payment was likely for (e.g., 'Food', 'Ice Cream', 'Movie') rather than the merchant name>",
-  "payment_method": "<one of: upi, card, cash, bank_transfer, other>",
+  "amount": "<number as string, e.g. \\"1299.00\\">",
+  "description": "<what was purchased (e.g. 'Food', 'Movie', 'Ice Cream') — not the merchant name, max 30 chars>",
+  "payment_method": "<upi | card | cash | bank_transfer | other>",
   "date": "<yyyy-MM-dd or null if not visible>",
-  "time": "<HH:mm in 24h format or null if not visible>",
-  "category_hint": "<one of: food, transport, shopping, entertainment, health, utilities, education, travel, other>"
+  "time": "<HH:mm 24h or null if not visible>",
+  "category_id": "<exact id string from the list below, or null>"
 }
 
 Rules:
-- amount: extract the transaction amount (debit/paid amount), not balance
-- description: infer the actual item or service purchased based on the merchant name (e.g., if merchant is Swiggy, description should be 'Food'; if Inox, 'Movie'). Keep it concise, represent the purchase not the merchant (max 30 chars)
-- payment_method: if UPI/GPay/PhonePe/Paytm → "upi", if debit/credit card → "card", else "other"
-- date/time: only from what is clearly visible in the image
-- category_hint: infer from merchant name (e.g. Swiggy/Zomato → food, Uber/Ola → transport)`;
+- amount: debit/paid amount only, not balance
+- description: infer the actual item (Swiggy → Food, Inox → Movie). Keep it short
+- payment_method: GPay/PhonePe/Paytm/UPI → upi, debit/credit card → card
+- date/time: only from what is clearly visible
+- category_id: match by merchant type against the list below
+
+${categoryBlock}`;
+}
 
 const VALID_PAYMENT_METHODS = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 const AI_TIMEOUT_MS = 25_000;
@@ -50,15 +61,18 @@ function isOverloadedError(err: unknown): boolean {
     return false;
 }
 
-async function geminiParseImage(imageBase64: string, mimeType: string): Promise<{
+async function geminiParseImage(imageBase64: string, mimeType: string, categories: CategoryOption[]): Promise<{
     amount: string;
     description: string;
     payment_method: string;
     date: string | null;
     time: string | null;
-    category_hint: string;
+    category_id: string | null;
+    category_name?: string | null;
 }> {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const prompt = buildPrompt(categories);
+    const validCategoryIds = new Set(categories.map(c => c.id));
 
     const t0 = Date.now();
     let lastError: unknown;
@@ -71,7 +85,7 @@ async function geminiParseImage(imageBase64: string, mimeType: string): Promise<
         );
         try {
             const resultP = model.generateContent([
-                GEMINI_PROMPT,
+                prompt,
                 { inlineData: { data: imageBase64, mimeType } },
             ]);
             const result = await Promise.race([resultP, timeoutP]);
@@ -96,13 +110,15 @@ async function geminiParseImage(imageBase64: string, mimeType: string): Promise<
                 ? raw.date : null;
             const time = typeof raw.time === 'string' && /^\d{2}:\d{2}$/.test(raw.time)
                 ? raw.time : null;
-            const category_hint = typeof raw.category_hint === 'string'
-                ? raw.category_hint.toLowerCase() : 'other';
+            const category_id = typeof raw.category_id === 'string' && validCategoryIds.has(raw.category_id)
+                ? raw.category_id : null;
+            const category_name = category_id ? categories.find(c => c.id === category_id)?.name : null;
+            log.info('parseImage: ai raw category_id', { raw: raw.category_id, resolved: category_id, name: category_name });
 
             if (usedFallback) {
                 log.warn('gemini: recovered via fallback', { model: modelName, ms: Date.now() - t0 });
             }
-            return { amount, description, payment_method, date, time, category_hint };
+            return { amount, description, payment_method, date, time, category_id, category_name };
         } catch (err) {
             lastError = err;
             const isLast = modelName === GEMINI_MODEL_FALLBACKS[GEMINI_MODEL_FALLBACKS.length - 1];
@@ -167,7 +183,17 @@ export class ExpenseController {
         }
         const base64 = file.buffer.toString('base64');
         const mimeType = file.mimetype || 'image/jpeg';
-        const parsed = await geminiParseImage(base64, mimeType);
+
+        let categories: CategoryOption[] = [];
+        try {
+            const categoryService = new CategoryService();
+            const cats = await categoryService.getAll();
+            categories = cats.map(c => ({ id: c.id, name: c.name, icon: c.icon }));
+        } catch (err) {
+            log.error('parseImage: failed to fetch categories', { error: String(err) });
+        }
+
+        const parsed = await geminiParseImage(base64, mimeType, categories);
         res.json(parsed);
     };
 }

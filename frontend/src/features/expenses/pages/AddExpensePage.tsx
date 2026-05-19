@@ -11,6 +11,8 @@ import apiClient from '@/lib/apiClient';
 import type { PaymentMethod } from '../types';
 import type { Category } from '@/features/categories/types';
 
+type CategoryOption = Pick<Category, 'id' | 'name' | 'icon'>;
+
 const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 
 type AiStatus = 'idle' | 'loading' | 'done' | 'error';
@@ -21,25 +23,8 @@ interface ParsedImage {
   payment_method: PaymentMethod;
   date: string | null;
   time: string | null;
-  category_hint: string;
-}
-
-function matchCategoryByHint(categories: Category[], hint: string): string {
-  if (!hint || !categories.length) return '';
-  const h = hint.toLowerCase();
-  const found = categories.find((c) => {
-    const n = c.name.toLowerCase();
-    if (h === 'food') return /food|eat|dine|restaurant|grocery|snack|meal|caf/.test(n);
-    if (h === 'transport') return /transport|travel|taxi|cab|uber|ola|auto|bus|train|metro/.test(n);
-    if (h === 'shopping') return /shop|cloth|fashion|store|market/.test(n);
-    if (h === 'entertainment') return /entertain|movie|game|fun|sport|music|stream/.test(n);
-    if (h === 'health') return /health|medic|doctor|pharmac|hospital|fitness|gym/.test(n);
-    if (h === 'utilities') return /utilit|bill|electric|gas|water|internet|phone/.test(n);
-    if (h === 'education') return /educat|school|college|book|course|learn/.test(n);
-    if (h === 'travel') return /travel|hotel|flight|trip|holiday|vacation/.test(n);
-    return n.includes(h);
-  });
-  return found?.id ?? '';
+  category_id: string | null;
+  category_name?: string | null;
 }
 
 async function readSharedImage(): Promise<Blob | null> {
@@ -65,7 +50,6 @@ async function parseImage(blob: Blob): Promise<ParsedImage> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
   try {
-    // Don't set Content-Type — axios sets it with the correct multipart boundary automatically
     const { data } = await apiClient.post<ParsedImage>('/expenses/parse-image', formData, {
       signal: controller.signal,
     });
@@ -79,7 +63,8 @@ export default function AddExpensePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const createExpense = useCreateExpense();
-  const { data: categories = [] } = useCategoriesQuery();
+  const categoriesQuery = useCategoriesQuery();
+  const categories = categoriesQuery.data || [];
 
   const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
   const sharedImage = searchParams.get('shared') === 'image';
@@ -96,8 +81,8 @@ export default function AddExpensePage() {
   const [note, setNote] = useState('');
   const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
   const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
-  const [aiCategoryHint, setAiCategoryHint] = useState('');
   const sharedBlobRef = useRef<Blob | null>(null);
+  const hasAttemptedParse = useRef(false);
 
   const runAiParse = async (blob: Blob) => {
     setAiStatus('loading');
@@ -109,13 +94,7 @@ export default function AddExpensePage() {
       if (result.payment_method) setPaymentMethod(result.payment_method);
       if (result.date) setDate(result.date);
       if (result.time) setTime(result.time);
-      if (result.category_hint) {
-        setAiCategoryHint(result.category_hint);
-        if (categories.length) {
-          const matched = matchCategoryByHint(categories, result.category_hint);
-          if (matched) setCategoryId(matched);
-        }
-      }
+      if (result.category_id) setCategoryId(result.category_id);
       setAiStatus('done');
     } catch (err: unknown) {
       const isAborted = (err as { name?: string })?.name === 'AbortError'
@@ -126,7 +105,8 @@ export default function AddExpensePage() {
   };
 
   useEffect(() => {
-    if (!sharedImage) return;
+    if (!sharedImage || hasAttemptedParse.current) return;
+    hasAttemptedParse.current = true;
     void (async () => {
       const blob = await readSharedImage();
       if (!blob) {
@@ -139,14 +119,6 @@ export default function AddExpensePage() {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedImage]);
-
-  // If categories weren't loaded yet when AI finished, match once they arrive
-  useEffect(() => {
-    if (aiCategoryHint && categories.length && !categoryId) {
-      const matched = matchCategoryByHint(categories, aiCategoryHint);
-      if (matched) setCategoryId(matched);
-    }
-  }, [aiCategoryHint, categories, categoryId]);
 
   const canSubmit = amount.trim() && description.trim() && !createExpense.isPending && aiStatus !== 'loading';
 
