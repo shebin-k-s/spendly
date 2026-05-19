@@ -56,6 +56,22 @@ export default function DashboardPage() {
           const grossTotal = summary.total;
           const netTotal = summary.total - (summary.cashbackTotal ?? 0);
           const hasCashback = showGross && (summary.cashbackTotal ?? 0) > 0;
+
+          const daysInMonth = new Date(year, month, 0).getDate();
+          const projectedTotal = Math.round((netTotal / dailyDivisor) * daysInMonth);
+          const projectedGross = Math.round((grossTotal / dailyDivisor) * daysInMonth);
+
+          // Peak week: split month into 4 buckets (days 1-7, 8-14, 15-21, 22+)
+          const weekTotals = [0, 0, 0, 0];
+          for (const e of expenses) {
+            const day = new Date(e.date).getDate();
+            const idx = Math.min(Math.floor((day - 1) / 7), 3);
+            weekTotals[idx] += e.amount - (e.cashback ?? 0);
+          }
+          const peakWeekIdx = weekTotals.indexOf(Math.max(...weekTotals));
+          const peakWeekAmount = weekTotals[peakWeekIdx];
+          const peakWeekLabel = ['Week 1', 'Week 2', 'Week 3', 'Week 4'][peakWeekIdx];
+
           return (
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-card border border-border rounded-2xl p-4">
@@ -66,13 +82,23 @@ export default function DashboardPage() {
                 )}
                 <p className="text-[10px] text-muted-foreground mt-1">{divisorLabel}</p>
               </div>
-              <div className="bg-card border border-border rounded-2xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Avg per Expense</p>
-                <p className="text-xl font-bold">{formatINR(Math.round(netTotal / summary.count))}</p>
-                {hasCashback && (
-                  <p className="text-xs text-muted-foreground line-through">{formatINR(Math.round(grossTotal / summary.count))}</p>
-                )}
-              </div>
+
+              {isCurrentMonth ? (
+                <div className="bg-card border border-border rounded-2xl p-4">
+                  <p className="text-xs text-muted-foreground mb-1">Projected</p>
+                  <p className="text-xl font-bold">{formatINR(projectedTotal)}</p>
+                  {hasCashback && (
+                    <p className="text-xs text-muted-foreground line-through">{formatINR(projectedGross)}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-1">end of month</p>
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-2xl p-4">
+                  <p className="text-xs text-muted-foreground mb-1">Peak Week</p>
+                  <p className="text-xl font-bold">{formatINR(Math.round(peakWeekAmount))}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{peakWeekLabel} · most spent</p>
+                </div>
+              )}
             </div>
           );
         })()}
