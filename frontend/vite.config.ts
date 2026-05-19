@@ -16,6 +16,10 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
       manifest: {
         name: 'Spendly',
         short_name: 'Spendly',
@@ -33,6 +37,11 @@ export default defineConfig({
           { src: 'icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
           { src: 'icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        share_target: {
+          action: '/expenses/new',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
       },
     }),
   ],

@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Check, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
+import { parseShareText } from '../utils/parseShareText';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import type { PaymentMethod } from '../types';
 
@@ -12,17 +13,21 @@ const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer'
 
 export default function AddExpensePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const createExpense = useCreateExpense();
   const { data: categories = [] } = useCategoriesQuery();
 
+  const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
+  const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
+
   const now = new Date();
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(parsed?.amount ?? '');
   const [cashback, setCashback] = useState('');
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(parsed?.description ?? '');
   const [date, setDate] = useState(format(now, 'yyyy-MM-dd'));
   const [time, setTime] = useState<string | null>(format(now, 'HH:mm'));
   const [categoryId, setCategoryId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState('');
 
   const canSubmit = amount.trim() && description.trim() && !createExpense.isPending;
@@ -61,6 +66,17 @@ export default function AddExpensePage() {
       </div>
 
       <div className="page-content space-y-5">
+        {/* Share pre-fill banner */}
+        {parsed && (
+          <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <Share2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-primary">Pre-filled from shared text</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 break-words line-clamp-2">{shareRaw}</p>
+            </div>
+          </div>
+        )}
+
         {/* Amount */}
         <div>
           <label className="form-label">Amount (₹)</label>
