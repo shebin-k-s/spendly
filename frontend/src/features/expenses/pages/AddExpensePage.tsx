@@ -69,6 +69,7 @@ export default function AddExpensePage() {
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder="0.00"
             className="form-input text-2xl font-bold"
           />
@@ -95,6 +96,7 @@ export default function AddExpensePage() {
             inputMode="decimal"
             value={cashback}
             onChange={(e) => setCashback(e.target.value)}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder="0.00"
             className="form-input"
           />

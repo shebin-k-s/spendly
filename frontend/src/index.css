@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 .toast-success {
   background: hsl(142 60% 32%) !important;
   border-color: hsl(142 60% 38%) !important;
