@@ -4,7 +4,7 @@
 //  – Handles Web Share Target (POST with image or text)
 // ============================================================
 
-const CACHE_NAME = 'spendly-cache-v1';
+const CACHE_NAME = 'spendly-cache-v2';
 const SHARE_CACHE = 'spendly-share';
 
 // Injected by vite-plugin-pwa at build time — versioned asset URLs for precaching
@@ -24,42 +24,58 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== SHARE_CACHE).map((k) => caches.delete(k)))
+        Promise.all(
+          keys
+            .filter((k) => k !== CACHE_NAME && k !== SHARE_CACHE)
+            .map((k) => caches.delete(k))
+        )
       )
       .then(() => self.clients.claim())
   );
 });
 
-// Handle Web Share Target POST (images shared from GPay/PhonePe/etc.)
+// Use a JS redirect instead of Response.redirect(303) — SW redirects have browser compatibility
+// issues for navigation requests; a JS redirect is universally reliable.
+function htmlRedirect(url) {
+  return new Response(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><script>location.replace(${JSON.stringify(url)});\x3c/script></head><body></body></html>`,
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+  );
+}
+
 async function handleShareTarget(request) {
-  const formData = await request.formData();
-  const image = formData.get('image');
-  const text = formData.get('text') || '';
-  const title = formData.get('title') || '';
+  try {
+    const formData = await request.formData();
+    const image = formData.get('image');
+    const text = (formData.get('text') || '').trim();
+    const title = (formData.get('title') || '').trim();
 
-  if (image && image instanceof File && image.size > 0) {
-    // Store the image in cache for the page to retrieve
-    const cache = await caches.open(SHARE_CACHE);
-    const imageResponse = new Response(image, {
-      headers: { 'Content-Type': image.type || 'image/jpeg' },
-    });
-    await cache.put('/share-image', imageResponse);
-    return Response.redirect('/expenses/new?shared=image', 303);
+    if (image && image instanceof File && image.size > 0) {
+      // Read into ArrayBuffer first — more reliable than passing File directly to Response
+      const buffer = await image.arrayBuffer();
+      const cache = await caches.open(SHARE_CACHE);
+      await cache.put(
+        '/share-image',
+        new Response(buffer, { headers: { 'Content-Type': image.type || 'image/jpeg' } })
+      );
+      return htmlRedirect('/expenses/new?shared=image');
+    }
+
+    const params = new URLSearchParams();
+    if (text) params.set('text', text);
+    else if (title) params.set('title', title);
+    const qs = params.toString();
+    return htmlRedirect(`/expenses/new${qs ? '?' + qs : ''}`);
+  } catch {
+    return htmlRedirect('/expenses/new');
   }
-
-  // Fallback: text share (if somehow a POST arrives with text)
-  const params = new URLSearchParams();
-  if (text) params.set('text', text);
-  else if (title) params.set('title', title);
-  const qs = params.toString();
-  return Response.redirect(`/expenses/new${qs ? '?' + qs : ''}`, 303);
 }
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Intercept share target POST before any other handling
+  // Intercept share target POST
   if (request.method === 'POST' && url.pathname === '/expenses/new') {
     event.respondWith(handleShareTarget(request));
     return;
@@ -69,15 +85,23 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match('/index.html').then(
-          (cached) =>
-            cached ||
-            new Response('<h1>You are offline</h1>', {
-              headers: { 'Content-Type': 'text/html' },
-            })
+      fetch(request)
+        .then((res) => {
+          // Some static hosts return 404 for SPA sub-routes — serve cached index.html instead
+          if (!res.ok) {
+            return caches.match('/index.html').then((cached) => cached || res);
+          }
+          return res;
+        })
+        .catch(() =>
+          caches.match('/index.html').then(
+            (cached) =>
+              cached ||
+              new Response('<h1>You are offline</h1>', {
+                headers: { 'Content-Type': 'text/html' },
+              })
+          )
         )
-      )
     );
     return;
   }

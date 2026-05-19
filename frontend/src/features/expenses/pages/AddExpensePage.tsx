@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -57,13 +57,22 @@ async function readSharedImage(): Promise<Blob | null> {
   }
 }
 
+const AI_TIMEOUT_MS = 20_000;
+
 async function parseImage(blob: Blob): Promise<ParsedImage> {
   const formData = new FormData();
   formData.append('image', blob, 'share.jpg');
-  const { data } = await apiClient.post<ParsedImage>('/expenses/parse-image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    // Don't set Content-Type — axios sets it with the correct multipart boundary automatically
+    const { data } = await apiClient.post<ParsedImage>('/expenses/parse-image', formData, {
+      signal: controller.signal,
+    });
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export default function AddExpensePage() {
@@ -86,39 +95,58 @@ export default function AddExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState('');
   const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
+  const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
+  const [aiCategoryHint, setAiCategoryHint] = useState('');
+  const sharedBlobRef = useRef<Blob | null>(null);
+
+  const runAiParse = async (blob: Blob) => {
+    setAiStatus('loading');
+    setAiError(null);
+    try {
+      const result = await parseImage(blob);
+      if (result.amount) setAmount(result.amount);
+      if (result.description) setDescription(result.description);
+      if (result.payment_method) setPaymentMethod(result.payment_method);
+      if (result.date) setDate(result.date);
+      if (result.time) setTime(result.time);
+      if (result.category_hint) {
+        setAiCategoryHint(result.category_hint);
+        if (categories.length) {
+          const matched = matchCategoryByHint(categories, result.category_hint);
+          if (matched) setCategoryId(matched);
+        }
+      }
+      setAiStatus('done');
+    } catch (err: unknown) {
+      const isAborted = (err as { name?: string })?.name === 'AbortError'
+        || (err as { code?: string })?.code === 'ERR_CANCELED';
+      setAiError(isAborted ? 'timeout' : 'failed');
+      setAiStatus('error');
+    }
+  };
 
   useEffect(() => {
     if (!sharedImage) return;
     void (async () => {
-      setAiStatus('loading');
-      try {
-        const blob = await readSharedImage();
-        if (!blob) { setAiStatus('error'); return; }
-        const result = await parseImage(blob);
-        if (result.amount) setAmount(result.amount);
-        if (result.description) setDescription(result.description);
-        if (result.payment_method) setPaymentMethod(result.payment_method);
-        if (result.date) setDate(result.date);
-        if (result.time) setTime(result.time);
-        if (result.category_hint && categories.length) {
-          const matched = matchCategoryByHint(categories, result.category_hint);
-          if (matched) setCategoryId(matched);
-        }
-        setAiStatus('done');
-      } catch {
+      const blob = await readSharedImage();
+      if (!blob) {
+        setAiError('failed');
         setAiStatus('error');
+        return;
       }
+      sharedBlobRef.current = blob;
+      await runAiParse(blob);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedImage]);
 
-  // Re-try category match once categories load (they may not be ready on first render)
-  const [categoryMatchedByAi, setCategoryMatchedByAi] = useState(false);
+  // If categories weren't loaded yet when AI finished, match once they arrive
   useEffect(() => {
-    if (aiStatus === 'done' && !categoryMatchedByAi && categories.length && !categoryId) {
-      setCategoryMatchedByAi(true);
+    if (aiCategoryHint && categories.length && !categoryId) {
+      const matched = matchCategoryByHint(categories, aiCategoryHint);
+      if (matched) setCategoryId(matched);
     }
-  }, [categories, aiStatus, categoryMatchedByAi, categoryId]);
+  }, [aiCategoryHint, categories, categoryId]);
 
   const canSubmit = amount.trim() && description.trim() && !createExpense.isPending && aiStatus !== 'loading';
 
@@ -181,7 +209,17 @@ export default function AddExpensePage() {
         {sharedImage && aiStatus === 'error' && (
           <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-destructive/8 border border-destructive/20">
             <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
-            <p className="text-xs font-medium text-destructive">Couldn't read screenshot — fill in manually</p>
+            <p className="text-xs font-medium text-destructive flex-1">
+              {aiError === 'timeout' ? 'Analysis timed out' : "Couldn't analyze screenshot"} — fill in manually
+            </p>
+            {sharedBlobRef.current && (
+              <button
+                onClick={() => runAiParse(sharedBlobRef.current!)}
+                className="flex items-center gap-1 text-xs font-medium text-destructive underline underline-offset-2 flex-shrink-0"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry
+              </button>
+            )}
           </div>
         )}
 
