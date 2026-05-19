@@ -25,6 +25,7 @@ interface ParsedImage {
   time: string | null;
   category_id: string | null;
   category_name?: string | null;
+  note?: string | null;
 }
 
 async function readSharedImage(): Promise<Blob | null> {
@@ -95,6 +96,7 @@ export default function AddExpensePage() {
       if (result.date) setDate(result.date);
       if (result.time) setTime(result.time);
       if (result.category_id) setCategoryId(result.category_id);
+      if (result.note) setNote(result.note);
       setAiStatus('done');
     } catch (err: unknown) {
       const isAborted = (err as { name?: string })?.name === 'AbortError'

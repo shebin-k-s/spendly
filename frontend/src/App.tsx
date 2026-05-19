@@ -18,6 +18,7 @@ import CategoriesPage from '@/features/categories/pages/CategoriesPage';
 import AddCategoryPage from '@/features/categories/pages/AddCategoryPage';
 import EditCategoryPage from '@/features/categories/pages/EditCategoryPage';
 import AnalyticsPage from '@/features/analytics/pages/AnalyticsPage';
+import AiTestPage from '@/features/expenses/pages/AiTestPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="categories/new" element={<AddCategoryPage />} />
               <Route path="categories/:id/edit" element={<EditCategoryPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="ai-test" element={<AiTestPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
