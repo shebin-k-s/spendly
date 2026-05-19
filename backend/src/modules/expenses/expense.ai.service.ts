@@ -19,6 +19,11 @@ export class ExpenseAiService {
             ? `Available categories — pick the best fit from this exact list (use the "id").\n${JSON.stringify(categories.map(c => ({ id: c.id, name: c.name, icon: c.icon })))}`
             : 'No categories available — use null for category_id.';
 
+        const merchantCategoryHints = [
+            { merchant: 'Ayaans Mart', category: 'Chanthavila Grocery' },
+        ];
+        const merchantHintBlock = `Merchant → preferred category hints (use these if a matching category exists in the list below; otherwise choose the best fit yourself):\n${merchantCategoryHints.map(h => `- "${h.merchant}" → prefer category: "${h.category}"`).join('\n')}`;
+
         return `You are an expense parsing assistant. Analyze this payment screenshot and extract expense details.
 
 Return ONLY a JSON object with these fields (no markdown, no explanation):
@@ -39,6 +44,8 @@ Rules:
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucker (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
 - note: Extract anything else useful that helps the user remember the purchase.
+
+${merchantHintBlock}
 
 ${categoryBlock}`;
     }
