@@ -1,9 +1,11 @@
 // ============================================================
 //  Spendly Service Worker
 //  – Caches the app shell for offline use
+//  – Handles Web Share Target (POST with image or text)
 // ============================================================
 
 const CACHE_NAME = 'spendly-cache-v1';
+const SHARE_CACHE = 'spendly-share';
 
 // Injected by vite-plugin-pwa at build time — versioned asset URLs for precaching
 const WB_MANIFEST = self.__WB_MANIFEST || [];
@@ -22,15 +24,46 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+        Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== SHARE_CACHE).map((k) => caches.delete(k)))
       )
       .then(() => self.clients.claim())
   );
 });
 
+// Handle Web Share Target POST (images shared from GPay/PhonePe/etc.)
+async function handleShareTarget(request) {
+  const formData = await request.formData();
+  const image = formData.get('image');
+  const text = formData.get('text') || '';
+  const title = formData.get('title') || '';
+
+  if (image && image instanceof File && image.size > 0) {
+    // Store the image in cache for the page to retrieve
+    const cache = await caches.open(SHARE_CACHE);
+    const imageResponse = new Response(image, {
+      headers: { 'Content-Type': image.type || 'image/jpeg' },
+    });
+    await cache.put('/share-image', imageResponse);
+    return Response.redirect('/expenses/new?shared=image', 303);
+  }
+
+  // Fallback: text share (if somehow a POST arrives with text)
+  const params = new URLSearchParams();
+  if (text) params.set('text', text);
+  else if (title) params.set('title', title);
+  const qs = params.toString();
+  return Response.redirect(`/expenses/new${qs ? '?' + qs : ''}`, 303);
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Intercept share target POST before any other handling
+  if (request.method === 'POST' && url.pathname === '/expenses/new') {
+    event.respondWith(handleShareTarget(request));
+    return;
+  }
 
   if (url.pathname.startsWith('/api')) return;
 

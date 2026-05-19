@@ -39,8 +39,14 @@ export default defineConfig({
         ],
         share_target: {
           action: '/expenses/new',
-          method: 'GET',
-          params: { title: 'title', text: 'text', url: 'url' },
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'image', accept: ['image/*'] }],
+          },
         },
       },
     }),

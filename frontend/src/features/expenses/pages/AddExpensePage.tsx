@@ -1,15 +1,70 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, Share2 } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
 import { parseShareText } from '../utils/parseShareText';
 import { DateTimePicker } from '@/components/DateTimePicker';
+import apiClient from '@/lib/apiClient';
 import type { PaymentMethod } from '../types';
+import type { Category } from '@/features/categories/types';
 
 const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
+
+type AiStatus = 'idle' | 'loading' | 'done' | 'error';
+
+interface ParsedImage {
+  amount: string;
+  description: string;
+  payment_method: PaymentMethod;
+  date: string | null;
+  time: string | null;
+  category_hint: string;
+}
+
+function matchCategoryByHint(categories: Category[], hint: string): string {
+  if (!hint || !categories.length) return '';
+  const h = hint.toLowerCase();
+  const found = categories.find((c) => {
+    const n = c.name.toLowerCase();
+    if (h === 'food') return /food|eat|dine|restaurant|grocery|snack|meal|caf/.test(n);
+    if (h === 'transport') return /transport|travel|taxi|cab|uber|ola|auto|bus|train|metro/.test(n);
+    if (h === 'shopping') return /shop|cloth|fashion|store|market/.test(n);
+    if (h === 'entertainment') return /entertain|movie|game|fun|sport|music|stream/.test(n);
+    if (h === 'health') return /health|medic|doctor|pharmac|hospital|fitness|gym/.test(n);
+    if (h === 'utilities') return /utilit|bill|electric|gas|water|internet|phone/.test(n);
+    if (h === 'education') return /educat|school|college|book|course|learn/.test(n);
+    if (h === 'travel') return /travel|hotel|flight|trip|holiday|vacation/.test(n);
+    return n.includes(h);
+  });
+  return found?.id ?? '';
+}
+
+async function readSharedImage(): Promise<Blob | null> {
+  if (!('caches' in window)) return null;
+  try {
+    const cache = await caches.open('spendly-share');
+    const response = await cache.match('/share-image');
+    if (!response) return null;
+    const blob = await response.blob();
+    // Clear from cache after reading so it doesn't persist stale
+    await cache.delete('/share-image');
+    return blob;
+  } catch {
+    return null;
+  }
+}
+
+async function parseImage(blob: Blob): Promise<ParsedImage> {
+  const formData = new FormData();
+  formData.append('image', blob, 'share.jpg');
+  const { data } = await apiClient.post<ParsedImage>('/expenses/parse-image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
 
 export default function AddExpensePage() {
   const navigate = useNavigate();
@@ -18,6 +73,7 @@ export default function AddExpensePage() {
   const { data: categories = [] } = useCategoriesQuery();
 
   const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
+  const sharedImage = searchParams.get('shared') === 'image';
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
 
   const now = new Date();
@@ -29,8 +85,42 @@ export default function AddExpensePage() {
   const [categoryId, setCategoryId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState('');
+  const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
 
-  const canSubmit = amount.trim() && description.trim() && !createExpense.isPending;
+  useEffect(() => {
+    if (!sharedImage) return;
+    void (async () => {
+      setAiStatus('loading');
+      try {
+        const blob = await readSharedImage();
+        if (!blob) { setAiStatus('error'); return; }
+        const result = await parseImage(blob);
+        if (result.amount) setAmount(result.amount);
+        if (result.description) setDescription(result.description);
+        if (result.payment_method) setPaymentMethod(result.payment_method);
+        if (result.date) setDate(result.date);
+        if (result.time) setTime(result.time);
+        if (result.category_hint && categories.length) {
+          const matched = matchCategoryByHint(categories, result.category_hint);
+          if (matched) setCategoryId(matched);
+        }
+        setAiStatus('done');
+      } catch {
+        setAiStatus('error');
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedImage]);
+
+  // Re-try category match once categories load (they may not be ready on first render)
+  const [categoryMatchedByAi, setCategoryMatchedByAi] = useState(false);
+  useEffect(() => {
+    if (aiStatus === 'done' && !categoryMatchedByAi && categories.length && !categoryId) {
+      setCategoryMatchedByAi(true);
+    }
+  }, [categories, aiStatus, categoryMatchedByAi, categoryId]);
+
+  const canSubmit = amount.trim() && description.trim() && !createExpense.isPending && aiStatus !== 'loading';
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -49,10 +139,15 @@ export default function AddExpensePage() {
     );
   };
 
+  const isFromShare = sharedImage || !!parsed;
+
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <button onClick={() => parsed ? navigate('/expenses') : navigate(-1)} className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
+        <button
+          onClick={() => isFromShare ? navigate('/expenses') : navigate(-1)}
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
+        >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <h1 className="text-xl font-bold flex-1">Add Expense</h1>
@@ -66,7 +161,31 @@ export default function AddExpensePage() {
       </div>
 
       <div className="page-content space-y-5">
-        {/* Share pre-fill banner */}
+        {/* AI loading banner */}
+        {sharedImage && aiStatus === 'loading' && (
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
+            <p className="text-xs font-medium text-primary">Analyzing screenshot with AI...</p>
+          </div>
+        )}
+
+        {/* AI success banner */}
+        {sharedImage && aiStatus === 'done' && (
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+            <p className="text-xs font-medium text-primary">Pre-filled from payment screenshot — review and save</p>
+          </div>
+        )}
+
+        {/* AI error banner */}
+        {sharedImage && aiStatus === 'error' && (
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-destructive/8 border border-destructive/20">
+            <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+            <p className="text-xs font-medium text-destructive">Couldn't read screenshot — fill in manually</p>
+          </div>
+        )}
+
+        {/* Text share pre-fill banner */}
         {parsed && (
           <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
             <Share2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
@@ -188,7 +307,7 @@ export default function AddExpensePage() {
         </div>
 
         <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
-          {createExpense.isPending ? 'Saving...' : 'Add Expense'}
+          {createExpense.isPending ? 'Saving...' : aiStatus === 'loading' ? 'Analyzing...' : 'Add Expense'}
         </button>
       </div>
     </div>
