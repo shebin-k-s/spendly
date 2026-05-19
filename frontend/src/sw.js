@@ -4,19 +4,28 @@
 //  – Handles Web Share Target (POST with image or text)
 // ============================================================
 
-const CACHE_NAME = 'spendly-cache-v2';
+const CACHE_NAME = 'spendly-cache-v3';
 const SHARE_CACHE = 'spendly-share';
 
-// Injected by vite-plugin-pwa at build time — versioned asset URLs for precaching
+// Injected by vite-plugin-pwa at build time
 const WB_MANIFEST = self.__WB_MANIFEST || [];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  const precacheUrls = [
-    '/', '/index.html', '/logo.png', '/logo-192.png', '/manifest.webmanifest',
-    ...WB_MANIFEST.map((entry) => (typeof entry === 'string' ? entry : entry.url)),
+  const urls = [
+    '/',
+    '/index.html',
+    '/logo.png',
+    '/logo-192.png',
+    '/manifest.webmanifest',
+    ...WB_MANIFEST.map((e) => (typeof e === 'string' ? e : e.url)),
   ];
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(precacheUrls)));
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      // allSettled instead of addAll — one 404 won't prevent index.html from being cached
+      Promise.allSettled(urls.map((url) => cache.add(url)))
+    )
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -25,87 +34,77 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys
-            .filter((k) => k !== CACHE_NAME && k !== SHARE_CACHE)
-            .map((k) => caches.delete(k))
+          keys.filter((k) => k !== CACHE_NAME && k !== SHARE_CACHE).map((k) => caches.delete(k))
         )
       )
       .then(() => self.clients.claim())
   );
 });
 
-// Use a JS redirect instead of Response.redirect(303) — SW redirects have browser compatibility
-// issues for navigation requests; a JS redirect is universally reliable.
-function htmlRedirect(url) {
-  return new Response(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><script>location.replace(${JSON.stringify(url)});\x3c/script></head><body></body></html>`,
-    { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-  );
-}
-
-async function handleShareTarget(request) {
+// Serve the SPA shell — try network first, fall back to cached index.html
+async function serveSpa(request) {
   try {
-    const formData = await request.formData();
-    const image = formData.get('image');
-    const text = (formData.get('text') || '').trim();
-    const title = (formData.get('title') || '').trim();
-
-    if (image && image instanceof File && image.size > 0) {
-      // Read into ArrayBuffer first — more reliable than passing File directly to Response
-      const buffer = await image.arrayBuffer();
-      const cache = await caches.open(SHARE_CACHE);
-      await cache.put(
-        '/share-image',
-        new Response(buffer, { headers: { 'Content-Type': image.type || 'image/jpeg' } })
-      );
-      return htmlRedirect('/expenses/new?shared=image');
-    }
-
-    const params = new URLSearchParams();
-    if (text) params.set('text', text);
-    else if (title) params.set('title', title);
-    const qs = params.toString();
-    return htmlRedirect(`/expenses/new${qs ? '?' + qs : ''}`);
-  } catch {
-    return htmlRedirect('/expenses/new');
-  }
+    const res = await fetch(request);
+    if (res.ok) return res;
+  } catch { /* offline */ }
+  const cached = await caches.match('/index.html') || await caches.match('/');
+  return cached || new Response('<h1>You are offline</h1>', {
+    headers: { 'Content-Type': 'text/html' },
+  });
 }
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Intercept share target POST
+  // ── Web Share Target ─────────────────────────────────────────────────────
+  // Android sends a POST here when the user shares to this app.
+  // We process the payload, store it, then 303-redirect to the real page.
+  // Using Response.redirect(303) — the spec-correct mechanism (same as Google's
+  // official Web Share Target cookbook and the Squoosh PWA reference).
   if (request.method === 'POST' && url.pathname === '/expenses/new') {
-    event.respondWith(handleShareTarget(request));
-    return;
-  }
-
-  if (url.pathname.startsWith('/api')) return;
-
-  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          // Some static hosts return 404 for SPA sub-routes — serve cached index.html instead
-          if (!res.ok) {
-            return caches.match('/index.html').then((cached) => cached || res);
+      (async () => {
+        try {
+          const formData = await request.formData();
+          const image = formData.get('image');
+          const text = (formData.get('text') || '').trim();
+          const title = (formData.get('title') || '').trim();
+
+          if (image && image instanceof File && image.size > 0) {
+            const buffer = await image.arrayBuffer();
+            const cache = await caches.open(SHARE_CACHE);
+            await cache.put(
+              '/share-image',
+              new Response(buffer, { headers: { 'Content-Type': image.type || 'image/jpeg' } })
+            );
+            return Response.redirect('/expenses/new?shared=image', 303);
           }
-          return res;
-        })
-        .catch(() =>
-          caches.match('/index.html').then(
-            (cached) =>
-              cached ||
-              new Response('<h1>You are offline</h1>', {
-                headers: { 'Content-Type': 'text/html' },
-              })
-          )
-        )
+
+          const params = new URLSearchParams();
+          if (text) params.set('text', text);
+          else if (title) params.set('title', title);
+          const qs = params.toString();
+          return Response.redirect(`/expenses/new${qs ? '?' + qs : ''}`, 303);
+        } catch (err) {
+          console.error('[SW] share-target error:', err);
+          return Response.redirect('/expenses/new', 303);
+        }
+      })()
     );
     return;
   }
 
+  // ── Skip API calls ────────────────────────────────────────────────────────
+  if (url.pathname.startsWith('/api')) return;
+
+  // ── SPA navigation ────────────────────────────────────────────────────────
+  if (request.mode === 'navigate') {
+    event.respondWith(serveSpa(request));
+    return;
+  }
+
+  // ── Static assets — cache-first ───────────────────────────────────────────
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
