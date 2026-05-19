@@ -55,6 +55,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/unlock" element={<PublicRoute><UnlockPage /></PublicRoute>} />
+            <Route path="/ai-test" element={<ProtectedRoute><AiTestPage /></ProtectedRoute>} />
             <Route path="/*" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
@@ -64,7 +65,6 @@ export default function App() {
               <Route path="categories/new" element={<AddCategoryPage />} />
               <Route path="categories/:id/edit" element={<EditCategoryPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
-              <Route path="ai-test" element={<AiTestPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

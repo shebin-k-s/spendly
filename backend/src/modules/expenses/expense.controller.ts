@@ -63,7 +63,7 @@ function isOverloadedError(err: unknown): boolean {
     return false;
 }
 
-async function geminiParseImage(imageBase64: string, mimeType: string, categories: CategoryOption[]): Promise<{
+async function geminiParseImage(imageBase64: string, mimeType: string, categories: CategoryOption[], debug: boolean = false): Promise<{
     amount: string;
     description: string;
     payment_method: string;
@@ -72,6 +72,7 @@ async function geminiParseImage(imageBase64: string, mimeType: string, categorie
     category_id: string | null;
     category_name?: string | null;
     note?: string | null;
+    _debug?: { prompt: string; rawText: string };
 }> {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const prompt = buildPrompt(categories);
@@ -122,7 +123,11 @@ async function geminiParseImage(imageBase64: string, mimeType: string, categorie
             if (usedFallback) {
                 log.warn('gemini: recovered via fallback', { model: modelName, ms: Date.now() - t0 });
             }
-            return { amount, description, payment_method, date, time, category_id, category_name, note };
+            const payload: any = { amount, description, payment_method, date, time, category_id, category_name, note };
+            if (debug) {
+                payload._debug = { prompt, rawText: text };
+            }
+            return payload;
         } catch (err) {
             lastError = err;
             const isLast = modelName === GEMINI_MODEL_FALLBACKS[GEMINI_MODEL_FALLBACKS.length - 1];
@@ -197,7 +202,8 @@ export class ExpenseController {
             log.error('parseImage: failed to fetch categories', { error: String(err) });
         }
 
-        const parsed = await geminiParseImage(base64, mimeType, categories);
+        const debug = req.query.debug === 'true';
+        const parsed = await geminiParseImage(base64, mimeType, categories, debug);
         res.json(parsed);
     };
 }
