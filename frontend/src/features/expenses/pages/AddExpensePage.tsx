@@ -24,8 +24,8 @@ export default function AddExpensePage() {
   const [amount, setAmount] = useState(parsed?.amount ?? '');
   const [cashback, setCashback] = useState('');
   const [description, setDescription] = useState(parsed?.description ?? '');
-  const [date, setDate] = useState(format(now, 'yyyy-MM-dd'));
-  const [time, setTime] = useState<string | null>(format(now, 'HH:mm'));
+  const [date, setDate] = useState(parsed?.date ?? format(now, 'yyyy-MM-dd'));
+  const [time, setTime] = useState<string | null>(parsed?.time ?? format(now, 'HH:mm'));
   const [categoryId, setCategoryId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState('');
@@ -52,7 +52,7 @@ export default function AddExpensePage() {
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
+        <button onClick={() => parsed ? navigate('/expenses') : navigate(-1)} className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <h1 className="text-xl font-bold flex-1">Add Expense</h1>
