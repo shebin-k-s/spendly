@@ -1,11 +1,9 @@
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { formatINR } from '@/lib/utils';
-import { useDeleteExpense } from '../hooks/useExpenses';
 import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS, netAmount } from '../utils/expenseUtils';
 import { useAppSelector } from '@/store/hooks';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
@@ -27,8 +25,6 @@ function fmtTime(t: string): string {
 export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Props) {
   const navigate = useNavigate();
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const deleteExpense = useDeleteExpense();
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -73,15 +69,8 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
     navigate(`/expenses/${expense.id}/edit`);
   };
 
-  const executeDelete = () => {
-    deleteExpense.mutate(expense.id, {
-      onSuccess: () => onOpenChange(false),
-    });
-  };
-
   return (
-    <>
-      <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-500 ease-in-out" />
           <Dialog.Content
@@ -105,83 +94,66 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto overscroll-contain">
 
-              {/* Hero — icon + description + amount centered */}
-              <div className="flex flex-col items-center px-4 pt-2 pb-6">
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 pb-5">
                 <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-4"
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
                   style={{ backgroundColor: expense.category?.color ?? '#475569' }}
                 >
                   {expense.category?.icon ?? '📦'}
                 </div>
-                <p className="text-lg font-bold text-center">{expense.description}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">{expense.category?.name ?? 'Uncategorized'}</p>
-                <p className="text-4xl font-bold text-primary mt-4">{formatINR(net)}</p>
-                {showGross && hasCashback && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-sm text-muted-foreground line-through">{formatINR(Number(expense.amount))}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-success/15 text-success/90 text-[11px] font-medium">
-                      saved {formatINR(Number(expense.cashback))}
-                    </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-base truncate">{expense.description}</p>
+                  <p className="text-sm text-muted-foreground">{expense.category?.name ?? 'Uncategorized'}</p>
+                </div>
+                <div className="flex flex-col items-end flex-shrink-0">
+                  <p className="text-xl font-bold">{formatINR(net)}</p>
+                  {showGross && hasCashback && (
+                    <span className="text-xs text-muted-foreground line-through">{formatINR(Number(expense.amount))}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Detail rows */}
+              <div className="border-t border-border">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+                  <span className="text-sm text-muted-foreground">Date</span>
+                  <span className="text-sm font-medium">
+                    {format(parseISO(expense.date), 'dd MMM yyyy')}
+                    {expense.time && (
+                      <span className="text-muted-foreground font-normal"> · {fmtTime(expense.time)}</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+                  <span className="text-sm text-muted-foreground">Payment</span>
+                  <span className="text-sm font-medium">
+                    {PAYMENT_METHOD_ICONS[expense.paymentMethod]} {PAYMENT_METHOD_LABELS[expense.paymentMethod]}
+                  </span>
+                </div>
+
+                {hasCashback && (
+                  <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+                    <span className="text-sm text-muted-foreground">Cashback</span>
+                    <span className="text-sm font-medium text-success">+{formatINR(Number(expense.cashback))}</span>
+                  </div>
+                )}
+
+                {expense.note && (
+                  <div className="px-5 py-3.5 border-b border-border">
+                    <p className="text-sm text-muted-foreground mb-1">Note</p>
+                    <p className="text-sm">{expense.note}</p>
                   </div>
                 )}
               </div>
 
-              {/* Detail rows */}
-              <div className="px-4 pb-4">
-                <div className="bg-secondary/50 rounded-2xl divide-y divide-border">
-
-                  <div className="flex items-center justify-between px-4 py-3.5">
-                    <span className="text-sm text-muted-foreground">Date</span>
-                    <span className="text-sm font-medium">
-                      {format(parseISO(expense.date), 'dd MMM yyyy')}
-                      {expense.time && (
-                        <span className="text-muted-foreground font-normal"> · {fmtTime(expense.time)}</span>
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between px-4 py-3.5">
-                    <span className="text-sm text-muted-foreground">Payment</span>
-                    <span className="text-sm font-medium">
-                      {PAYMENT_METHOD_ICONS[expense.paymentMethod]} {PAYMENT_METHOD_LABELS[expense.paymentMethod]}
-                    </span>
-                  </div>
-
-                  {hasCashback && (
-                    <div className="flex items-center justify-between px-4 py-3.5">
-                      <span className="text-sm text-muted-foreground">Cashback</span>
-                      <span className="text-sm font-medium text-success">+{formatINR(Number(expense.cashback))}</span>
-                    </div>
-                  )}
-
-                </div>
-              </div>
-
-              {/* Note */}
-              {expense.note && (
-                <div className="px-4 pb-4">
-                  <div className="bg-secondary/50 rounded-2xl px-4 py-3.5">
-                    <p className="text-xs text-muted-foreground mb-1">Note</p>
-                    <p className="text-sm">{expense.note}</p>
-                  </div>
-                </div>
-              )}
-
               {/* Actions */}
-              <div className="px-4 pb-8 grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  disabled={deleteExpense.isPending}
-                  className="py-3.5 rounded-2xl bg-destructive/10 text-destructive text-sm font-semibold flex items-center justify-center gap-2 active:opacity-70"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
+              <div className="px-5 pt-5 pb-8">
                 <button
                   onClick={handleEdit}
-                  className="py-3.5 rounded-2xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 active:opacity-70"
+                  className="btn-primary select-none outline-none"
                 >
-                  <Pencil className="w-4 h-4" />
                   Edit
                 </button>
               </div>
@@ -189,15 +161,6 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
             </div>
           </Dialog.Content>
         </Dialog.Portal>
-      </Dialog.Root>
-
-      <ConfirmModal
-        open={showDeleteModal}
-        onOpenChange={setShowDeleteModal}
-        title="Delete Expense"
-        description="Are you sure you want to delete this expense? This action cannot be undone."
-        onConfirm={executeDelete}
-      />
-    </>
+    </Dialog.Root>
   );
 }
