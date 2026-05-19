@@ -34,7 +34,7 @@ export default function AiTestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col hide-scrollbar h-screen">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-4 p-4 border-b border-secondary shrink-0">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-secondary rounded-lg">
@@ -50,10 +50,10 @@ export default function AiTestPage() {
       </div>
 
       {/* Main Grid */}
-      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3 gap-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-0">
         
         {/* Left Column: Image & Status */}
-        <div className="p-4 border-r border-secondary flex flex-col gap-4 overflow-y-auto bg-secondary/10">
+        <div className="p-4 border-b lg:border-b-0 lg:border-r border-secondary flex flex-col gap-4 bg-secondary/10">
           <h2 className="font-semibold text-lg">Input</h2>
           {loading && (
             <div className="bg-primary/10 text-primary p-4 rounded-xl border border-primary/20 animate-pulse font-medium">
@@ -66,20 +66,20 @@ export default function AiTestPage() {
             </div>
           )}
           {imageUrl ? (
-            <img src={imageUrl} alt="preview" className="rounded-xl border border-secondary w-full h-auto object-contain bg-background" />
+            <img src={imageUrl} alt="preview" className="rounded-xl border border-secondary w-[400px] h-[400px] max-w-full object-cover bg-background mx-auto shadow-sm" />
           ) : (
-            <div className="aspect-square border-2 border-dashed border-secondary rounded-xl flex items-center justify-center text-muted-foreground bg-background">
+            <div className="w-[400px] h-[400px] max-w-full border-2 border-dashed border-secondary rounded-xl flex items-center justify-center text-muted-foreground bg-background mx-auto">
               Upload an image to start
             </div>
           )}
         </div>
 
         {/* Middle Column: Prompt Engine */}
-        <div className="p-4 border-r border-secondary flex flex-col gap-2 overflow-y-auto">
+        <div className="p-4 border-b lg:border-b-0 lg:border-r border-secondary flex flex-col gap-2">
           <h2 className="font-semibold text-lg flex items-center gap-2">
             AI Prompt (System Instructions)
           </h2>
-          <div className="bg-secondary/20 p-4 rounded-xl border border-secondary flex-1 overflow-y-auto">
+          <div className="bg-secondary/20 p-4 rounded-xl border border-secondary">
             {!result ? (
               <p className="text-muted-foreground italic">Waiting for execution...</p>
             ) : (
@@ -91,12 +91,12 @@ export default function AiTestPage() {
         </div>
 
         {/* Right Column: AI Output */}
-        <div className="p-4 flex flex-col gap-2 overflow-y-auto">
+        <div className="p-4 flex flex-col gap-2">
           <h2 className="font-semibold text-lg flex justify-between items-center">
             Extracted Data
             {result && <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-500 rounded-md">Success</span>}
           </h2>
-          <div className="bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/20 flex-1 overflow-y-auto font-mono text-xs">
+          <div className="bg-emerald-500/5 p-4 rounded-xl border border-emerald-500/20 font-mono text-xs">
             {!result ? (
               <p className="text-muted-foreground italic">Response will appear here...</p>
             ) : (
