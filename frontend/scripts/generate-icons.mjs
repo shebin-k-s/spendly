@@ -34,7 +34,6 @@ const maskableSvg = (size) => {
 </svg>`;
 };
 
-// Rounded corner mask — white rect on transparent, applied with dest-in
 const roundedMask = (size) => {
   const rx = Math.round(size * 0.225);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
@@ -51,7 +50,6 @@ const tasks = [
 
 for (const { svg, out, size, rounded } of tasks) {
   const base = await sharp(Buffer.from(svg)).resize(size, size).png().toBuffer();
-
   if (rounded) {
     await sharp(base)
       .composite([{ input: Buffer.from(roundedMask(size)), blend: 'dest-in' }])
