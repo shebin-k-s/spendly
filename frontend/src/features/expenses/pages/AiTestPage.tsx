@@ -107,7 +107,7 @@ export default function AiTestPage() {
                     {JSON.stringify(result._debug?.rawText ? JSON.parse(result._debug.rawText) : result, null, 2)}
                   </pre>
                 </div>
-                {result._debug?.rawText && result.category_name && (
+                {result._debug?.rawText && (
                   <div className="pt-4 border-t border-emerald-500/20">
                     <div className="text-emerald-500/70 mb-1 font-bold">MAPPED FRONTEND PAYLOAD:</div>
                     <pre className="whitespace-pre-wrap text-foreground">
