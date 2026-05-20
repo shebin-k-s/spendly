@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye, Image as ImageIcon, ZoomIn, ZoomOut } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -180,8 +181,6 @@ export default function AddExpensePage() {
     }
   }, [shareTs, parsedShare]);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [isZoomed, setIsZoomed] = useState(false);
-
   // Swipe-to-dismiss logic (Standardized)
   const sheetRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);
@@ -689,57 +688,53 @@ export default function AddExpensePage() {
         </button>
       </div>
 
-      {/* Image — Immersive lightbox with Zoom */}
+      {/* Image — Immersive lightbox with pinch-to-zoom */}
       {showReceiptModal && previewShareType === 'image' && previewThumbnail && (
         <div
-          className="fixed inset-0 z-50 flex flex-col animate-in fade-in duration-500 overscroll-contain touch-none"
+          className="fixed inset-0 z-50 flex flex-col animate-in fade-in duration-500"
           onClick={() => setShowReceiptModal(false)}
         >
           <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" />
-          
-          <div className="relative flex flex-col h-full overscroll-contain touch-none">
+
+          <div className="relative flex flex-col h-full">
             {/* Immersive Header */}
             <div className="px-6 pt-14 pb-4 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black text-primary/80 uppercase tracking-[0.2em] mb-1">Receipt Preview</p>
                 <h2 className="text-xl font-bold text-white tracking-tight">Inspect Document</h2>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setIsZoomed(!isZoomed); }}
-                  className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center active:scale-90 border border-white/5"
-                >
-                  {isZoomed ? <ZoomOut className="w-6 h-6 text-white" /> : <ZoomIn className="w-6 h-6 text-white" />}
-                </button>
-                <button
-                  onClick={() => setShowReceiptModal(false)}
-                  className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center active:scale-90 border border-white/5"
-                >
-                  <X className="w-6 h-6 text-white" />
-                </button>
-              </div>
-            </div>
-            
-            <div
-              className={`flex-1 flex items-center justify-center p-6 ${isZoomed ? 'touch-auto overflow-auto scrollbar-none' : 'touch-none'}`}
-              onClick={(e) => { e.stopPropagation(); setIsZoomed(!isZoomed); }}
-            >
-              <div 
-                className={`relative transition-all duration-500 ease-out flex-shrink-0 ${isZoomed ? 'scale-[2.0]' : 'scale-100'}`}
-                style={{ transformOrigin: 'center center' }}
+              <button
+                onClick={() => setShowReceiptModal(false)}
+                className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center active:scale-90 border border-white/5"
               >
-                <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                <X className="w-6 h-6 text-white" />
+              </button>
+            </div>
+
+            <div className="flex-1 relative overflow-hidden">
+              <TransformWrapper
+                initialScale={1}
+                minScale={0.5}
+                maxScale={5}
+                centerOnInit
+                centerZoomedOut
+              >
+                <TransformComponent
+                  wrapperStyle={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                  contentStyle={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
                   <img
                     src={previewThumbnail}
                     alt="Receipt"
-                    className="max-w-[85vw] max-h-[60vh] object-contain"
+                    className="max-w-[85vw] max-h-[60vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+                    onClick={(e) => e.stopPropagation()}
                   />
-                </div>
-              </div>
+                </TransformComponent>
+              </TransformWrapper>
             </div>
-            
+
             <div className="px-10 pb-16 text-center">
-              <p className="text-[13px] font-medium text-white/30 italic">Tap image to {isZoomed ? 'zoom out' : 'zoom in'}</p>
+              <p className="text-[13px] font-medium text-white/30 italic">Pinch to zoom · drag to pan</p>
             </div>
           </div>
         </div>

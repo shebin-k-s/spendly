@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigationType } from 'react-router-dom';
 import { LayoutDashboard, Receipt, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AnimatedOutlet from './AnimatedOutlet';
@@ -18,12 +18,24 @@ export default function Layout() {
   const startX = useRef<number | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const location = useLocation();
+  const navType = useNavigationType();
+  const scrollPositions = useRef<Record<string, number>>({});
+  const prevKey = useRef(location.key);
 
   useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTo(0, 0);
+    // Save scroll position of the page we're leaving
+    scrollPositions.current[prevKey.current] = mainRef.current?.scrollTop ?? 0;
+    prevKey.current = location.key;
+
+    if (navType === 'POP') {
+      // Back navigation — restore where the user was
+      const saved = scrollPositions.current[location.key] ?? 0;
+      if (mainRef.current) mainRef.current.scrollTop = saved;
+    } else {
+      // Forward navigation — always start at top
+      if (mainRef.current) mainRef.current.scrollTop = 0;
     }
-  }, [location.pathname]);
+  }, [location.key, navType]);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
     if (mainRef.current && mainRef.current.scrollTop <= 1) { // 1px tolerance
