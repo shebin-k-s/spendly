@@ -47,15 +47,25 @@ async function readSharedImage(): Promise<Blob | null> {
   }
 }
 
-async function readSharedResult(): Promise<ParsedImage | null> {
+async function popShareResult(): Promise<(ParsedImage & { cashback?: string }) | null> {
   if (!('caches' in window)) return null;
   try {
     const cache = await caches.open('spendly-share');
-    const response = await cache.match('/share-result');
-    if (!response) return null;
-    const result = await response.json();
-    await cache.delete('/share-result');
-    return result;
+    const queueRes = await cache.match('/share-queue');
+    if (!queueRes) return null;
+    const queue: Array<{ type: string; result: ParsedImage & { cashback?: string }; ts: number }> = await queueRes.json();
+    if (!queue.length) return null;
+    const item = queue.shift()!;
+    if (queue.length > 0) {
+      await cache.put('/share-queue', new Response(JSON.stringify(queue), {
+        headers: { 'Content-Type': 'application/json' },
+      }));
+      navigator.setAppBadge?.(queue.length);
+    } else {
+      await cache.delete('/share-queue');
+      navigator.clearAppBadge?.();
+    }
+    return item.result;
   } catch {
     return null;
   }
@@ -165,7 +175,7 @@ export default function AddExpensePage() {
 
     void (async () => {
       // First, check if there's already a cached result from the SW (background parse)
-      const cachedResult = await readSharedResult();
+      const cachedResult = await popShareResult();
       if (cachedResult) {
         console.log('[App] Using cached AI result from Service Worker');
         if (cachedResult.amount) setAmount(cachedResult.amount);
@@ -202,7 +212,7 @@ export default function AddExpensePage() {
     }
 
     void (async () => {
-      const cachedResult = await readSharedResult();
+      const cachedResult = await popShareResult();
       if (cachedResult) {
         if (cachedResult.amount) setAmount(cachedResult.amount);
         if (cachedResult.description) setDescription(cachedResult.description);
@@ -274,7 +284,7 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: () => navigate('/expenses') },
+      { onSuccess: () => { navigator.clearAppBadge?.(); navigate('/expenses'); } },
     );
   };
 

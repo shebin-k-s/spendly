@@ -186,6 +186,7 @@ self.addEventListener('notificationclick', (event) => {
             }),
           });
           if (!res.ok) throw new Error('save-failed');
+          navigator.clearAppBadge?.().catch?.(() => {});
           await self.registration.showNotification('Expense saved', {
             body: `₹${data.amount} · ${data.description}`,
             icon: '/logo-192.png',
@@ -300,6 +301,18 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// ── Share queue helpers ───────────────────────────────────────────────────────
+async function appendShareQueue(parsed, type) {
+  const cache = await caches.open(SHARE_CACHE);
+  const existing = await cache.match('/share-queue');
+  const queue = existing ? await existing.json() : [];
+  queue.push({ type, result: parsed, ts: Date.now() });
+  await cache.put('/share-queue', new Response(JSON.stringify(queue), {
+    headers: { 'Content-Type': 'application/json' },
+  }));
+  navigator.setAppBadge?.(queue.length).catch?.(() => {});
+}
+
 // ── Background text parse helper ─────────────────────────────────────────────
 async function backgroundTextParseAndNotify(text) {
   try {
@@ -310,31 +323,16 @@ async function backgroundTextParseAndNotify(text) {
     if (!res.ok) throw new Error('parse-failed');
     const parsed = await res.json();
 
-    const cache = await caches.open(SHARE_CACHE);
-    await cache.put('/share-result', new Response(JSON.stringify(parsed), {
-      headers: { 'Content-Type': 'application/json' },
-    }));
+    await appendShareQueue(parsed, 'text');
 
-    const amount    = parsed.amount      || '?';
-    const desc      = parsed.description || 'Expense';
-    const category  = parsed.category_name || '';
-    const method    = parsed.payment_method || '';
-    const date      = parsed.date ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
-    const time      = parsed.time || '';
-    
-    const lines = [];
-    const mainParts = [category, method, date, time].filter(Boolean).join(' · ');
-    if (mainParts) lines.push(mainParts);
-    if (parsed.cashback !== undefined && parsed.cashback !== null && parsed.cashback !== '') {
-      lines.push(`Cashback: ₹${parsed.cashback}`);
-    }
-    if (parsed.note) {
-      lines.push(`Note: ${parsed.note}`);
-    }
-    const body = lines.join('\n') || 'Tap to review before saving';
+    const amount   = parsed.amount      || '?';
+    const desc     = parsed.description || 'Expense';
+    const category = parsed.category_name || '';
+    const method   = parsed.payment_method || '';
+    const bodyParts = [category, method].filter(Boolean).join(' · ');
 
     await self.registration.showNotification(`₹${amount} · ${desc}`, {
-      body,
+      body:               bodyParts || 'Tap to review before saving',
       icon:               new URL('/logo-192.png', self.location.origin).href,
       badge:              new URL('/badge.svg', self.location.origin).href,
       requireInteraction: true,
@@ -401,11 +399,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     }
     const body = lines.join('\n') || 'Tap to review before saving';
 
-    // Store the parse result so the app can reuse it instead of re-parsing
-    const imageCache = await caches.open(SHARE_CACHE);
-    await imageCache.put('/share-result', new Response(JSON.stringify(parsed), {
-      headers: { 'Content-Type': 'application/json' },
-    }));
+    await appendShareQueue(parsed, 'image');
 
     console.log('[SW] backgroundParseAndNotify: showing success notification');
     if (activeShareTakeover) {

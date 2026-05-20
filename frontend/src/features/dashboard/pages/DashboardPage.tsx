@@ -1,3 +1,6 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ImageIcon, MessageSquareText } from 'lucide-react';
 import { monthLabel, prevMonth, formatINR } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
@@ -7,7 +10,29 @@ import MonthSummaryCard from '../components/MonthSummaryCard';
 import CategoryBreakdown from '../components/CategoryBreakdown';
 import RecentExpenses from '../components/RecentExpenses';
 
+async function checkPendingShare(): Promise<{ type: 'image' | 'text'; count: number } | null> {
+  if (!('caches' in window)) return null;
+  try {
+    const cache = await caches.open('spendly-share');
+    const queueRes = await cache.match('/share-queue');
+    if (queueRes) {
+      const queue: Array<{ type: 'image' | 'text' }> = await queueRes.json();
+      if (queue.length > 0) return { type: queue[0].type, count: queue.length };
+    }
+    if (await cache.match('/share-image')) return { type: 'image', count: 1 };
+    if (await cache.match('/share-text')) return { type: 'text', count: 1 };
+  } catch {}
+  return null;
+}
+
 export default function DashboardPage() {
+  const navigate = useNavigate();
+  const [pendingShare, setPendingShare] = useState<{ type: 'image' | 'text'; count: number } | null>(null);
+
+  useEffect(() => {
+    void checkPendingShare().then(setPendingShare);
+  }, []);
+
   const { year, month } = useAppSelector((state) => state.date);
   const showGross = useAppSelector((state) => state.prefs.showGross);
   const dispatch = useAppDispatch();
@@ -41,6 +66,29 @@ export default function DashboardPage() {
       </div>
 
       <div className="page-content space-y-4">
+        {/* Pending share banner */}
+        {pendingShare && (
+          <button
+            onClick={() => navigate(`/expenses/new?shared=${pendingShare.type}`)}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 active:scale-[0.98] transition-all text-left"
+          >
+            {pendingShare.type === 'image'
+              ? <ImageIcon className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              : <MessageSquareText className="w-4 h-4 text-amber-400 flex-shrink-0" />}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-amber-400">
+                {pendingShare.count > 1 ? `${pendingShare.count} pending receipts` : 'Pending receipt'}
+              </p>
+              <p className="text-[11px] text-amber-400/70 mt-0.5">
+                {pendingShare.count > 1
+                  ? 'Tap to review them one by one'
+                  : pendingShare.type === 'image' ? 'A shared screenshot is waiting to be added' : 'A shared message is waiting to be added'}
+              </p>
+            </div>
+            <span className="text-xs text-amber-400/60 flex-shrink-0">Review →</span>
+          </button>
+        )}
+
         {/* Total spend */}
         <MonthSummaryCard
           total={(summary?.total ?? 0) - (summary?.cashbackTotal ?? 0)}
