@@ -1,6 +1,7 @@
 import { AppDataSource } from '../../config/data.source';
 import { Expense } from './expense.entity';
 import { ApiError } from '../../common/middlewares/error.middleware';
+import { getISTParts } from '../../common/utils/date.utils';
 
 export class ExpenseService {
     private repo = AppDataSource.getRepository(Expense);
@@ -132,11 +133,11 @@ export class ExpenseService {
     }
 
     async getAnalytics(months: number = 6) {
-        const now = new Date();
+        const { year: nowYear, month: nowMonth } = getISTParts();
         const promises = [];
 
         for (let i = months - 1; i >= 0; i--) {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const d = new Date(nowYear, (nowMonth - 1) - i, 1);
             const year = d.getFullYear();
             const month = d.getMonth() + 1;
             const monthStr = month.toString().padStart(2, '0');

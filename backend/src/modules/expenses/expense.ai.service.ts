@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, Part } from '@google/generative-ai';
 import { ApiError } from '../../common/middlewares/error.middleware';
+import { getISTParts } from '../../common/utils/date.utils';
 
 export interface CategoryOption { id: string; name: string; icon: string; }
 
@@ -203,10 +204,8 @@ ${categoryBlock}`;
     }
 
     async parseText(text: string, categories: CategoryOption[], debug = false) {
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        const prompt = this.buildTextPrompt(text, categories, today, currentTime);
+        const { dateString, timeString } = getISTParts();
+        const prompt = this.buildTextPrompt(text, categories, dateString, timeString);
         const rawText = await this.runModel([prompt]);
         const raw = this.extractJson(rawText);
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
 import { ExpenseAiService } from './expense.ai.service';
+import { getISTParts } from '../../common/utils/date.utils';
 
 const log = {
     info: (msg: string, meta?: Record<string, unknown>) =>
@@ -16,15 +17,17 @@ const aiService = new ExpenseAiService();
 
 export class ExpenseController {
     getByMonth = async (req: Request, res: Response) => {
-        const year = parseInt(req.query.year as string) || new Date().getFullYear();
-        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+        const { year: istYear, month: istMonth } = getISTParts();
+        const year = parseInt(req.query.year as string) || istYear;
+        const month = parseInt(req.query.month as string) || istMonth;
         const categoryId = req.query.categoryId as string | undefined;
         res.json(await service.getByMonth(year, month, categoryId));
     };
 
     getMonthlySummary = async (req: Request, res: Response) => {
-        const year = parseInt(req.query.year as string) || new Date().getFullYear();
-        const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+        const { year: istYear, month: istMonth } = getISTParts();
+        const year = parseInt(req.query.year as string) || istYear;
+        const month = parseInt(req.query.month as string) || istMonth;
         res.json(await service.getMonthlySummary(year, month));
     };
 
