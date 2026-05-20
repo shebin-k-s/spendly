@@ -88,7 +88,7 @@ export default function AiTestPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-4 p-4 border-b border-secondary shrink-0">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-secondary rounded-lg">
+        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-2xl bg-secondary flex items-center justify-center active:scale-95 transition-transform">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-xl font-bold flex-1">AI Tuning Playground</h1>
