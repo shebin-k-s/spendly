@@ -44,6 +44,7 @@ self.addEventListener('install', (event) => {
   const urls = [
     '/',
     '/index.html',
+    '/share-processing',
     '/logo.png',
     '/logo-192.png',
     '/manifest.webmanifest',
@@ -261,7 +262,7 @@ self.addEventListener('fetch', (event) => {
           // The app sends APP_HEARTBEAT messages while active. If a heartbeat
           // arrived in the last 2 minutes, treat the app as open (pre-fill).
           // This avoids unreliable clients.matchAll() timing race conditions.
-          const APP_HEARTBEAT_TTL = 120_000;
+          const APP_HEARTBEAT_TTL = 10_000;
           const heartbeatAge = await getHeartbeatAge();
           const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
           console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
@@ -271,14 +272,11 @@ self.addEventListener('fetch', (event) => {
             return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
           }
 
-          // ── App was closed → background parse + notification ──────────────
-          console.log('[SW] App was closed → background parse + notification');
+          // ── App was closed → brief processing screen + background parse ────
+          console.log('[SW] App was closed → processing screen + background parse');
           activeShareTakeover = false;
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
-          
-          // Redirect to home so the app doesn't open straight to the expense form
-          // This allows the background notification to handle the "Review" action
-          return Response.redirect(new URL('/', self.location.origin).href, 303);
+          return Response.redirect(new URL('/share-processing', self.location.origin).href, 303);
 
         } catch (err) {
           console.error('[SW] share-target error:', err);

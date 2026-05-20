@@ -19,6 +19,7 @@ import AddCategoryPage from '@/features/categories/pages/AddCategoryPage';
 import EditCategoryPage from '@/features/categories/pages/EditCategoryPage';
 import AnalyticsPage from '@/features/analytics/pages/AnalyticsPage';
 import AiTestPage from '@/features/expenses/pages/AiTestPage';
+import ShareProcessingPage from '@/features/expenses/pages/ShareProcessingPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,6 +56,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/unlock" element={<PublicRoute><UnlockPage /></PublicRoute>} />
+            <Route path="/share-processing" element={<ShareProcessingPage />} />
             <Route path="/ai-test" element={<ProtectedRoute><AiTestPage /></ProtectedRoute>} />
             <Route path="/*" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<DashboardPage />} />
