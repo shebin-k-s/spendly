@@ -49,18 +49,10 @@ export default function ShareProcessingPage() {
   }, []);
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#050505] overflow-hidden text-white">
-      {/* Dynamic Ambient Background */}
-      <div className="absolute inset-0 z-0">
-        <motion.div
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: [0.2, 0.35, 0.2],
-            rotate: [0, 5, 0]
-          }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-1/4 -right-1/4 w-[150%] h-[150%] bg-gradient-to-br from-primary/30 to-transparent rounded-full blur-[100px]"
-        />
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#050505] overflow-hidden text-white select-none">
+      {/* Optimized Ambient Background */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(5,5,5,0.8)_100%)]" />
       </div>
 
@@ -99,16 +91,12 @@ export default function ShareProcessingPage() {
 
           <AnimatePresence>
             {status === 'processing' && (
-              [1, 2].map((i) => (
-                <motion.div
-                  key={i}
-                  initial={{ scale: 1, opacity: 0.5 }}
-                  animate={{ scale: 1.5, opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 2, repeat: Infinity, delay: i * 0.8, ease: "easeOut" }}
-                  className="absolute inset-0 border border-primary/30 rounded-[32px] z-0"
-                />
-              ))
+              <motion.div
+                key="ring"
+                animate={{ scale: [1, 1.3], opacity: [0.3, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                className="absolute inset-0 border border-primary/20 rounded-[32px] z-0 will-change-transform"
+              />
             )}
           </AnimatePresence>
         </div>
@@ -163,25 +151,24 @@ export default function ShareProcessingPage() {
         </AnimatePresence>
       </div>
 
-      {/* Subtle particle decoration */}
-      <div className="absolute inset-0 pointer-events-none opacity-20">
-        {[...Array(12)].map((_, i) => (
+      {/* Subtle particle decoration - reduced for performance */}
+      <div className="absolute inset-0 pointer-events-none opacity-10">
+        {[...Array(6)].map((_, i) => (
           <motion.div
             key={i}
             animate={{
-              y: [0, -100],
+              y: [0, -60],
               opacity: [0, 1, 0],
-              x: Math.sin(i) * 20
             }}
             transition={{
-              duration: 3 + Math.random() * 2,
+              duration: 4 + i,
               repeat: Infinity,
-              delay: Math.random() * 5
+              delay: i * 0.5
             }}
-            className="absolute w-1 h-1 bg-primary rounded-full"
+            className="absolute w-1 h-1 bg-primary rounded-full will-change-transform"
             style={{
-              left: `${Math.random() * 100}%`,
-              top: `${80 + Math.random() * 20}%`
+              left: `${15 + i * 15}%`,
+              top: `${85}%`
             }}
           />
         ))}
