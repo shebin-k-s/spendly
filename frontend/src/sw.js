@@ -201,26 +201,16 @@ self.addEventListener('notificationclick', (event) => {
   }
 
   // "review" action or plain tap → open / focus the add-expense form
-  event.waitUntil(openReviewWindow());
+  event.waitUntil(openReviewWindow(data.shareType || 'image'));
 });
 
-async function openReviewWindow() {
-  const target = new URL('/expenses/new?shared=image', self.location.origin).href;
+async function openReviewWindow(shareType = 'image') {
+  const target = new URL(`/expenses/new?shared=${shareType}`, self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const existing = clients.find((c) => c.url.includes('/expenses/new'));
-  if (existing) {
-    console.log('[SW] Found existing Add Expense window, focusing...');
-    existing.focus();
-    return;
-  }
+  if (existing) { existing.focus(); return; }
   const any = clients[0];
-  if (any) {
-    console.log('[SW] Navigating existing window to review...');
-    any.navigate(target);
-    any.focus();
-    return;
-  }
-  console.log('[SW] Opening new window for review...');
+  if (any) { any.navigate(target); any.focus(); return; }
   await self.clients.openWindow(target);
 }
 
@@ -239,41 +229,41 @@ self.addEventListener('fetch', (event) => {
           const text  = (formData.get('text')  || '').trim();
           const title = (formData.get('title') || '').trim();
 
-          // ── Text share → existing flow unchanged ──────────────────────────
+          // ── Heartbeat check (shared by text and image paths) ─────────────
+          const APP_HEARTBEAT_TTL = 10_000;
+          const heartbeatAge = await getHeartbeatAge();
+          const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
+          console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
+
+          // ── Text share ────────────────────────────────────────────────────
           if (!image || !(image instanceof File) || image.size === 0) {
-            console.log('[SW] Text share detected:', { text, title });
-            const params = new URLSearchParams();
-            if (text)  params.set('text',  text);
-            else if (title) params.set('title', title);
-            const qs = params.toString();
-            const target = new URL(`/expenses/new${qs ? '?' + qs : ''}`, self.location.origin).href;
-            console.log('[SW] Redirecting text share to:', target);
-            return Response.redirect(target, 303);
+            const shareText = text || title;
+            if (!shareText) {
+              return Response.redirect(new URL('/expenses/new', self.location.origin).href, 303);
+            }
+            // Store text so the app can read it from cache (same pattern as image)
+            const textCache = await caches.open(SHARE_CACHE);
+            await textCache.put('/share-text', new Response(shareText, {
+              headers: { 'Content-Type': 'text/plain' },
+            }));
+            if (appWasOpen) {
+              return Response.redirect(new URL('/expenses/new?shared=text', self.location.origin).href, 303);
+            }
+            activeShareTakeover = false;
+            event.waitUntil(backgroundTextParseAndNotify(shareText));
+            return Response.redirect(new URL('/share-processing', self.location.origin).href, 303);
           }
 
-          // Store image for the review flow
+          // ── Image share ───────────────────────────────────────────────────
           const buffer = await image.arrayBuffer();
           const imageCache = await caches.open(SHARE_CACHE);
           await imageCache.put('/share-image', new Response(buffer, {
             headers: { 'Content-Type': image.type || 'image/jpeg' },
           }));
 
-          // ── Check if app was recently open via heartbeat ──────────────────
-          // The app sends APP_HEARTBEAT messages while active. If a heartbeat
-          // arrived in the last 2 minutes, treat the app as open (pre-fill).
-          // This avoids unreliable clients.matchAll() timing race conditions.
-          const APP_HEARTBEAT_TTL = 10_000;
-          const heartbeatAge = await getHeartbeatAge();
-          const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
-          console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
-
           if (appWasOpen) {
-            console.log('[SW] App was open → pre-fill flow');
             return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
           }
-
-          // ── App was closed → brief processing screen + background parse ────
-          console.log('[SW] App was closed → processing screen + background parse');
           activeShareTakeover = false;
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
           return Response.redirect(new URL('/share-processing', self.location.origin).href, 303);
@@ -310,7 +300,60 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ── Background parse helper ───────────────────────────────────────────────────
+// ── Background text parse helper ─────────────────────────────────────────────
+async function backgroundTextParseAndNotify(text) {
+  try {
+    const res = await callApi('/expenses/parse-text', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error('parse-failed');
+    const parsed = await res.json();
+
+    const cache = await caches.open(SHARE_CACHE);
+    await cache.put('/share-result', new Response(JSON.stringify(parsed), {
+      headers: { 'Content-Type': 'application/json' },
+    }));
+
+    const amount   = parsed.amount      || '?';
+    const desc     = parsed.description || 'Expense';
+    const category = parsed.category_name || '';
+    const method   = parsed.payment_method || '';
+    const bodyParts = [category, method].filter(Boolean).join(' · ');
+
+    await self.registration.showNotification(`₹${amount} · ${desc}`, {
+      body:               bodyParts || 'Tap to review before saving',
+      icon:               new URL('/logo-192.png', self.location.origin).href,
+      badge:              new URL('/badge.svg', self.location.origin).href,
+      requireInteraction: true,
+      actions: [
+        { action: 'save',   title: 'Save'   },
+        { action: 'review', title: 'Review' },
+      ],
+      data: {
+        amount:        parsed.amount,
+        description:   parsed.description,
+        paymentMethod: parsed.payment_method,
+        categoryId:    parsed.category_id,
+        date:          parsed.date,
+        time:          parsed.time,
+        note:          parsed.note,
+        cashback:      parsed.cashback,
+        shareType:     'text',
+      },
+    });
+  } catch (err) {
+    const isNoAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
+    await self.registration.showNotification('Message ready', {
+      body:  isNoAuth ? 'Open Spendly to add this expense' : 'Tap to review and add',
+      icon:  new URL('/logo-192.png', self.location.origin).href,
+      badge: new URL('/badge.svg', self.location.origin).href,
+      data:  { url: new URL('/expenses/new?shared=text', self.location.origin).href, shareType: 'text' },
+    });
+  }
+}
+
+// ── Background image parse helper ─────────────────────────────────────────────
 async function backgroundParseAndNotify(buffer, mimeType) {
   console.log('[SW] backgroundParseAndNotify: starting...');
   console.log('[SW] Notification permission:', Notification.permission);
@@ -365,6 +408,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
         time:          parsed.time,
         note:          parsed.note,
         cashback:      parsed.cashback,
+        shareType:     'image',
       },
     });
     console.log('[SW] backgroundParseAndNotify: notification shown');

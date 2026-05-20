@@ -28,6 +28,8 @@ interface ParsedImage {
   category_id: string | null;
   category_name?: string | null;
   note?: string | null;
+  cashback?: string | number | null;
+  shareType?: 'image' | 'text';
 }
 
 async function readSharedImage(): Promise<Blob | null> {
@@ -54,6 +56,20 @@ async function readSharedResult(): Promise<ParsedImage | null> {
     const result = await response.json();
     await cache.delete('/share-result');
     return result;
+  } catch {
+    return null;
+  }
+}
+
+async function readSharedText(): Promise<string | null> {
+  if (!('caches' in window)) return null;
+  try {
+    const cache = await caches.open('spendly-share');
+    const response = await cache.match('/share-text');
+    if (!response) return null;
+    const text = await response.text();
+    await cache.delete('/share-text');
+    return text;
   } catch {
     return null;
   }
@@ -86,6 +102,7 @@ export default function AddExpensePage() {
 
   const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
   const sharedImage = searchParams.get('shared') === 'image';
+  const sharedText  = searchParams.get('shared') === 'text';
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
   const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
 
@@ -105,6 +122,7 @@ export default function AddExpensePage() {
   const [showQuickParse, setShowQuickParse] = useState(false);
   const sharedBlobRef = useRef<Blob | null>(null);
   const hasAttemptedParse = useRef(false);
+  const hasAttemptedTextParse = useRef(false);
 
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
@@ -125,6 +143,7 @@ export default function AddExpensePage() {
       if (result.time) setTime(result.time);
       if (result.category_id) setCategoryId(result.category_id);
       if (result.note) setNote(result.note);
+      if (result.cashback) setCashback(String(result.cashback));
       setAiStatus('done');
     } catch (err: unknown) {
       const isAborted = (err as { name?: string })?.name === 'AbortError'
@@ -156,6 +175,7 @@ export default function AddExpensePage() {
         if (cachedResult.time) setTime(cachedResult.time);
         if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
         if (cachedResult.note) setNote(cachedResult.note);
+        if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
         setAiStatus('done');
         return;
       }
@@ -172,6 +192,53 @@ export default function AddExpensePage() {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedImage]);
+
+  useEffect(() => {
+    if (!sharedText || hasAttemptedTextParse.current) return;
+    hasAttemptedTextParse.current = true;
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'APP_TAKEN_OVER_SHARE' });
+    }
+
+    void (async () => {
+      const cachedResult = await readSharedResult();
+      if (cachedResult) {
+        if (cachedResult.amount) setAmount(cachedResult.amount);
+        if (cachedResult.description) setDescription(cachedResult.description);
+        if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
+        if (cachedResult.date) setDate(cachedResult.date);
+        if (cachedResult.time) setTime(cachedResult.time);
+        if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
+        if (cachedResult.note) setNote(cachedResult.note);
+        if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
+        setAiStatus('done');
+        return;
+      }
+
+      const text = await readSharedText();
+      if (!text) { setAiError('failed'); setAiStatus('error'); return; }
+
+      setAiStatus('loading');
+      setAiError(null);
+      try {
+        const result = await expensesApi.parseText(text);
+        setAmount(typeof result.amount === 'string' ? result.amount : '');
+        setDescription(typeof result.description === 'string' ? result.description : '');
+        setPaymentMethod((typeof result.payment_method === 'string' ? result.payment_method : 'upi') as PaymentMethod);
+        setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
+        setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
+        setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
+        setNote(typeof result.note === 'string' ? result.note : '');
+        setCashback(typeof result.cashback === 'string' ? result.cashback : '');
+        setAiStatus('done');
+      } catch {
+        setAiError('failed');
+        setAiStatus('error');
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedText]);
 
   const handleNlParse = async () => {
     if (!nlText.trim() || nlStatus === 'loading') return;
@@ -211,7 +278,7 @@ export default function AddExpensePage() {
     );
   };
 
-  const isFromShare = sharedImage || !!parsed;
+  const isFromShare = sharedImage || sharedText || !!parsed;
 
   return (
     <div className="animate-fade-in">
@@ -234,29 +301,33 @@ export default function AddExpensePage() {
 
       <div className="page-content space-y-5">
         {/* AI loading banner */}
-        {sharedImage && aiStatus === 'loading' && (
+        {(sharedImage || sharedText) && aiStatus === 'loading' && (
           <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
             <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
-            <p className="text-xs font-medium text-primary">Analyzing screenshot with AI...</p>
+            <p className="text-xs font-medium text-primary">
+              {sharedImage ? 'Analyzing screenshot with AI…' : 'Parsing message with AI…'}
+            </p>
           </div>
         )}
 
         {/* AI success banner */}
-        {sharedImage && aiStatus === 'done' && (
+        {(sharedImage || sharedText) && aiStatus === 'done' && (
           <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
             <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="text-xs font-medium text-primary">Pre-filled from payment screenshot — review and save</p>
+            <p className="text-xs font-medium text-primary">
+              {sharedImage ? 'Pre-filled from payment screenshot' : 'Pre-filled from shared message'} — review and save
+            </p>
           </div>
         )}
 
         {/* AI error banner */}
-        {sharedImage && aiStatus === 'error' && (
+        {(sharedImage || sharedText) && aiStatus === 'error' && (
           <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-destructive/8 border border-destructive/20">
             <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
             <p className="text-xs font-medium text-destructive flex-1">
-              {aiError === 'timeout' ? 'Analysis timed out' : "Couldn't analyze screenshot"} — fill in manually
+              {aiError === 'timeout' ? 'Analysis timed out' : "Couldn't analyze"} — fill in manually
             </p>
-            {sharedBlobRef.current && (
+            {sharedImage && sharedBlobRef.current && (
               <button
                 onClick={() => runAiParse(sharedBlobRef.current!)}
                 className="flex items-center gap-1 text-xs font-medium text-destructive underline underline-offset-2 flex-shrink-0"
@@ -268,7 +339,7 @@ export default function AddExpensePage() {
         )}
 
         {/* Natural language input */}
-        {!sharedImage && !parsed && !prefill && !showQuickParse && (
+        {!sharedImage && !sharedText && !parsed && !prefill && !showQuickParse && (
           <button
             onClick={() => setShowQuickParse(true)}
             className="w-full flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20 hover:bg-primary/15 active:scale-[0.98] transition-all"
@@ -278,7 +349,7 @@ export default function AddExpensePage() {
           </button>
         )}
 
-        {!sharedImage && !parsed && !prefill && showQuickParse && (
+        {!sharedImage && !sharedText && !parsed && !prefill && showQuickParse && (
           <div className="p-3.5 rounded-3xl mb-[30px] bg-primary/5 border border-primary/10 space-y-3 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">

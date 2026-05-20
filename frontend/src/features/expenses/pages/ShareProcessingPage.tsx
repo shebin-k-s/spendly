@@ -3,10 +3,25 @@ import { useEffect } from 'react';
 export default function ShareProcessingPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Go back to the app the user was in before sharing.
-      // On Android, if there's no prior PWA history this dismisses the share activity.
+      // 1. Try standard close
+      window.close();
+      
+      // 2. Try the chrome-specific "close if window was a share target" behavior
+      // This is sometimes needed in PWA standalone mode
+      if (typeof window.opener !== 'undefined') {
+        window.open('', '_self', '');
+        window.close();
+      }
+
+      // 3. Try to go back (sometimes dismisses the share activity on Android)
       window.history.back();
-    }, 2500);
+
+      // 4. Fallback: If still open after 500ms, just go to dashboard
+      // This ensures the user isn't stuck on the "Processing" screen.
+      setTimeout(() => {
+        window.location.replace('/');
+      }, 500);
+    }, 2000);
     return () => clearTimeout(timer);
   }, []);
 
