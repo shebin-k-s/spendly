@@ -218,28 +218,23 @@ export default function AddExpensePage() {
 
   // Lock body scroll when modal is open
   useEffect(() => {
-    const main = document.querySelector('main');
+    // The scroll container is now the page's motion.div wrapper, not <main>
+    const pageScroll = document.querySelector<HTMLElement>('[data-location-key]');
     if (showReceiptModal) {
-      document.body.style.overflow = 'hidden';
-      document.body.style.overscrollBehavior = 'contain';
-      if (main) {
-        main.style.overflow = 'hidden';
-        main.style.overscrollBehavior = 'contain';
+      if (pageScroll) {
+        pageScroll.style.overflow = 'hidden';
+        pageScroll.style.overscrollBehavior = 'contain';
       }
     } else {
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      if (main) {
-        main.style.overflow = '';
-        main.style.overscrollBehavior = '';
+      if (pageScroll) {
+        pageScroll.style.overflow = '';
+        pageScroll.style.overscrollBehavior = '';
       }
     }
     return () => {
-      document.body.style.overflow = '';
-      document.body.style.overscrollBehavior = '';
-      if (main) {
-        main.style.overflow = '';
-        main.style.overscrollBehavior = '';
+      if (pageScroll) {
+        pageScroll.style.overflow = '';
+        pageScroll.style.overscrollBehavior = '';
       }
     };
   }, [showReceiptModal]);

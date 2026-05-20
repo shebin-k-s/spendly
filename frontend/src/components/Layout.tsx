@@ -17,38 +17,43 @@ export default function Layout() {
   const startY = useRef<number | null>(null);
   const startX = useRef<number | null>(null);
   const mainRef = useRef<HTMLElement>(null);
+  // Tracks the active page's scroll container (the motion.div inside AnimatedOutlet)
+  const currentScrollEl = useRef<HTMLElement | null>(null);
   const location = useLocation();
   const navType = useNavigationType();
   const scrollPositions = useRef<Record<string, number>>({});
   const prevKey = useRef(location.key);
 
   useLayoutEffect(() => {
-    // Save scroll position of the page we're leaving (before updating prevKey)
-    scrollPositions.current[prevKey.current] = mainRef.current?.scrollTop ?? 0;
+    // Save scroll of the page we're leaving, identified by its data-location-key attribute
+    const exitingEl = mainRef.current?.querySelector<HTMLElement>(`[data-location-key="${prevKey.current}"]`);
+    scrollPositions.current[prevKey.current] = exitingEl?.scrollTop ?? 0;
     prevKey.current = location.key;
 
     const main = mainRef.current;
     if (!main) return;
 
+    const enteringEl = main.querySelector<HTMLElement>(`[data-location-key="${location.key}"]`);
+    currentScrollEl.current = enteringEl;
+
     if (navType === 'POP') {
       const saved = scrollPositions.current[location.key] ?? 0;
 
-      if (saved <= 0) {
-        main.scrollTop = 0;
+      if (!enteringEl || saved <= 0) {
+        if (enteringEl) enteringEl.scrollTop = 0;
         return;
       }
 
-      // useLayoutEffect runs before the browser paints, so setting scrollTop here
-      // avoids any visible flash at position 0. For async content (Cache API),
-      // MutationObserver fires while the entering page is still in its opacity:0
-      // fade-in, so the jump is never visible.
-      if (main.scrollHeight - main.clientHeight >= saved) {
-        main.scrollTop = saved;
+      // useLayoutEffect fires before paint — scroll is set before the page is visible.
+      // For async content (Cache API), MutationObserver fires while the entering page
+      // is still fading in (opacity 0→1 over 180ms), so the jump is never seen.
+      if (enteringEl.scrollHeight - enteringEl.clientHeight >= saved) {
+        enteringEl.scrollTop = saved;
       } else {
-        main.scrollTop = 0;
+        enteringEl.scrollTop = 0;
         const observer = new MutationObserver(() => {
-          if (main.scrollHeight - main.clientHeight >= saved) {
-            main.scrollTop = saved;
+          if (enteringEl.scrollHeight - enteringEl.clientHeight >= saved) {
+            enteringEl.scrollTop = saved;
             observer.disconnect();
           }
         });
@@ -57,13 +62,13 @@ export default function Layout() {
         return () => { observer.disconnect(); clearTimeout(timeout); };
       }
     } else {
-      main.scrollTop = 0;
+      if (enteringEl) enteringEl.scrollTop = 0;
     }
   }, [location.key, navType]);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
-    if (mainRef.current && mainRef.current.scrollTop <= 1) { // 1px tolerance
-      // MUST start swipe from the top area of the screen (top 150px)
+    const scrollEl = currentScrollEl.current ?? mainRef.current;
+    if (scrollEl && scrollEl.scrollTop <= 1) {
       if (e.touches[0].clientY < 150) {
         startY.current = e.touches[0].clientY;
         startX.current = e.touches[0].clientX;
@@ -77,8 +82,7 @@ export default function Layout() {
     const currentX = e.touches[0].clientX;
     const distanceY = currentY - startY.current;
     const distanceX = currentX - startX.current;
-    
-    // Only pull down if vertical distance dominates horizontal
+
     if (distanceY > 0 && distanceY > Math.abs(distanceX) * 1.5) {
       if (distanceY < 250) {
         setPullDistance(distanceY);
@@ -86,7 +90,6 @@ export default function Layout() {
         setPullDistance(250);
       }
     } else if (Math.abs(distanceX) > 30) {
-      // Horizontal swipe detected; abort pull-to-refresh
       startY.current = null;
       startX.current = null;
       setPullDistance(0);
@@ -106,16 +109,16 @@ export default function Layout() {
   return (
     <div className="h-full flex flex-col bg-background sm:max-w-md sm:mx-auto sm:border-x sm:border-border sm:shadow-2xl relative overflow-hidden">
       {/* Pull To Refresh Indicator */}
-      <div 
+      <div
         className="absolute left-0 right-0 top-0 flex justify-center items-center overflow-hidden transition-all duration-300 z-0 bg-background"
         style={{ height: pullDistance > 0 ? pullDistance : isRefreshing ? 60 : 0 }}
       >
         <Loader2 className={`w-6 h-6 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullDistance * 2}deg)` }} />
       </div>
 
-      <main 
+      <main
         ref={mainRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden relative disable-scrollbars z-10 transition-transform duration-200 bg-background"
+        className="flex-1 overflow-hidden relative z-10 transition-transform duration-200 bg-background"
         style={{ transform: `translateY(${isRefreshing ? 60 : pullDistance}px)` }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
