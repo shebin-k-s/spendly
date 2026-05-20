@@ -137,7 +137,13 @@ export default function AddExpensePage() {
   useEffect(() => {
     if (!sharedImage || hasAttemptedParse.current) return;
     hasAttemptedParse.current = true;
-    hasAttemptedParse.current = true;
+    
+    // Signal the Service Worker that we are handling the share in the foreground,
+    // so it can skip showing a background notification.
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'APP_TAKEN_OVER_SHARE' });
+    }
+
     void (async () => {
       // First, check if there's already a cached result from the SW (background parse)
       const cachedResult = await readSharedResult();

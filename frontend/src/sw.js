@@ -11,6 +11,7 @@ const AUTH_CACHE  = 'spendly-auth-v1';
 
 // Injected by vite-plugin-pwa at build time
 const WB_MANIFEST = self.__WB_MANIFEST || [];
+let activeShareTakeover = false;
 
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -115,6 +116,9 @@ async function callApi(path, options = {}) {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'AUTH_UPDATE') {
     saveAuth(event.data.token, event.data.apiBase).catch(() => {});
+  } else if (event.data?.type === 'APP_TAKEN_OVER_SHARE') {
+    console.log('[SW] App has taken over share flow, will skip notification');
+    activeShareTakeover = true;
   }
 });
 
@@ -227,16 +231,23 @@ self.addEventListener('fetch', (event) => {
           }));
 
           // ── Check if app is open ──────────────────────────────────────────
-          const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-          const appIsOpen = clients.length > 0;
+          const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          console.log('[SW] matchAll found clients:', allClients.length);
+          allClients.forEach(c => console.log(`[SW] Client URL: ${c.url}, visibility: ${c.visibilityState}, frameType: ${c.frameType}`));
+
+          // Find any client that is NOT a new share-target window (i.e. already open at a normal path)
+          // or just any client if we're not sure.
+          const appIsOpen = allClients.some(c => !c.url.includes('/expenses/new') && !c.url.includes('shared=image'));
 
           if (appIsOpen) {
-            console.log('[SW] App is open, redirecting to Add Expense page for direct pre-fill');
+            console.log('[SW] App seems open, redirecting to Add Expense page for direct pre-fill');
+            // We don't set activeShareTakeover = true yet; we wait for the app to signal it.
             return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
           }
 
           // ── App is closed → background parse + notification ──────────────
           console.log('[SW] App is closed, initiating background parse and notify');
+          activeShareTakeover = false; // Reset for new background parse
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
           
           // Redirect to home so the app doesn't open straight to the expense form
@@ -307,6 +318,11 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     }));
 
     console.log('[SW] backgroundParseAndNotify: showing success notification');
+    if (activeShareTakeover) {
+      console.log('[SW] Skipping notification because app took over');
+      return;
+    }
+
     await self.registration.showNotification(`₹${amount} · ${desc}`, {
       body:             bodyParts || 'Tap to review before saving',
       icon:             new URL('/logo-192.png', self.location.origin).href,
