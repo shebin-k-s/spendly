@@ -11,7 +11,22 @@ createRoot(document.getElementById('root')!).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[App] New version available! Reloading...');
+              // With autoUpdate in VitePWA, it will skipWaiting and reload automatically.
+              // We just log it here for debugging.
+            }
+          });
+        }
+      });
+    }).catch(() => {});
+    
+    console.log('[App] Current Build Time:', __BUILD_TIME__);
     
     // Request notification permission for background parsing
     if ('Notification' in window && Notification.permission === 'default') {
