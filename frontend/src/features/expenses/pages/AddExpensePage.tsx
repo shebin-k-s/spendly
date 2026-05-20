@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye, Image as ImageIcon, ZoomIn, ZoomOut } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -179,6 +180,70 @@ export default function AddExpensePage() {
     }
   }, [shareTs, parsedShare]);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  // Swipe-to-dismiss logic (Standardized)
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const handlePointerStartY = useRef<number | null>(null);
+  const handleCurrentY = useRef<number>(0);
+
+  const onHandlePointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    handlePointerStartY.current = e.clientY;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onHandlePointerMove = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (handlePointerStartY.current === null || !sheetRef.current) return;
+    let distance = e.clientY - handlePointerStartY.current;
+    if (distance < 0) distance = 0;
+    handleCurrentY.current = distance;
+    sheetRef.current.style.transition = 'none';
+    sheetRef.current.style.transform = `translateY(${distance}px)`;
+  };
+
+  const onHandlePointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (handlePointerStartY.current === null || !sheetRef.current) return;
+    if (handleCurrentY.current > 120) {
+      setShowReceiptModal(false);
+    } else {
+      sheetRef.current.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)';
+      sheetRef.current.style.transform = 'translateY(0px)';
+    }
+    handlePointerStartY.current = null;
+    handleCurrentY.current = 0;
+  };
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (showReceiptModal) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'contain';
+      if (main) {
+        main.style.overflow = 'hidden';
+        main.style.overscrollBehavior = 'contain';
+      }
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
+      if (main) {
+        main.style.overflow = '';
+        main.style.overscrollBehavior = '';
+      }
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.overscrollBehavior = '';
+      if (main) {
+        main.style.overflow = '';
+        main.style.overscrollBehavior = '';
+      }
+    };
+  }, [showReceiptModal]);
 
   const ps = parsedShare;
   const now = new Date();
@@ -385,63 +450,72 @@ export default function AddExpensePage() {
       </div>
 
       <div className="page-content space-y-5">
-        {/* AI loading banner */}
-        {(sharedImage || sharedText) && aiStatus === 'loading' && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
-            <p className="text-xs font-medium text-primary">
-              {sharedImage ? 'Analyzing screenshot with AI…' : 'Parsing message with AI…'}
-            </p>
-          </div>
-        )}
+        {/* Unified Share/Pre-fill context */}
+        {(() => {
+          if (aiStatus === 'loading') {
+            return (
+              <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/5 border border-primary/20 animate-pulse">
+                <Loader2 className="w-5 h-5 text-primary animate-spin-slow" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-primary">Magic Parse in progress...</p>
+                  <p className="text-[10px] text-primary/60 mt-0.5">Organizing your expense details</p>
+                </div>
+              </div>
+            );
+          }
 
-        {/* AI success banner */}
-        {(sharedImage || sharedText) && aiStatus === 'done' && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="text-xs font-medium text-primary flex-1">
-              {sharedImage ? 'Pre-filled from payment screenshot' : 'Pre-filled from shared message'} — review and save
-            </p>
-            {previewShareType === 'image' && previewThumbnail && (
+          if (aiStatus === 'error') {
+            return (
+              <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-destructive/5 border border-destructive/20">
+                <AlertCircle className="w-5 h-5 text-destructive" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-destructive">Magic Parse failed</p>
+                  <p className="text-[10px] text-destructive/60 mt-0.5">Please check everything manually</p>
+                </div>
+                {sharedImage && sharedBlobRef.current && (
+                  <button onClick={() => runAiParse(sharedBlobRef.current!)} className="px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-[11px] font-bold active:scale-95 transition-all">
+                    Retry
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          // Combined success/pre-fill state
+          const hasPrefill = parsedShare || parsed || prefill || (aiStatus === 'done' && (sharedImage || sharedText));
+          if (!hasPrefill) return null;
+
+          let sourceLabel = "Reviewing details";
+          if (resolvedShareTs) {
+            sourceLabel = "Reviewing pending receipt";
+          } else if (prefill) {
+            sourceLabel = "Refilling recent expense";
+          } else if (ps?.type === 'image' || sharedImage) {
+            sourceLabel = "Reviewing shared receipt";
+          } else if (ps?.type === 'text' || sharedText || parsed) {
+            sourceLabel = "Reviewing shared message";
+          }
+
+          return (
+            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-primary/8 border border-primary/20 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <div className="flex-1 min-w-0">
+                <span className="text-[11px] font-bold text-primary tracking-normal">{sourceLabel}</span>
+              </div>
+              
               <button
                 onClick={() => setShowReceiptModal(true)}
-                className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 active:scale-95 transition-transform border border-primary/20"
-              >
-                <img src={previewThumbnail} alt="Receipt" className="w-full h-full object-cover" />
-              </button>
-            )}
-            {previewShareType === 'text' && previewRawText && (
-              <button
-                onClick={() => setShowReceiptModal(true)}
-                className="flex items-center gap-1 text-[11px] font-semibold text-primary flex-shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary active:scale-95 transition-all"
               >
                 <Eye className="w-3.5 h-3.5" />
-                View
+                <span className="text-[10px] font-black uppercase tracking-tighter">VIEW</span>
               </button>
-            )}
-          </div>
-        )}
-
-        {/* AI error banner */}
-        {(sharedImage || sharedText) && aiStatus === 'error' && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-destructive/8 border border-destructive/20">
-            <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
-            <p className="text-xs font-medium text-destructive flex-1">
-              {aiError === 'timeout' ? 'Analysis timed out' : "Couldn't analyze"} — fill in manually
-            </p>
-            {sharedImage && sharedBlobRef.current && (
-              <button
-                onClick={() => runAiParse(sharedBlobRef.current!)}
-                className="flex items-center gap-1 text-xs font-medium text-destructive underline underline-offset-2 flex-shrink-0"
-              >
-                <RefreshCw className="w-3 h-3" /> Retry
-              </button>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* Natural language input */}
-        {!sharedImage && !sharedText && !parsed && !prefill && !parsedShare && !showQuickParse && (
+        {!isFromShare && !prefill && !showQuickParse && (
           <button
             onClick={() => setShowQuickParse(true)}
             className="w-full flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20 hover:bg-primary/15 active:scale-[0.98] transition-all"
@@ -451,7 +525,7 @@ export default function AddExpensePage() {
           </button>
         )}
 
-        {!sharedImage && !sharedText && !parsed && !prefill && !parsedShare && showQuickParse && (
+        {showQuickParse && (
           <div className="p-3.5 rounded-3xl mb-[30px] bg-primary/5 border border-primary/10 space-y-3 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
@@ -497,50 +571,6 @@ export default function AddExpensePage() {
                 <p className="text-[11px] font-medium text-destructive">Couldn't parse — try being more specific or fill manually</p>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Pending share pre-fill banner */}
-        {parsedShare && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="text-xs font-medium text-primary flex-1">Pre-filled from pending receipt — review and save</p>
-            {previewShareType === 'image' && previewThumbnail && (
-              <button
-                onClick={() => setShowReceiptModal(true)}
-                className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 active:scale-95 transition-transform border border-primary/20"
-              >
-                <img src={previewThumbnail} alt="Receipt" className="w-full h-full object-cover" />
-              </button>
-            )}
-            {previewShareType === 'text' && previewRawText && (
-              <button
-                onClick={() => setShowReceiptModal(true)}
-                className="flex items-center gap-1 text-[11px] font-semibold text-primary flex-shrink-0"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                View
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Repeat pre-fill banner */}
-        {prefill && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <RotateCcw className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="text-xs font-medium text-primary">Pre-filled from a previous expense — review and save</p>
-          </div>
-        )}
-
-        {/* Text share pre-fill banner */}
-        {parsed && (
-          <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <Share2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-primary">Pre-filled from shared text</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 break-words line-clamp-2">{shareRaw}</p>
-            </div>
           </div>
         )}
 
@@ -659,47 +689,112 @@ export default function AddExpensePage() {
         </button>
       </div>
 
-      {/* Receipt / message preview modal */}
-      {showReceiptModal && (
+      {/* Image — Immersive lightbox with Zoom */}
+      {showReceiptModal && previewShareType === 'image' && previewThumbnail && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+          className="fixed inset-0 z-50 flex flex-col animate-in fade-in duration-500 overscroll-contain touch-none"
           onClick={() => setShowReceiptModal(false)}
         >
-          <div className="flex items-center justify-between px-4 pt-12 pb-4">
-            <p className="text-sm font-semibold text-white/80">
-              {previewShareType === 'image' ? 'Receipt' : 'Original message'}
-            </p>
-            <button
-              onClick={() => setShowReceiptModal(false)}
-              className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center active:scale-95"
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl" />
+          
+          <div className="relative flex flex-col h-full overscroll-contain touch-none">
+            {/* Immersive Header */}
+            <div className="px-6 pt-14 pb-4 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-primary/80 uppercase tracking-[0.2em] mb-1">Receipt Preview</p>
+                <h2 className="text-xl font-bold text-white tracking-tight">Inspect Document</h2>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsZoomed(!isZoomed); }}
+                  className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center active:scale-90 border border-white/5"
+                >
+                  {isZoomed ? <ZoomOut className="w-6 h-6 text-white" /> : <ZoomIn className="w-6 h-6 text-white" />}
+                </button>
+                <button
+                  onClick={() => setShowReceiptModal(false)}
+                  className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center active:scale-90 border border-white/5"
+                >
+                  <X className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+            
+            <div
+              className={`flex-1 flex items-center justify-center p-6 ${isZoomed ? 'touch-auto overflow-auto scrollbar-none' : 'touch-none'}`}
+              onClick={(e) => { e.stopPropagation(); setIsZoomed(!isZoomed); }}
             >
-              <X className="w-5 h-5 text-white" />
-            </button>
+              <div 
+                className={`relative transition-all duration-500 ease-out flex-shrink-0 ${isZoomed ? 'scale-[2.0]' : 'scale-100'}`}
+                style={{ transformOrigin: 'center center' }}
+              >
+                <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+                  <img
+                    src={previewThumbnail}
+                    alt="Receipt"
+                    className="max-w-[85vw] max-h-[60vh] object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="px-10 pb-16 text-center">
+              <p className="text-[13px] font-medium text-white/30 italic">Tap image to {isZoomed ? 'zoom out' : 'zoom in'}</p>
+            </div>
           </div>
-
-          {previewShareType === 'image' && previewThumbnail && (
-            <div
-              className="flex-1 flex items-center justify-center p-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img
-                src={previewThumbnail}
-                alt="Receipt"
-                className="max-w-full max-h-full object-contain rounded-2xl"
-              />
-            </div>
-          )}
-
-          {previewShareType === 'text' && previewRawText && (
-            <div
-              className="flex-1 overflow-y-auto px-5 pb-10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{previewRawText}</p>
-            </div>
-          )}
         </div>
       )}
+
+      {/* Text — Elegant Bottom Sheet with Swipe-to-Dismiss */}
+      <Dialog.Root open={showReceiptModal && previewShareType === 'text'} onOpenChange={setShowReceiptModal}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" />
+          <Dialog.Content
+            ref={sheetRef}
+            className="fixed bottom-0 inset-x-0 w-full z-50 bg-card rounded-t-[40px] max-h-[85vh] flex flex-col border-t border-white/5 animate-in slide-in-from-bottom duration-500 cubic-bezier(0.16, 1, 0.3, 1) overscroll-contain sheet-exit"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div
+              onPointerDown={onHandlePointerDown}
+              onPointerMove={onHandlePointerMove}
+              onPointerUp={onHandlePointerUp}
+              onPointerCancel={onHandlePointerUp}
+              className="pt-4 pb-2 w-full flex justify-center cursor-grab active:cursor-grabbing touch-none select-none flex-shrink-0"
+            >
+              <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full pointer-events-none" />
+            </div>
+
+            <div className="flex items-center justify-between px-7 py-4 flex-shrink-0 touch-none">
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Shared Message</p>
+                <p className="text-lg font-bold">Source Content</p>
+              </div>
+              <button
+                onClick={() => setShowReceiptModal(false)}
+                className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center active:scale-95"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto px-7 pb-16 overscroll-contain overscroll-y-contain">
+              <div className="bg-secondary/30 rounded-[32px] p-6 border border-border/40 relative">
+                <div className="absolute top-4 left-4 opacity-5">
+                  <Share2 className="w-12 h-12" />
+                </div>
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap selection:bg-primary/30">
+                  {previewRawText}
+                </p>
+              </div>
+              <div className="mt-6 flex items-center gap-3 px-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <p className="text-[11px] font-medium text-muted-foreground italic">Original text shared from outside app</p>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

@@ -158,18 +158,6 @@ export default function PendingSharesPage() {
                     </div>
                   )}
 
-                  {/* Original message snippet for text shares */}
-                  {item.type === 'text' && item.rawText && (
-                    <div className="bg-secondary/40 rounded-xl px-3 py-2.5 mb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider mb-1.5">
-                        Original message
-                      </p>
-                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                        {item.rawText}
-                      </p>
-                    </div>
-                  )}
-
                   {/* Actions */}
                   <div className="flex gap-2">
                     <button
