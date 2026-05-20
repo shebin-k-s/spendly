@@ -345,6 +345,9 @@ async function backgroundTextParseAndNotify(text) {
     const parsed = await res.json();
 
     await appendShareQueue(parsed, 'text', { rawText: text });
+    // Clean up raw text now that it's in the queue
+    const rawCache = await caches.open(SHARE_CACHE);
+    await rawCache.delete('/share-text');
 
     const amount   = parsed.amount      || '?';
     const desc     = parsed.description || 'Expense';
@@ -422,6 +425,9 @@ async function backgroundParseAndNotify(buffer, mimeType) {
 
     const thumbnail = await generateThumbnail(buffer, mimeType);
     await appendShareQueue(parsed, 'image', thumbnail ? { thumbnail } : {});
+    // Clean up raw image now that it's in the queue
+    const rawCache = await caches.open(SHARE_CACHE);
+    await rawCache.delete('/share-image');
 
     console.log('[SW] backgroundParseAndNotify: showing success notification');
     if (activeShareTakeover) {

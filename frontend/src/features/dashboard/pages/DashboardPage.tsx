@@ -15,12 +15,9 @@ async function checkPendingShare(): Promise<{ type: 'image' | 'text'; count: num
   try {
     const cache = await caches.open('spendly-share');
     const queueRes = await cache.match('/share-queue');
-    if (queueRes) {
-      const queue: Array<{ type: 'image' | 'text' }> = await queueRes.json();
-      if (queue.length > 0) return { type: queue[0].type, count: queue.length };
-    }
-    if (await cache.match('/share-image')) return { type: 'image', count: 1 };
-    if (await cache.match('/share-text')) return { type: 'text', count: 1 };
+    if (!queueRes) return null;
+    const queue: Array<{ type: 'image' | 'text' }> = await queueRes.json();
+    if (queue.length > 0) return { type: queue[0].type, count: queue.length };
   } catch {}
   return null;
 }
