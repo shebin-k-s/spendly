@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -63,6 +63,7 @@ async function parseImage(blob: Blob): Promise<ParsedImage> {
 export default function AddExpensePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const createExpense = useCreateExpense();
   const categoriesQuery = useCategoriesQuery();
   const categories = categoriesQuery.data || [];
@@ -70,16 +71,17 @@ export default function AddExpensePage() {
   const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
   const sharedImage = searchParams.get('shared') === 'image';
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
+  const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
 
   const now = new Date();
-  const [amount, setAmount] = useState(parsed?.amount ?? '');
+  const [amount, setAmount] = useState(prefill?.amount ?? parsed?.amount ?? '');
   const [cashback, setCashback] = useState('');
-  const [description, setDescription] = useState(parsed?.description ?? '');
+  const [description, setDescription] = useState(prefill?.description ?? parsed?.description ?? '');
   const [date, setDate] = useState(parsed?.date ?? format(now, 'yyyy-MM-dd'));
   const [time, setTime] = useState<string | null>(parsed?.time ?? format(now, 'HH:mm'));
-  const [categoryId, setCategoryId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(parsed?.paymentMethod ?? 'upi');
-  const [note, setNote] = useState('');
+  const [categoryId, setCategoryId] = useState(prefill?.categoryId ?? '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? parsed?.paymentMethod ?? 'upi');
+  const [note, setNote] = useState(prefill?.note ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
   const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
   const sharedBlobRef = useRef<Blob | null>(null);
@@ -194,6 +196,14 @@ export default function AddExpensePage() {
                 <RefreshCw className="w-3 h-3" /> Retry
               </button>
             )}
+          </div>
+        )}
+
+        {/* Repeat pre-fill banner */}
+        {prefill && (
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <RotateCcw className="w-4 h-4 text-primary flex-shrink-0" />
+            <p className="text-xs font-medium text-primary">Pre-filled from a previous expense — review and save</p>
           </div>
         )}
 

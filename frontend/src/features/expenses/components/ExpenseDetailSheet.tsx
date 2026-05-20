@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import * as Dialog from '@radix-ui/react-dialog';
 import { formatINR } from '@/lib/utils';
@@ -67,6 +67,21 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
   const handleEdit = () => {
     onOpenChange(false);
     navigate(`/expenses/${expense.id}/edit`);
+  };
+
+  const handleAddAgain = () => {
+    onOpenChange(false);
+    navigate('/expenses/new', {
+      state: {
+        prefill: {
+          amount: String(expense.amount),
+          description: expense.description,
+          paymentMethod: expense.paymentMethod,
+          categoryId: expense.category?.id ?? '',
+          note: expense.note ?? '',
+        },
+      },
+    });
   };
 
   return (
@@ -149,10 +164,17 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
               </div>
 
               {/* Actions */}
-              <div className="px-5 pt-5 pb-8">
+              <div className="px-5 pt-5 pb-8 flex gap-3">
+                <button
+                  onClick={handleAddAgain}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-secondary text-secondary-foreground text-sm font-semibold active:opacity-70 transition-opacity select-none outline-none"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Add again
+                </button>
                 <button
                   onClick={handleEdit}
-                  className="btn-primary select-none outline-none"
+                  className="flex-1 btn-primary select-none outline-none"
                 >
                   Edit
                 </button>
