@@ -13,6 +13,31 @@ const AUTH_CACHE  = 'spendly-auth-v1';
 const WB_MANIFEST = self.__WB_MANIFEST || [];
 let activeShareTakeover = false;
 
+// In-memory heartbeat (set by app via postMessage)
+let lastAppHeartbeat = 0;
+
+async function saveHeartbeat() {
+  lastAppHeartbeat = Date.now();
+  const cache = await caches.open(AUTH_CACHE);
+  await cache.put('/_heartbeat', new Response(String(lastAppHeartbeat), {
+    headers: { 'Content-Type': 'text/plain' },
+  }));
+}
+
+async function getHeartbeatAge() {
+  if (lastAppHeartbeat > 0) return Date.now() - lastAppHeartbeat;
+  try {
+    const cache = await caches.open(AUTH_CACHE);
+    const res = await cache.match('/_heartbeat');
+    if (!res) return Infinity;
+    const ts = parseInt(await res.text(), 10);
+    lastAppHeartbeat = ts;
+    return Date.now() - ts;
+  } catch {
+    return Infinity;
+  }
+}
+
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -116,6 +141,8 @@ async function callApi(path, options = {}) {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'AUTH_UPDATE') {
     saveAuth(event.data.token, event.data.apiBase).catch(() => {});
+  } else if (event.data?.type === 'APP_HEARTBEAT') {
+    saveHeartbeat().catch(() => {});
   } else if (event.data?.type === 'APP_TAKEN_OVER_SHARE') {
     console.log('[SW] App has taken over share flow, will skip notification');
     activeShareTakeover = true;
@@ -230,24 +257,23 @@ self.addEventListener('fetch', (event) => {
             headers: { 'Content-Type': image.type || 'image/jpeg' },
           }));
 
-          // ── Check if app is open ──────────────────────────────────────────
-          const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-          console.log('[SW] matchAll found clients:', allClients.length);
-          allClients.forEach(c => console.log(`[SW] Client URL: ${c.url}, visibility: ${c.visibilityState}, frameType: ${c.frameType}`));
+          // ── Check if app was recently open via heartbeat ──────────────────
+          // The app sends APP_HEARTBEAT messages while active. If a heartbeat
+          // arrived in the last 2 minutes, treat the app as open (pre-fill).
+          // This avoids unreliable clients.matchAll() timing race conditions.
+          const APP_HEARTBEAT_TTL = 120_000;
+          const heartbeatAge = await getHeartbeatAge();
+          const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
+          console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
 
-          // Find any client that is NOT a new share-target window (i.e. already open at a normal path)
-          // or just any client if we're not sure.
-          const appIsOpen = allClients.some(c => !c.url.includes('/expenses/new') && !c.url.includes('shared=image'));
-
-          if (appIsOpen) {
-            console.log('[SW] App seems open, redirecting to Add Expense page for direct pre-fill');
-            // We don't set activeShareTakeover = true yet; we wait for the app to signal it.
+          if (appWasOpen) {
+            console.log('[SW] App was open → pre-fill flow');
             return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
           }
 
-          // ── App is closed → background parse + notification ──────────────
-          console.log('[SW] App is closed, initiating background parse and notify');
-          activeShareTakeover = false; // Reset for new background parse
+          // ── App was closed → background parse + notification ──────────────
+          console.log('[SW] App was closed → background parse + notification');
+          activeShareTakeover = false;
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
           
           // Redirect to home so the app doesn't open straight to the expense form

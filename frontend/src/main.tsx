@@ -44,6 +44,19 @@ if ('serviceWorker' in navigator) {
           apiBase: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1',
         });
       }
+
+      // Heartbeat: tells the SW that the app is actively open.
+      // The SW uses this to decide between pre-fill (app open) and
+      // background parse + notification (app closed) on share.
+      const sendHeartbeat = () => {
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: 'APP_HEARTBEAT' });
+        }
+      };
+      sendHeartbeat();
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) sendHeartbeat();
+      });
     });
   });
 }
