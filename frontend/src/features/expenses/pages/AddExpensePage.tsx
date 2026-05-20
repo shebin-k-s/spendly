@@ -177,7 +177,7 @@ export default function AddExpensePage() {
   const isFromShare = sharedImage || !!parsed;
 
   return (
-    <div className="animate-fade-in" data-no-swipe>
+    <div className="animate-fade-in">
       <div className="page-header">
         <button
           onClick={() => isFromShare ? navigate('/expenses') : navigate(-1)}

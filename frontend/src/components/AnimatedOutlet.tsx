@@ -23,13 +23,13 @@ export default function AnimatedOutlet() {
   const panBlocked = useRef(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isInNoSwipeZone(e.target)) return;
+    if (!NAV_TABS.includes(location.pathname) || isInNoSwipeZone(e.target)) return;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null || !swipeEnabled.current || isTransitioning.current) return;
+    if (!NAV_TABS.includes(location.pathname) || touchStartX.current === null || touchStartY.current === null || !swipeEnabled.current || isTransitioning.current) return;
 
     const distanceX = touchStartX.current - e.changedTouches[0].clientX;
     const distanceY = touchStartY.current - e.changedTouches[0].clientY;
@@ -67,14 +67,14 @@ export default function AnimatedOutlet() {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onWheel={(e) => {
-          if (!swipeEnabled.current || isTransitioning.current) return;
+          if (!NAV_TABS.includes(location.pathname) || !swipeEnabled.current || isTransitioning.current) return;
           if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 25) {
             if (e.deltaX > 0 && currentIndex < NAV_TABS.length - 1) navigateTo(currentIndex + 1);
             else if (e.deltaX < 0 && currentIndex > 0) navigateTo(currentIndex - 1);
           }
         }}
         onPanStart={(e) => {
-          panBlocked.current = isInNoSwipeZone(e.target);
+          panBlocked.current = !NAV_TABS.includes(location.pathname) || isInNoSwipeZone(e.target);
         }}
         onPanEnd={(e, { offset, velocity }) => {
           if (panBlocked.current || !swipeEnabled.current || isTransitioning.current) return;
