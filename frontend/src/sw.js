@@ -325,8 +325,12 @@ async function backgroundTextParseAndNotify(text) {
     const lines = [];
     const mainParts = [category, method, date, time].filter(Boolean).join(' · ');
     if (mainParts) lines.push(mainParts);
-    if (parsed.cashback) lines.push(`Cashback: ₹${parsed.cashback}`);
-    if (parsed.note) lines.push(`Note: ${parsed.note}`);
+    if (parsed.cashback !== undefined && parsed.cashback !== null && parsed.cashback !== '') {
+      lines.push(`Cashback: ₹${parsed.cashback}`);
+    }
+    if (parsed.note) {
+      lines.push(`Note: ${parsed.note}`);
+    }
     const body = lines.join('\n') || 'Tap to review before saving';
 
     await self.registration.showNotification(`₹${amount} · ${desc}`, {
@@ -389,8 +393,12 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     const lines = [];
     const mainParts = [category, method, date, time].filter(Boolean).join(' · ');
     if (mainParts) lines.push(mainParts);
-    if (parsed.cashback) lines.push(`Cashback: ₹${parsed.cashback}`);
-    if (parsed.note) lines.push(`Note: ${parsed.note}`);
+    if (parsed.cashback !== undefined && parsed.cashback !== null && parsed.cashback !== '') {
+      lines.push(`Cashback: ₹${parsed.cashback}`);
+    }
+    if (parsed.note) {
+      lines.push(`Note: ${parsed.note}`);
+    }
     const body = lines.join('\n') || 'Tap to review before saving';
 
     // Store the parse result so the app can reuse it instead of re-parsing
