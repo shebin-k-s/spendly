@@ -47,15 +47,24 @@ async function readSharedImage(): Promise<Blob | null> {
   }
 }
 
-async function peekShareResult(): Promise<{ result: ParsedImage & { cashback?: string }; ts: number } | null> {
+interface QueueItem {
+  type: 'image' | 'text';
+  ts: number;
+  result: ParsedImage & { cashback?: string };
+  thumbnail?: string;
+  rawText?: string;
+}
+
+async function peekShareResult(): Promise<QueueItem | null> {
   if (!('caches' in window)) return null;
   try {
     const cache = await caches.open('spendly-share');
     const queueRes = await cache.match('/share-queue');
     if (!queueRes) return null;
-    const queue: Array<{ type: string; result: ParsedImage & { cashback?: string }; ts: number }> = await queueRes.json();
+    const queue: QueueItem[] = await queueRes.json();
     if (!queue.length) return null;
-    return { result: queue[0].result, ts: queue[0].ts };
+    // Return last (most recently added) — matches the notification that was just shown
+    return queue[queue.length - 1];
   } catch {
     return null;
   }
@@ -127,7 +136,14 @@ export default function AddExpensePage() {
   const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
   const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
   const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? null;
+  const stateThumb = (location.state as { thumbnail?: string } | null)?.thumbnail ?? null;
+  const stateRawText = (location.state as { rawText?: string } | null)?.rawText ?? null;
+  const stateShareType = (location.state as { shareType?: string } | null)?.shareType ?? null;
+
   const [resolvedShareTs, setResolvedShareTs] = useState<number | null>(shareTs);
+  const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(stateThumb);
+  const [previewRawText, setPreviewRawText] = useState<string | null>(stateRawText);
+  const [previewShareType, setPreviewShareType] = useState<string | null>(stateShareType);
 
   const ps = parsedShare;
   const now = new Date();
@@ -202,6 +218,9 @@ export default function AddExpensePage() {
         if (cachedResult.note) setNote(cachedResult.note);
         if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
         setResolvedShareTs(peeked.ts);
+        setPreviewThumbnail(peeked.thumbnail ?? null);
+        setPreviewRawText(peeked.rawText ?? null);
+        setPreviewShareType(peeked.type);
         setAiStatus('done');
         return;
       }
@@ -240,6 +259,9 @@ export default function AddExpensePage() {
         if (cachedResult.note) setNote(cachedResult.note);
         if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
         setResolvedShareTs(peeked.ts);
+        setPreviewThumbnail(peeked.thumbnail ?? null);
+        setPreviewRawText(peeked.rawText ?? null);
+        setPreviewShareType(peeked.type);
         setAiStatus('done');
         return;
       }
@@ -340,11 +362,21 @@ export default function AddExpensePage() {
 
         {/* AI success banner */}
         {(sharedImage || sharedText) && aiStatus === 'done' && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="text-xs font-medium text-primary">
-              {sharedImage ? 'Pre-filled from payment screenshot' : 'Pre-filled from shared message'} — review and save
-            </p>
+          <div className="rounded-2xl overflow-hidden border border-primary/20">
+            {previewShareType === 'image' && previewThumbnail && (
+              <img src={previewThumbnail} alt="Receipt" className="w-full max-h-48 object-cover" />
+            )}
+            <div className="flex items-center gap-2.5 px-3.5 py-3 bg-primary/8">
+              <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+              <p className="text-xs font-medium text-primary">
+                {sharedImage ? 'Pre-filled from payment screenshot' : 'Pre-filled from shared message'} — review and save
+              </p>
+            </div>
+            {previewShareType === 'text' && previewRawText && (
+              <div className="px-3.5 py-2.5 bg-primary/5 border-t border-primary/10">
+                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{previewRawText}</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -428,9 +460,19 @@ export default function AddExpensePage() {
 
         {/* Pending share pre-fill banner */}
         {parsedShare && (
-          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
-            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-            <p className="text-xs font-medium text-primary">Pre-filled from pending receipt — review and save</p>
+          <div className="rounded-2xl overflow-hidden border border-primary/20">
+            {previewShareType === 'image' && previewThumbnail && (
+              <img src={previewThumbnail} alt="Receipt" className="w-full max-h-48 object-cover" />
+            )}
+            <div className="flex items-center gap-2.5 px-3.5 py-3 bg-primary/8">
+              <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+              <p className="text-xs font-medium text-primary">Pre-filled from pending receipt — review and save</p>
+            </div>
+            {previewShareType === 'text' && previewRawText && (
+              <div className="px-3.5 py-2.5 bg-primary/5 border-t border-primary/10">
+                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{previewRawText}</p>
+              </div>
+            )}
           </div>
         )}
 

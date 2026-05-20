@@ -65,7 +65,13 @@ export default function PendingSharesPage() {
   const handleReview = (index: number) => {
     const item = queue[index];
     navigate('/expenses/new', {
-      state: { parsedShare: item.result, shareTs: item.ts },
+      state: {
+        parsedShare: item.result,
+        shareTs: item.ts,
+        shareType: item.type,
+        thumbnail: item.thumbnail ?? null,
+        rawText: item.rawText ?? null,
+      },
     });
   };
 

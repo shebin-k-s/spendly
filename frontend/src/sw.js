@@ -201,15 +201,15 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // "review" action or plain tap → open pending receipts list
-  event.waitUntil(openReviewWindow());
+  // "review" action or plain tap → open add expense form
+  event.waitUntil(openReviewWindow(data.shareType || 'image'));
 });
 
-async function openReviewWindow() {
-  const target = new URL('/share-pending', self.location.origin).href;
+async function openReviewWindow(shareType = 'image') {
+  const target = new URL(`/expenses/new?shared=${shareType}`, self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  const existing = clients.find((c) => c.url.includes('/share-pending'));
-  if (existing) { existing.focus(); return; }
+  const existing = clients.find((c) => c.url.includes('/expenses/new'));
+  if (existing) { existing.navigate(target); existing.focus(); return; }
   const any = clients[0];
   if (any) { any.navigate(target); any.focus(); return; }
   await self.clients.openWindow(target);
@@ -317,17 +317,21 @@ async function generateThumbnail(buffer, mimeType) {
   try {
     const blob = new Blob([buffer], { type: mimeType || 'image/jpeg' });
     const bitmap = await createImageBitmap(blob);
-    const MAX = 360;
+    const MAX = 480;
     const scale = Math.min(MAX / bitmap.width, MAX / bitmap.height, 1);
     const w = Math.round(bitmap.width * scale);
     const h = Math.round(bitmap.height * scale);
     const canvas = new OffscreenCanvas(w, h);
     canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
-    const thumbBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.55 });
+    const thumbBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.45 });
     const bytes = new Uint8Array(await thumbBlob.arrayBuffer());
+    // Chunked encode — character-by-character is O(n²) and hangs on large buffers
+    const CHUNK = 8192;
     let bin = '';
-    for (const b of bytes) bin += String.fromCharCode(b);
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
     return `data:image/jpeg;base64,${btoa(bin)}`;
   } catch {
     return null;
