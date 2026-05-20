@@ -67,7 +67,10 @@ async function getAuth() {
 // ── API call helper (handles 401 refresh automatically) ───────────────────────
 async function callApi(path, options = {}) {
   const auth = await getAuth();
-  if (!auth) throw new Error('no-auth');
+  if (!auth) {
+    console.error('[SW] callApi: no auth found in cache');
+    throw new Error('no-auth');
+  }
 
   const isFormData = options.body instanceof FormData;
   const makeRequest = (token) => fetch(`${auth.apiBase}${path}`, {
@@ -80,15 +83,26 @@ async function callApi(path, options = {}) {
     credentials: 'include',
   });
 
-  let res = await makeRequest(auth.token);
+  console.log(`[SW] API call: ${path}`);
+  let res;
+  try {
+    res = await makeRequest(auth.token);
+  } catch (err) {
+    console.error(`[SW] API fetch failed for ${path}:`, err);
+    throw err;
+  }
 
   if (res.status === 401) {
+    console.log('[SW] 401 Unauthorized, attempting token refresh...');
     // Try refresh
     const refreshRes = await fetch(`${auth.apiBase}/auth/refresh`, {
       method: 'POST',
       credentials: 'include',
     });
-    if (!refreshRes.ok) throw new Error('auth-expired');
+    if (!refreshRes.ok) {
+      console.error('[SW] Token refresh failed');
+      throw new Error('auth-expired');
+    }
     const { accessToken } = await refreshRes.json();
     await saveAuth(accessToken, auth.apiBase);
     res = await makeRequest(accessToken);
@@ -158,12 +172,22 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 async function openReviewWindow() {
-  const target = '/expenses/new?shared=image';
+  const target = new URL('/expenses/new?shared=image', self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const existing = clients.find((c) => c.url.includes('/expenses/new'));
-  if (existing) { existing.focus(); return; }
+  if (existing) {
+    console.log('[SW] Found existing Add Expense window, focusing...');
+    existing.focus();
+    return;
+  }
   const any = clients[0];
-  if (any) { any.navigate(target); any.focus(); return; }
+  if (any) {
+    console.log('[SW] Navigating existing window to review...');
+    any.navigate(target);
+    any.focus();
+    return;
+  }
+  console.log('[SW] Opening new window for review...');
   await self.clients.openWindow(target);
 }
 
@@ -184,11 +208,14 @@ self.addEventListener('fetch', (event) => {
 
           // ── Text share → existing flow unchanged ──────────────────────────
           if (!image || !(image instanceof File) || image.size === 0) {
+            console.log('[SW] Text share detected:', { text, title });
             const params = new URLSearchParams();
             if (text)  params.set('text',  text);
             else if (title) params.set('title', title);
             const qs = params.toString();
-            return Response.redirect(`/expenses/new${qs ? '?' + qs : ''}`, 303);
+            const target = new URL(`/expenses/new${qs ? '?' + qs : ''}`, self.location.origin).href;
+            console.log('[SW] Redirecting text share to:', target);
+            return Response.redirect(target, 303);
           }
 
           // Store image for the review flow
@@ -206,18 +233,21 @@ self.addEventListener('fetch', (event) => {
           const appWasAlreadyOpen = Boolean(event.clientId);
 
           if (appWasAlreadyOpen) {
-            // App was already open → existing pre-fill flow, no change
-            return Response.redirect('/expenses/new?shared=image', 303);
+            console.log('[SW] App already open, redirecting to Add Expense page');
+            return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
           }
 
           // ── App was closed → background parse + notification ──────────────
+          console.log('[SW] App closed, initiating background parse and notify');
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
+          
           // Redirect to home so the app doesn't open straight to the expense form
-          return Response.redirect('/', 303);
+          // This allows the background notification to handle the "Review" action
+          return Response.redirect(new URL('/', self.location.origin).href, 303);
 
         } catch (err) {
           console.error('[SW] share-target error:', err);
-          return Response.redirect('/expenses/new', 303);
+          return Response.redirect(new URL('/expenses/new', self.location.origin).href, 303);
         }
       })()
     );
@@ -249,6 +279,7 @@ self.addEventListener('fetch', (event) => {
 
 // ── Background parse helper ───────────────────────────────────────────────────
 async function backgroundParseAndNotify(buffer, mimeType) {
+  console.log('[SW] backgroundParseAndNotify: starting...');
   try {
     const blob = new Blob([buffer], { type: mimeType || 'image/jpeg' });
     const fd = new FormData();
@@ -264,10 +295,11 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     const method   = parsed.payment_method || '';
     const bodyParts = [category, method].filter(Boolean).join(' · ');
 
+    console.log('[SW] backgroundParseAndNotify: showing success notification');
     await self.registration.showNotification(`₹${amount} · ${desc}`, {
       body:             bodyParts || 'Tap to review before saving',
-      icon:             '/logo-192.png',
-      badge:            '/badge.svg',
+      icon:             new URL('/logo-192.png', self.location.origin).href,
+      badge:            new URL('/badge.svg', self.location.origin).href,
       requireInteraction: true,
       actions: [
         { action: 'save',   title: 'Save'   },
@@ -284,14 +316,16 @@ async function backgroundParseAndNotify(buffer, mimeType) {
         cashback:      parsed.cashback,
       },
     });
+    console.log('[SW] backgroundParseAndNotify: notification shown');
   } catch (err) {
+    console.error('[SW] backgroundParseAndNotify failed:', err);
     // Auth missing or parse failed — show a simple tap-to-add notification
     const isNoAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
     await self.registration.showNotification('Receipt ready', {
       body:  isNoAuth ? 'Open Spendly to add this expense' : 'Tap to review and add',
-      icon:  '/logo-192.png',
-      badge: '/badge.svg',
-      data:  { url: '/expenses/new?shared=image' },
+      icon:  new URL('/logo-192.png', self.location.origin).href,
+      badge: new URL('/badge.svg', self.location.origin).href,
+      data:  { url: new URL('/expenses/new?shared=image', self.location.origin).href },
     });
   }
 }
