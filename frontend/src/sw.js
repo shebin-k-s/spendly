@@ -226,20 +226,17 @@ self.addEventListener('fetch', (event) => {
             headers: { 'Content-Type': image.type || 'image/jpeg' },
           }));
 
-          // ── Check if app was already open ─────────────────────────────────
-          // event.clientId is non-empty only when an existing controlled window
-          // initiated this navigation (app was open and Android navigated it to
-          // the share URL). For a brand-new PWA window opened by Android for a
-          // closed app, there is no originating client → clientId is ''.
-          const appWasAlreadyOpen = Boolean(event.clientId);
+          // ── Check if app is open ──────────────────────────────────────────
+          const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+          const appIsOpen = clients.length > 0;
 
-          if (appWasAlreadyOpen) {
-            console.log('[SW] App already open, redirecting to Add Expense page');
+          if (appIsOpen) {
+            console.log('[SW] App is open, redirecting to Add Expense page for direct pre-fill');
             return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
           }
 
-          // ── App was closed → background parse + notification ──────────────
-          console.log('[SW] App closed, initiating background parse and notify');
+          // ── App is closed → background parse + notification ──────────────
+          console.log('[SW] App is closed, initiating background parse and notify');
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
           
           // Redirect to home so the app doesn't open straight to the expense form
