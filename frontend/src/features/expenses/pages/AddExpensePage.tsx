@@ -141,14 +141,14 @@ export default function AddExpensePage() {
     setNlStatus('loading');
     try {
       const result = await expensesApi.parseText(nlText.trim());
-      if (typeof result.amount === 'string' && result.amount) setAmount(result.amount);
-      if (typeof result.description === 'string' && result.description) setDescription(result.description);
-      if (typeof result.payment_method === 'string') setPaymentMethod(result.payment_method as PaymentMethod);
-      if (typeof result.date === 'string' && result.date) setDate(result.date);
-      if (typeof result.time === 'string' && result.time) setTime(result.time);
-      if (typeof result.category_id === 'string' && result.category_id) setCategoryId(result.category_id);
-      if (typeof result.note === 'string' && result.note) setNote(result.note);
-      if (typeof result.cashback === 'string' && result.cashback) setCashback(result.cashback);
+      setAmount(typeof result.amount === 'string' ? result.amount : '');
+      setDescription(typeof result.description === 'string' ? result.description : '');
+      setPaymentMethod((typeof result.payment_method === 'string' ? result.payment_method : 'upi') as PaymentMethod);
+      setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
+      setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
+      setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
+      setNote(typeof result.note === 'string' ? result.note : '');
+      setCashback(typeof result.cashback === 'string' ? result.cashback : '');
       setNlStatus('done');
     } catch {
       setNlStatus('error');
