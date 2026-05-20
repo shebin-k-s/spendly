@@ -8,6 +8,7 @@ import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
 import { parseShareText } from '../utils/parseShareText';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import apiClient from '@/lib/apiClient';
+import { expensesApi } from '../api/expensesApi';
 import type { PaymentMethod } from '../types';
 import type { Category } from '@/features/categories/types';
 
@@ -84,6 +85,8 @@ export default function AddExpensePage() {
   const [note, setNote] = useState(prefill?.note ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
   const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
+  const [nlText, setNlText] = useState('');
+  const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const sharedBlobRef = useRef<Blob | null>(null);
   const hasAttemptedParse = useRef(false);
 
@@ -123,6 +126,25 @@ export default function AddExpensePage() {
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedImage]);
+
+  const handleNlParse = async () => {
+    if (!nlText.trim() || nlStatus === 'loading') return;
+    setNlStatus('loading');
+    try {
+      const result = await expensesApi.parseText(nlText.trim());
+      if (typeof result.amount === 'string' && result.amount) setAmount(result.amount);
+      if (typeof result.description === 'string' && result.description) setDescription(result.description);
+      if (typeof result.payment_method === 'string') setPaymentMethod(result.payment_method as PaymentMethod);
+      if (typeof result.date === 'string' && result.date) setDate(result.date);
+      if (typeof result.time === 'string' && result.time) setTime(result.time);
+      if (typeof result.category_id === 'string' && result.category_id) setCategoryId(result.category_id);
+      if (typeof result.note === 'string' && result.note) setNote(result.note);
+      if (typeof result.cashback === 'string' && result.cashback) setCashback(result.cashback);
+      setNlStatus('done');
+    } catch {
+      setNlStatus('error');
+    }
+  };
 
   const canSubmit = amount.trim() && description.trim() && !createExpense.isPending && aiStatus !== 'loading';
 
@@ -195,6 +217,47 @@ export default function AddExpensePage() {
               >
                 <RefreshCw className="w-3 h-3" /> Retry
               </button>
+            )}
+          </div>
+        )}
+
+        {/* Natural language input */}
+        {!sharedImage && !parsed && !prefill && (
+          <div className="space-y-2">
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="form-label">Quick parse</label>
+                <textarea
+                  value={nlText}
+                  onChange={(e) => { setNlText(e.target.value); if (nlStatus !== 'idle') setNlStatus('idle'); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleNlParse(); } }}
+                  placeholder={'Describe your expense — e.g. "Zomato 350 UPI" or "coffee 80 cash"'}
+                  rows={2}
+                  className="form-input resize-none text-sm"
+                />
+              </div>
+              <button
+                onClick={() => void handleNlParse()}
+                disabled={!nlText.trim() || nlStatus === 'loading'}
+                className="mb-[1px] px-4 h-[46px] rounded-xl bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0"
+              >
+                {nlStatus === 'loading'
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Sparkles className="w-3.5 h-3.5" />}
+                Parse
+              </button>
+            </div>
+            {nlStatus === 'done' && (
+              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-primary/8 border border-primary/20">
+                <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <p className="text-xs font-medium text-primary">Form filled — review and save</p>
+              </div>
+            )}
+            {nlStatus === 'error' && (
+              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-destructive/8 border border-destructive/20">
+                <AlertCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />
+                <p className="text-xs font-medium text-destructive">Couldn't parse — try being more specific or fill manually</p>
+              </div>
             )}
           </div>
         )}

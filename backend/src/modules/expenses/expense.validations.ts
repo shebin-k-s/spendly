@@ -18,6 +18,10 @@ export const createExpenseSchema = Joi.object({
     categoryId: Joi.string().uuid().allow(null).optional(),
 });
 
+export const parseTextSchema = Joi.object({
+    text: Joi.string().min(1).max(500).required(),
+});
+
 export const updateExpenseSchema = Joi.object({
     amount: Joi.number().positive().precision(2).optional(),
     cashback: Joi.number().min(0).precision(2).optional(),

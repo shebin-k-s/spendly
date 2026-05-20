@@ -43,4 +43,9 @@ export const expensesApi = {
   async delete(id: string): Promise<void> {
     await apiClient.delete(`${URL}/${id}`);
   },
+
+  async parseText(text: string): Promise<Record<string, unknown>> {
+    const { data } = await apiClient.post(`${URL}/parse-text`, { text });
+    return data;
+  },
 };

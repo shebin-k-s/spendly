@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
 import { ExpenseAiService } from './expense.ai.service';
-import { ApiError } from '../../common/middlewares/error.middleware';
 
 const log = {
     info: (msg: string, meta?: Record<string, unknown>) =>
@@ -47,6 +46,25 @@ export class ExpenseController {
     delete = async (req: Request, res: Response) => {
         await service.delete(req.params.id as string);
         res.sendStatus(204);
+    };
+
+    parseText = async (req: Request, res: Response) => {
+        const { text } = req.body as { text: string };
+        if (!process.env.GEMINI_API_KEY) {
+            log.error('gemini: GEMINI_API_KEY not configured');
+            res.status(503).json({ message: 'AI parsing not configured' });
+            return;
+        }
+        let categories: { id: string; name: string; icon: string }[] = [];
+        try {
+            const categoryService = new CategoryService();
+            categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
+        } catch (err) {
+            log.error('parseText: failed to fetch categories', { error: String(err) });
+        }
+        const debug = req.query.debug === 'true';
+        const aiService = new ExpenseAiService();
+        res.json(await aiService.parseText(text, categories, debug));
     };
 
     parseImage = async (req: Request, res: Response) => {
