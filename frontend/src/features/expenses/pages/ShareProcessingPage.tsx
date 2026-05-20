@@ -5,7 +5,7 @@ export default function ShareProcessingPage() {
     const timer = setTimeout(() => {
       // 1. Try standard close
       window.close();
-      
+
       // 2. Try the chrome-specific "close if window was a share target" behavior
       // This is sometimes needed in PWA standalone mode
       if (typeof window.opener !== 'undefined') {
@@ -21,7 +21,7 @@ export default function ShareProcessingPage() {
       setTimeout(() => {
         window.location.replace('/');
       }, 500);
-    }, 2000);
+    }, 4000);
     return () => clearTimeout(timer);
   }, []);
 
