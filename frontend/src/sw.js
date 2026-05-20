@@ -139,6 +139,7 @@ self.addEventListener('notificationclick', (event) => {
     event.waitUntil(
       (async () => {
         try {
+          console.log('[SW] Saving expense from notification data:', data.amount, data.description);
           const res = await callApi('/expenses', {
             method: 'POST',
             body: JSON.stringify({
@@ -280,6 +281,12 @@ self.addEventListener('fetch', (event) => {
 // ── Background parse helper ───────────────────────────────────────────────────
 async function backgroundParseAndNotify(buffer, mimeType) {
   console.log('[SW] backgroundParseAndNotify: starting...');
+  console.log('[SW] Notification permission:', Notification.permission);
+  
+  if (Notification.permission !== 'granted') {
+    console.warn('[SW] Notification permission not granted. User might not see the background result.');
+  }
+
   try {
     const blob = new Blob([buffer], { type: mimeType || 'image/jpeg' });
     const fd = new FormData();

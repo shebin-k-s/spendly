@@ -12,6 +12,11 @@ createRoot(document.getElementById('root')!).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
+    
+    // Request notification permission for background parsing
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
 
     // Once the SW is controlling this page, send the stored auth token so it
     // can make authenticated API calls for background receipt parsing.
