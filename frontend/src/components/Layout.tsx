@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { NavLink, useLocation, useNavigationType } from 'react-router-dom';
 import { LayoutDashboard, Receipt, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,18 +22,42 @@ export default function Layout() {
   const scrollPositions = useRef<Record<string, number>>({});
   const prevKey = useRef(location.key);
 
-  useEffect(() => {
-    // Save scroll position of the page we're leaving
+  useLayoutEffect(() => {
+    // Save scroll position of the page we're leaving (before updating prevKey)
     scrollPositions.current[prevKey.current] = mainRef.current?.scrollTop ?? 0;
     prevKey.current = location.key;
 
+    const main = mainRef.current;
+    if (!main) return;
+
     if (navType === 'POP') {
-      // Back navigation — restore where the user was
       const saved = scrollPositions.current[location.key] ?? 0;
-      if (mainRef.current) mainRef.current.scrollTop = saved;
+
+      if (saved <= 0) {
+        main.scrollTop = 0;
+        return;
+      }
+
+      // useLayoutEffect runs before the browser paints, so setting scrollTop here
+      // avoids any visible flash at position 0. For async content (Cache API),
+      // MutationObserver fires while the entering page is still in its opacity:0
+      // fade-in, so the jump is never visible.
+      if (main.scrollHeight - main.clientHeight >= saved) {
+        main.scrollTop = saved;
+      } else {
+        main.scrollTop = 0;
+        const observer = new MutationObserver(() => {
+          if (main.scrollHeight - main.clientHeight >= saved) {
+            main.scrollTop = saved;
+            observer.disconnect();
+          }
+        });
+        observer.observe(main, { childList: true, subtree: true });
+        const timeout = setTimeout(() => observer.disconnect(), 1500);
+        return () => { observer.disconnect(); clearTimeout(timeout); };
+      }
     } else {
-      // Forward navigation — always start at top
-      if (mainRef.current) mainRef.current.scrollTop = 0;
+      main.scrollTop = 0;
     }
   }, [location.key, navType]);
 

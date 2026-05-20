@@ -433,7 +433,17 @@ export default function AddExpensePage() {
     <div className="animate-fade-in">
       <div className="page-header">
         <button
-          onClick={() => resolvedShareTs ? navigate('/share-pending', { replace: true }) : isFromShare ? navigate('/expenses', { replace: true }) : navigate(-1)}
+          onClick={() => {
+            if (resolvedShareTs) {
+              // Came from PendingSharesPage via state → POP back (preserves scroll)
+              // Came from notification URL → replace with fresh PendingSharesPage
+              parsedShare ? navigate(-1) : navigate('/share-pending', { replace: true });
+            } else if (isFromShare) {
+              navigate('/expenses', { replace: true });
+            } else {
+              navigate(-1);
+            }
+          }}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
         >
           <ArrowLeft className="w-4 h-4" />
