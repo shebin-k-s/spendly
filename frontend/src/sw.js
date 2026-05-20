@@ -201,14 +201,14 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // "review" action or plain tap → open / focus the add-expense form
-  event.waitUntil(openReviewWindow(data.shareType || 'image'));
+  // "review" action or plain tap → open pending receipts list
+  event.waitUntil(openReviewWindow());
 });
 
-async function openReviewWindow(shareType = 'image') {
-  const target = new URL(`/expenses/new?shared=${shareType}`, self.location.origin).href;
+async function openReviewWindow() {
+  const target = new URL('/share-pending', self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  const existing = clients.find((c) => c.url.includes('/expenses/new'));
+  const existing = clients.find((c) => c.url.includes('/share-pending'));
   if (existing) { existing.focus(); return; }
   const any = clients[0];
   if (any) { any.navigate(target); any.focus(); return; }

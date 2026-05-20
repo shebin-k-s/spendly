@@ -66,7 +66,6 @@ export default function PendingSharesPage() {
     const item = queue[index];
     navigate('/expenses/new', {
       state: { parsedShare: item.result, shareTs: item.ts },
-      replace: true,
     });
   };
 
