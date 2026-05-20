@@ -302,15 +302,36 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ── Share queue helpers ───────────────────────────────────────────────────────
-async function appendShareQueue(parsed, type) {
+async function appendShareQueue(parsed, type, extra = {}) {
   const cache = await caches.open(SHARE_CACHE);
   const existing = await cache.match('/share-queue');
   const queue = existing ? await existing.json() : [];
-  queue.push({ type, result: parsed, ts: Date.now() });
+  queue.push({ type, result: parsed, ts: Date.now(), ...extra });
   await cache.put('/share-queue', new Response(JSON.stringify(queue), {
     headers: { 'Content-Type': 'application/json' },
   }));
   navigator.setAppBadge?.(queue.length).catch?.(() => {});
+}
+
+async function generateThumbnail(buffer, mimeType) {
+  try {
+    const blob = new Blob([buffer], { type: mimeType || 'image/jpeg' });
+    const bitmap = await createImageBitmap(blob);
+    const MAX = 360;
+    const scale = Math.min(MAX / bitmap.width, MAX / bitmap.height, 1);
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = new OffscreenCanvas(w, h);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const thumbBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.55 });
+    const bytes = new Uint8Array(await thumbBlob.arrayBuffer());
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return `data:image/jpeg;base64,${btoa(bin)}`;
+  } catch {
+    return null;
+  }
 }
 
 // ── Background text parse helper ─────────────────────────────────────────────
@@ -323,7 +344,7 @@ async function backgroundTextParseAndNotify(text) {
     if (!res.ok) throw new Error('parse-failed');
     const parsed = await res.json();
 
-    await appendShareQueue(parsed, 'text');
+    await appendShareQueue(parsed, 'text', { rawText: text });
 
     const amount   = parsed.amount      || '?';
     const desc     = parsed.description || 'Expense';
@@ -399,7 +420,8 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     }
     const body = lines.join('\n') || 'Tap to review before saving';
 
-    await appendShareQueue(parsed, 'image');
+    const thumbnail = await generateThumbnail(buffer, mimeType);
+    await appendShareQueue(parsed, 'image', thumbnail ? { thumbnail } : {});
 
     console.log('[SW] backgroundParseAndNotify: showing success notification');
     if (activeShareTakeover) {
