@@ -95,7 +95,7 @@ export default function EditExpensePage() {
   }
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in" data-no-swipe>
       <div className="page-header">
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-4 h-4" />

@@ -198,19 +198,22 @@ self.addEventListener('fetch', (event) => {
             headers: { 'Content-Type': image.type || 'image/jpeg' },
           }));
 
-          // ── Check if app window is currently visible ──────────────────────
-          const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-          const isVisible = clients.some((c) => c.visibilityState === 'visible');
+          // ── Check if app was already open ─────────────────────────────────
+          // event.clientId is non-empty only when an existing controlled window
+          // initiated this navigation (app was open and Android navigated it to
+          // the share URL). For a brand-new PWA window opened by Android for a
+          // closed app, there is no originating client → clientId is ''.
+          const appWasAlreadyOpen = Boolean(event.clientId);
 
-          if (isVisible) {
-            // App is open → existing pre-fill flow
+          if (appWasAlreadyOpen) {
+            // App was already open → existing pre-fill flow, no change
             return Response.redirect('/expenses/new?shared=image', 303);
           }
 
-          // ── App is closed → background parse + notification ───────────────
+          // ── App was closed → background parse + notification ──────────────
           event.waitUntil(backgroundParseAndNotify(buffer, image.type));
-          // Redirect to expenses list (not the form) so app doesn't open to a half-loaded form
-          return Response.redirect('/expenses', 303);
+          // Redirect to home so the app doesn't open straight to the expense form
+          return Response.redirect('/', 303);
 
         } catch (err) {
           console.error('[SW] share-target error:', err);
