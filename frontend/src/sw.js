@@ -202,11 +202,13 @@ self.addEventListener('notificationclick', (event) => {
   }
 
   // "review" action or plain tap → open add expense form
-  event.waitUntil(openReviewWindow(data.shareType || 'image'));
+  event.waitUntil(openReviewWindow(data.shareTs, data.shareType || 'image'));
 });
 
-async function openReviewWindow(shareType = 'image') {
-  const target = new URL(`/expenses/new?shared=${shareType}`, self.location.origin).href;
+async function openReviewWindow(shareTs, shareType = 'image') {
+  let urlStr = `/expenses/new?shared=${shareType}`;
+  if (shareTs) urlStr += `&shareTs=${shareTs}`;
+  const target = new URL(urlStr, self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const existing = clients.find((c) => c.url.includes('/expenses/new'));
   if (existing) { existing.navigate(target); existing.focus(); return; }
@@ -306,11 +308,13 @@ async function appendShareQueue(parsed, type, extra = {}) {
   const cache = await caches.open(SHARE_CACHE);
   const existing = await cache.match('/share-queue');
   const queue = existing ? await existing.json() : [];
-  queue.push({ type, result: parsed, ts: Date.now(), ...extra });
+  const item = { type, result: parsed, ts: Date.now(), ...extra };
+  queue.push(item);
   await cache.put('/share-queue', new Response(JSON.stringify(queue), {
     headers: { 'Content-Type': 'application/json' },
   }));
   navigator.setAppBadge?.(queue.length).catch?.(() => {});
+  return item;
 }
 
 async function generateThumbnail(buffer, mimeType) {
@@ -348,7 +352,7 @@ async function backgroundTextParseAndNotify(text) {
     if (!res.ok) throw new Error('parse-failed');
     const parsed = await res.json();
 
-    await appendShareQueue(parsed, 'text', { rawText: text });
+    const item = await appendShareQueue(parsed, 'text', { rawText: text });
     // Clean up raw text now that it's in the queue
     const rawCache = await caches.open(SHARE_CACHE);
     await rawCache.delete('/share-text');
@@ -378,6 +382,7 @@ async function backgroundTextParseAndNotify(text) {
         note:          parsed.note,
         cashback:      parsed.cashback,
         shareType:     'text',
+        shareTs:       item.ts,
       },
     });
   } catch (err) {
@@ -428,7 +433,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     const body = lines.join('\n') || 'Tap to review before saving';
 
     const thumbnail = await generateThumbnail(buffer, mimeType);
-    await appendShareQueue(parsed, 'image', thumbnail ? { thumbnail } : {});
+    const item = await appendShareQueue(parsed, 'image', thumbnail ? { thumbnail } : {});
     // Clean up raw image now that it's in the queue
     const rawCache = await caches.open(SHARE_CACHE);
     await rawCache.delete('/share-image');
@@ -458,6 +463,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
         note:          parsed.note,
         cashback:      parsed.cashback,
         shareType:     'image',
+        shareTs:       item.ts,
       },
     });
     console.log('[SW] backgroundParseAndNotify: notification shown');

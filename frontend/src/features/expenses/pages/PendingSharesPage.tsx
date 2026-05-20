@@ -117,63 +117,30 @@ export default function PendingSharesPage() {
                 transition={{ duration: 0.2 }}
                 className="bg-card border border-border/60 rounded-[28px] overflow-hidden shadow-sm"
               >
-                {/* Receipt image thumbnail with overlay */}
-                {item.type === 'image' && item.thumbnail ? (
-                  <div className="relative h-40 bg-secondary/50">
-                    <img
-                      src={item.thumbnail}
-                      alt="Receipt"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
-                    <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8">
-                      <p className="text-white text-[22px] font-bold leading-none">
-                        {item.result.amount ? `₹${item.result.amount}` : '₹—'}
-                      </p>
-                      <p className="text-white/75 text-xs mt-0.5 truncate">
-                        {item.result.description || 'Receipt'}
-                      </p>
+                <div className="p-4">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-2xl bg-secondary flex-shrink-0 flex items-center justify-center">
+                      {item.type === 'image'
+                        ? <ImageIcon className="w-5 h-5 text-muted-foreground/60" />
+                        : <MessageSquareText className="w-5 h-5 text-muted-foreground/60" />
+                      }
                     </div>
-                    <div className="absolute top-3 right-3">
-                      <span className="text-[10px] text-white/70 bg-black/35 backdrop-blur-sm px-2 py-0.5 rounded-full">
-                        {formatDistanceToNow(item.ts, { addSuffix: true })}
-                      </span>
-                    </div>
-                    <div className="absolute top-3 left-3">
-                      <div className="w-7 h-7 rounded-xl bg-black/30 backdrop-blur-sm flex items-center justify-center">
-                        <ImageIcon className="w-3.5 h-3.5 text-white/80" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xl font-bold leading-none">
+                            {item.result.amount ? `₹${item.result.amount}` : '₹—'}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {item.result.description || 'Expense'}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                          {formatDistanceToNow(item.ts, { addSuffix: true })}
+                        </span>
                       </div>
                     </div>
                   </div>
-                ) : null}
-
-                <div className="p-4">
-                  {/* Header row for text shares (no thumbnail) */}
-                  {!(item.type === 'image' && item.thumbnail) && (
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-2xl bg-secondary flex-shrink-0 flex items-center justify-center">
-                        {item.type === 'image'
-                          ? <ImageIcon className="w-5 h-5 text-muted-foreground/60" />
-                          : <MessageSquareText className="w-5 h-5 text-muted-foreground/60" />
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-xl font-bold leading-none">
-                              {item.result.amount ? `₹${item.result.amount}` : '₹—'}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                              {item.result.description || 'Expense'}
-                            </p>
-                          </div>
-                          <span className="text-[10px] text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-                            {formatDistanceToNow(item.ts, { addSuffix: true })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Category + payment badges */}
                   {(item.result.category_name || item.result.payment_method) && (

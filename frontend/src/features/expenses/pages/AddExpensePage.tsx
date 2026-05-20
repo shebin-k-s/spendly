@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -135,7 +135,7 @@ export default function AddExpensePage() {
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
   const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
   const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
-  const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? null;
+  const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? (searchParams.get('shareTs') ? parseInt(searchParams.get('shareTs')!, 10) : null);
   const stateThumb = (location.state as { thumbnail?: string } | null)?.thumbnail ?? null;
   const stateRawText = (location.state as { rawText?: string } | null)?.rawText ?? null;
   const stateShareType = (location.state as { shareType?: string } | null)?.shareType ?? null;
@@ -144,6 +144,41 @@ export default function AddExpensePage() {
   const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(stateThumb);
   const [previewRawText, setPreviewRawText] = useState<string | null>(stateRawText);
   const [previewShareType, setPreviewShareType] = useState<string | null>(stateShareType);
+
+  // Load from queue if we have shareTs but no parsedShare (e.g. from notification click)
+  useEffect(() => {
+    if (shareTs && !parsedShare) {
+      const loadFromQueue = async () => {
+        try {
+          const cache = await caches.open('spendly-share');
+          const res = await cache.match('/share-queue');
+          if (res) {
+            const queue: QueueItem[] = await res.json();
+            const item = queue.find((i) => i.ts === shareTs);
+            if (item) {
+              // Populate form states
+              const p = item.result;
+              setAmount(p.amount || '');
+              setCashback(String(p.cashback || ''));
+              setDescription(p.description || '');
+              if (p.date) setDate(p.date);
+              if (p.time) setTime(p.time);
+              setCategoryId(p.category_id || '');
+              setPaymentMethod(p.payment_method || 'upi');
+              setNote(p.note || '');
+              if (item.thumbnail) setPreviewThumbnail(item.thumbnail);
+              if (item.rawText) setPreviewRawText(item.rawText);
+              setPreviewShareType(item.type);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load prefill from queue:', err);
+        }
+      };
+      loadFromQueue();
+    }
+  }, [shareTs, parsedShare]);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   const ps = parsedShare;
   const now = new Date();
@@ -362,20 +397,27 @@ export default function AddExpensePage() {
 
         {/* AI success banner */}
         {(sharedImage || sharedText) && aiStatus === 'done' && (
-          <div className="rounded-2xl overflow-hidden border border-primary/20">
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+            <p className="text-xs font-medium text-primary flex-1">
+              {sharedImage ? 'Pre-filled from payment screenshot' : 'Pre-filled from shared message'} — review and save
+            </p>
             {previewShareType === 'image' && previewThumbnail && (
-              <img src={previewThumbnail} alt="Receipt" className="w-full max-h-48 object-cover" />
+              <button
+                onClick={() => setShowReceiptModal(true)}
+                className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 active:scale-95 transition-transform border border-primary/20"
+              >
+                <img src={previewThumbnail} alt="Receipt" className="w-full h-full object-cover" />
+              </button>
             )}
-            <div className="flex items-center gap-2.5 px-3.5 py-3 bg-primary/8">
-              <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-              <p className="text-xs font-medium text-primary">
-                {sharedImage ? 'Pre-filled from payment screenshot' : 'Pre-filled from shared message'} — review and save
-              </p>
-            </div>
             {previewShareType === 'text' && previewRawText && (
-              <div className="px-3.5 py-2.5 bg-primary/5 border-t border-primary/10">
-                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{previewRawText}</p>
-              </div>
+              <button
+                onClick={() => setShowReceiptModal(true)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-primary flex-shrink-0"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                View
+              </button>
             )}
           </div>
         )}
@@ -460,18 +502,25 @@ export default function AddExpensePage() {
 
         {/* Pending share pre-fill banner */}
         {parsedShare && (
-          <div className="rounded-2xl overflow-hidden border border-primary/20">
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+            <p className="text-xs font-medium text-primary flex-1">Pre-filled from pending receipt — review and save</p>
             {previewShareType === 'image' && previewThumbnail && (
-              <img src={previewThumbnail} alt="Receipt" className="w-full max-h-48 object-cover" />
+              <button
+                onClick={() => setShowReceiptModal(true)}
+                className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 active:scale-95 transition-transform border border-primary/20"
+              >
+                <img src={previewThumbnail} alt="Receipt" className="w-full h-full object-cover" />
+              </button>
             )}
-            <div className="flex items-center gap-2.5 px-3.5 py-3 bg-primary/8">
-              <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
-              <p className="text-xs font-medium text-primary">Pre-filled from pending receipt — review and save</p>
-            </div>
             {previewShareType === 'text' && previewRawText && (
-              <div className="px-3.5 py-2.5 bg-primary/5 border-t border-primary/10">
-                <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">{previewRawText}</p>
-              </div>
+              <button
+                onClick={() => setShowReceiptModal(true)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-primary flex-shrink-0"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                View
+              </button>
             )}
           </div>
         )}
@@ -609,6 +658,48 @@ export default function AddExpensePage() {
           {createExpense.isPending ? 'Saving...' : aiStatus === 'loading' ? 'Analyzing...' : 'Add Expense'}
         </button>
       </div>
+
+      {/* Receipt / message preview modal */}
+      {showReceiptModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+          onClick={() => setShowReceiptModal(false)}
+        >
+          <div className="flex items-center justify-between px-4 pt-12 pb-4">
+            <p className="text-sm font-semibold text-white/80">
+              {previewShareType === 'image' ? 'Receipt' : 'Original message'}
+            </p>
+            <button
+              onClick={() => setShowReceiptModal(false)}
+              className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center active:scale-95"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+
+          {previewShareType === 'image' && previewThumbnail && (
+            <div
+              className="flex-1 flex items-center justify-center p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={previewThumbnail}
+                alt="Receipt"
+                className="max-w-full max-h-full object-contain rounded-2xl"
+              />
+            </div>
+          )}
+
+          {previewShareType === 'text' && previewRawText && (
+            <div
+              className="flex-1 overflow-y-auto px-5 pb-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{previewRawText}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
