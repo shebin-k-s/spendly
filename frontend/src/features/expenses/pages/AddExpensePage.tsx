@@ -47,7 +47,7 @@ async function readSharedImage(): Promise<Blob | null> {
   }
 }
 
-async function popShareResult(): Promise<(ParsedImage & { cashback?: string }) | null> {
+async function peekShareResult(): Promise<{ result: ParsedImage & { cashback?: string }; ts: number } | null> {
   if (!('caches' in window)) return null;
   try {
     const cache = await caches.open('spendly-share');
@@ -55,17 +55,7 @@ async function popShareResult(): Promise<(ParsedImage & { cashback?: string }) |
     if (!queueRes) return null;
     const queue: Array<{ type: string; result: ParsedImage & { cashback?: string }; ts: number }> = await queueRes.json();
     if (!queue.length) return null;
-    const item = queue.shift()!;
-    if (queue.length > 0) {
-      await cache.put('/share-queue', new Response(JSON.stringify(queue), {
-        headers: { 'Content-Type': 'application/json' },
-      }));
-      navigator.setAppBadge?.(queue.length);
-    } else {
-      await cache.delete('/share-queue');
-      navigator.clearAppBadge?.();
-    }
-    return item.result;
+    return { result: queue[0].result, ts: queue[0].ts };
   } catch {
     return null;
   }
@@ -137,6 +127,7 @@ export default function AddExpensePage() {
   const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
   const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
   const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? null;
+  const [resolvedShareTs, setResolvedShareTs] = useState<number | null>(shareTs);
 
   const ps = parsedShare;
   const now = new Date();
@@ -198,9 +189,10 @@ export default function AddExpensePage() {
 
     void (async () => {
       // First, check if there's already a cached result from the SW (background parse)
-      const cachedResult = await popShareResult();
-      if (cachedResult) {
+      const peeked = await peekShareResult();
+      if (peeked) {
         console.log('[App] Using cached AI result from Service Worker');
+        const cachedResult = peeked.result;
         if (cachedResult.amount) setAmount(cachedResult.amount);
         if (cachedResult.description) setDescription(cachedResult.description);
         if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
@@ -209,6 +201,7 @@ export default function AddExpensePage() {
         if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
         if (cachedResult.note) setNote(cachedResult.note);
         if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
+        setResolvedShareTs(peeked.ts);
         setAiStatus('done');
         return;
       }
@@ -235,8 +228,9 @@ export default function AddExpensePage() {
     }
 
     void (async () => {
-      const cachedResult = await popShareResult();
-      if (cachedResult) {
+      const peeked = await peekShareResult();
+      if (peeked) {
+        const cachedResult = peeked.result;
         if (cachedResult.amount) setAmount(cachedResult.amount);
         if (cachedResult.description) setDescription(cachedResult.description);
         if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
@@ -245,6 +239,7 @@ export default function AddExpensePage() {
         if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
         if (cachedResult.note) setNote(cachedResult.note);
         if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
+        setResolvedShareTs(peeked.ts);
         setAiStatus('done');
         return;
       }
@@ -307,7 +302,7 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: async () => { if (shareTs) { await removeShareByTs(shareTs); navigate('/share-pending', { replace: true }); } else { navigator.clearAppBadge?.(); navigate('/expenses'); } } },
+      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); navigate('/share-pending', { replace: true }); } else { navigator.clearAppBadge?.(); navigate('/expenses'); } } },
     );
   };
 
@@ -317,7 +312,7 @@ export default function AddExpensePage() {
     <div className="animate-fade-in">
       <div className="page-header">
         <button
-          onClick={() => shareTs ? navigate('/share-pending', { replace: true }) : isFromShare ? navigate('/expenses', { replace: true }) : navigate(-1)}
+          onClick={() => resolvedShareTs ? navigate('/share-pending', { replace: true }) : isFromShare ? navigate('/expenses', { replace: true }) : navigate(-1)}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
         >
           <ArrowLeft className="w-4 h-4" />
