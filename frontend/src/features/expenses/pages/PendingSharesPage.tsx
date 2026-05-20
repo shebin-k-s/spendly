@@ -54,7 +54,11 @@ export default function PendingSharesPage() {
   const [discarding, setDiscarding] = useState<number | null>(null);
 
   useEffect(() => {
-    loadQueue().then(q => { setQueue(q); setLoading(false); });
+    loadQueue().then(q => { 
+      const sorted = [...q].sort((a, b) => b.ts - a.ts);
+      setQueue(sorted); 
+      setLoading(false); 
+    });
   }, []);
 
   const handleDiscard = async (index: number) => {

@@ -1,7 +1,17 @@
-import { useLocation, useOutlet, useNavigate } from 'react-router-dom';
+import { useLocation, useOutlet, useNavigate, useNavigationType } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { useRef } from 'react';
+
+// dir=1: forward (enter from right, exit left). dir=-1: back (enter from left, exit right).
+// Entering page starts fully opaque so it acts as an opaque curtain sliding over the
+// exiting page — the user never sees through it to the outgoing content.
+// Exiting page is hidden instantly (duration:0) since it's covered by the entering page.
+const pageVariants = {
+  initial: (dir: number) => ({ x: dir * 18, opacity: 1 }),
+  animate: { x: 0, opacity: 1 },
+  exit: { opacity: 0, position: 'absolute' as const, width: '100%', transition: { duration: 0 } },
+};
 
 const NAV_TABS = ['/', '/expenses', '/analytics', '/categories'];
 
@@ -16,7 +26,10 @@ export default function AnimatedOutlet() {
   const location = useLocation();
   const element = useOutlet();
   const navigate = useNavigate();
+  const navType = useNavigationType();
   const { swipeEnabled } = useSwipeGesture();
+  // 1 = forward (PUSH/REPLACE), -1 = back (POP)
+  const navDirection = navType === 'POP' ? -1 : 1;
   const isTransitioning = useRef(false);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -56,13 +69,15 @@ export default function AnimatedOutlet() {
   };
 
   return (
-    <AnimatePresence initial={false}>
+    <AnimatePresence initial={false} custom={navDirection}>
       <motion.div
         key={location.pathname}
         data-location-key={location.key}
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -10, position: 'absolute', width: '100%' }}
+        custom={navDirection}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
         transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
         className="w-full h-full overflow-y-auto overflow-x-hidden disable-scrollbars"
         onTouchStart={handleTouchStart}
