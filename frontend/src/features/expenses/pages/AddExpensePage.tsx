@@ -11,6 +11,7 @@ import apiClient from '@/lib/apiClient';
 import { expensesApi } from '../api/expensesApi';
 import type { PaymentMethod } from '../types';
 import type { Category } from '@/features/categories/types';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
 type CategoryOption = Pick<Category, 'id' | 'name' | 'icon'>;
 
@@ -89,6 +90,13 @@ export default function AddExpensePage() {
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const sharedBlobRef = useRef<Blob | null>(null);
   const hasAttemptedParse = useRef(false);
+
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+
+  useEffect(() => {
+    disableGlobalSwipe();
+    return () => enableGlobalSwipe();
+  }, [disableGlobalSwipe, enableGlobalSwipe]);
 
   const runAiParse = async (blob: Blob) => {
     setAiStatus('loading');

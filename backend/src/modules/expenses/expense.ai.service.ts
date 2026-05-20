@@ -110,13 +110,18 @@ ${categoryBlock}`;
 
         for (const modelName of this.modelFallbacks) {
             const model = genAI.getGenerativeModel({ model: modelName });
+            
+            let timeoutId!: NodeJS.Timeout;
             const timeoutP = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new ApiError('AI parsing timed out', 504)), this.timeoutMs)
+                timeoutId = setTimeout(() => reject(new ApiError('AI parsing timed out', 504)), this.timeoutMs)
             );
+            
             try {
                 const result = await Promise.race([model.generateContent(parts), timeoutP]);
+                clearTimeout(timeoutId);
                 return result.response.text().trim();
             } catch (err) {
+                clearTimeout(timeoutId);
                 lastError = err;
                 const isLast = modelName === this.modelFallbacks[this.modelFallbacks.length - 1];
                 if (!isLast) {
@@ -133,9 +138,14 @@ ${categoryBlock}`;
     }
 
     private extractJson(text: string): Record<string, unknown> {
-        const json = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+        let jsonStr = text.trim();
+        const firstBrace = jsonStr.indexOf('{');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+            jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+        }
         try {
-            return JSON.parse(json);
+            return JSON.parse(jsonStr);
         } catch {
             throw new ApiError('AI returned an unreadable response', 422);
         }

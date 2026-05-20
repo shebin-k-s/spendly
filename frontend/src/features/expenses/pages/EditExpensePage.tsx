@@ -7,6 +7,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
 import type { PaymentMethod } from '../types';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
 const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 
@@ -28,6 +29,13 @@ export default function EditExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
   const [note, setNote] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+
+  useEffect(() => {
+    disableGlobalSwipe();
+    return () => enableGlobalSwipe();
+  }, [disableGlobalSwipe, enableGlobalSwipe]);
 
   useEffect(() => {
     if (expense) {
