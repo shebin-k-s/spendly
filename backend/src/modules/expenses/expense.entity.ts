@@ -6,6 +6,7 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
     JoinColumn,
+    Index,
 } from 'typeorm';
 import { Category } from '../categories/category.entity';
 
@@ -25,6 +26,7 @@ export class Expense {
     @Column()
     description: string;
 
+    @Index()
     @Column({ type: 'date' })
     date: string;
 
@@ -37,6 +39,7 @@ export class Expense {
     @Column({ default: 'other' })
     paymentMethod: PaymentMethod;
 
+    @Index()
     @ManyToOne(() => Category, (category) => category.expenses, {
         onDelete: 'SET NULL',
         nullable: true,

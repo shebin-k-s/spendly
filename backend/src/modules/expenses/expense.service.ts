@@ -86,49 +86,55 @@ export class ExpenseService {
         const start = `${year}-${monthStr}-01`;
         const end = `${year}-${monthStr}-${lastDay.toString().padStart(2, '0')}`;
 
-        const rows = await this.repo
+        const dbSummary = await this.repo
             .createQueryBuilder('expense')
-            .leftJoinAndSelect('expense.category', 'category')
+            .select('SUM(expense.amount)', 'total')
+            .addSelect('SUM(expense.cashback)', 'cashbackTotal')
+            .addSelect('COUNT(expense.id)', 'count')
             .where('expense.date >= :start AND expense.date <= :end', { start, end })
-            .getMany();
+            .getRawOne();
 
-        const total = rows.reduce((sum, e) => sum + Number(e.amount), 0);
-        const cashbackTotal = rows.reduce((sum, e) => sum + Number(e.cashback || 0), 0);
+        const dbBreakdown = await this.repo
+            .createQueryBuilder('expense')
+            .leftJoin('expense.category', 'category')
+            .select('category.id', 'categoryId')
+            .addSelect('category.name', 'name')
+            .addSelect('category.icon', 'icon')
+            .addSelect('category.color', 'color')
+            .addSelect('SUM(expense.amount)', 'total')
+            .addSelect('SUM(expense.cashback)', 'cashbackTotal')
+            .addSelect('COUNT(expense.id)', 'count')
+            .where('expense.date >= :start AND expense.date <= :end', { start, end })
+            .groupBy('category.id')
+            .getRawMany();
 
-        const byCategory: Record<string, { categoryId: string; name: string; icon: string; color: string; total: number; cashbackTotal: number; count: number }> = {};
+        const total = Math.round(Number(dbSummary?.total || 0) * 100) / 100;
+        const cashbackTotal = Math.round(Number(dbSummary?.cashbackTotal || 0) * 100) / 100;
 
-        for (const expense of rows) {
-            const catId = expense.category?.id || 'uncategorized';
-            if (!byCategory[catId]) {
-                byCategory[catId] = {
-                    categoryId: catId,
-                    name: expense.category?.name || 'Uncategorized',
-                    icon: expense.category?.icon || '📦',
-                    color: expense.category?.color || '#94a3b8',
-                    total: 0,
-                    cashbackTotal: 0,
-                    count: 0,
-                };
-            }
-            byCategory[catId].total += Number(expense.amount);
-            byCategory[catId].cashbackTotal += Number(expense.cashback || 0);
-            byCategory[catId].count += 1;
-        }
+        const breakdown = dbBreakdown.map(r => ({
+            categoryId: r.categoryId || 'uncategorized',
+            name: r.name || 'Uncategorized',
+            icon: r.icon || '📦',
+            color: r.color || '#94a3b8',
+            total: Number(r.total || 0),
+            cashbackTotal: Number(r.cashbackTotal || 0),
+            count: Number(r.count || 0),
+        })).sort((a, b) => (b.total - b.cashbackTotal) - (a.total - a.cashbackTotal));
 
         return {
             year,
             month,
-            total: Math.round(total * 100) / 100,
-            cashbackTotal: Math.round(cashbackTotal * 100) / 100,
-            count: rows.length,
-            breakdown: Object.values(byCategory).sort((a, b) => (b.total - b.cashbackTotal) - (a.total - a.cashbackTotal)),
+            total,
+            cashbackTotal,
+            count: Number(dbSummary?.count || 0),
+            breakdown,
         };
     }
 
     async getAnalytics(months: number = 6) {
-        const result: Array<{ year: number; month: number; total: number; cashbackTotal: number; count: number }> = [];
-
         const now = new Date();
+        const promises = [];
+
         for (let i = months - 1; i >= 0; i--) {
             const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
             const year = d.getFullYear();
@@ -138,23 +144,23 @@ export class ExpenseService {
             const start = `${year}-${monthStr}-01`;
             const end = `${year}-${monthStr}-${lastDay.toString().padStart(2, '0')}`;
 
-            const rows = await this.repo
+            const q = this.repo
                 .createQueryBuilder('expense')
                 .select('SUM(expense.amount)', 'total')
                 .addSelect('SUM(expense.cashback)', 'cashbackTotal')
                 .addSelect('COUNT(*)', 'count')
                 .where('expense.date >= :start AND expense.date <= :end', { start, end })
-                .getRawOne();
-
-            result.push({
-                year,
-                month,
-                total: Math.round(Number(rows?.total || 0) * 100) / 100,
-                cashbackTotal: Math.round(Number(rows?.cashbackTotal || 0) * 100) / 100,
-                count: Number(rows?.count || 0),
-            });
+                .getRawOne()
+                .then(rows => ({
+                    year,
+                    month,
+                    total: Math.round(Number(rows?.total || 0) * 100) / 100,
+                    cashbackTotal: Math.round(Number(rows?.cashbackTotal || 0) * 100) / 100,
+                    count: Number(rows?.count || 0),
+                }));
+            promises.push(q);
         }
 
-        return result;
+        return await Promise.all(promises);
     }
 }

@@ -22,9 +22,17 @@ const DEFAULT_CATEGORIES = [
 
 export class CategoryService {
     private repo = AppDataSource.getRepository(Category);
+    private static cache: Category[] | null = null;
+    private static cacheTime: number = 0;
+    private readonly CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
-    getAll() {
-        return this.repo.find({ order: { isDefault: 'DESC', name: 'ASC' } });
+    async getAll() {
+        if (CategoryService.cache && Date.now() - CategoryService.cacheTime < this.CACHE_TTL) {
+            return CategoryService.cache;
+        }
+        CategoryService.cache = await this.repo.find({ order: { isDefault: 'DESC', name: 'ASC' } });
+        CategoryService.cacheTime = Date.now();
+        return CategoryService.cache;
     }
 
     async getById(id: string) {
@@ -35,17 +43,20 @@ export class CategoryService {
 
     create(data: Partial<Category>) {
         const category = this.repo.create(data);
+        CategoryService.cache = null;
         return this.repo.save(category);
     }
 
     async update(id: string, data: Partial<Category>) {
         const category = await this.getById(id);
         Object.assign(category, data);
+        CategoryService.cache = null;
         return this.repo.save(category);
     }
 
     async delete(id: string) {
         const category = await this.getById(id);
+        CategoryService.cache = null;
         await this.repo.remove(category);
     }
 
@@ -59,6 +70,7 @@ export class CategoryService {
             DEFAULT_CATEGORIES.map((c) => ({ ...c, isDefault: true })),
         );
         const saved = await this.repo.save(categories);
+        CategoryService.cache = null;
         return { message: 'Default categories seeded', count: saved.length };
     }
 }

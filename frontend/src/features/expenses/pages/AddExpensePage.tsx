@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -88,6 +88,7 @@ export default function AddExpensePage() {
   const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
   const [nlText, setNlText] = useState('');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [showQuickParse, setShowQuickParse] = useState(false);
   const sharedBlobRef = useRef<Blob | null>(null);
   const hasAttemptedParse = useRef(false);
 
@@ -230,41 +231,60 @@ export default function AddExpensePage() {
         )}
 
         {/* Natural language input */}
-        {!sharedImage && !parsed && !prefill && (
-          <div className="space-y-2">
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <label className="form-label">Quick parse</label>
-                <textarea
-                  value={nlText}
-                  onChange={(e) => { setNlText(e.target.value); if (nlStatus !== 'idle') setNlStatus('idle'); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleNlParse(); } }}
-                  placeholder={'Describe your expense — e.g. "Zomato 350 UPI" or "coffee 80 cash"'}
-                  rows={2}
-                  className="form-input resize-none text-sm"
-                />
+        {!sharedImage && !parsed && !prefill && !showQuickParse && (
+          <button
+            onClick={() => setShowQuickParse(true)}
+            className="w-full flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20 hover:bg-primary/15 active:scale-[0.98] transition-all"
+          >
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-xs font-semibold text-primary">Use AI Quick Parse</span>
+          </button>
+        )}
+
+        {!sharedImage && !parsed && !prefill && showQuickParse && (
+          <div className="p-3.5 rounded-3xl mb-[30px] bg-primary/5 border border-primary/10 space-y-3 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <span className="text-sm font-semibold text-primary">AI Quick Parse</span>
               </div>
               <button
-                onClick={() => void handleNlParse()}
-                disabled={!nlText.trim() || nlStatus === 'loading'}
-                className="mb-[1px] px-4 h-[46px] rounded-xl bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0"
+                onClick={() => setShowQuickParse(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all"
               >
-                {nlStatus === 'loading'
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <Sparkles className="w-3.5 h-3.5" />}
-                Parse
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
+            
+            <textarea
+              value={nlText}
+              onChange={(e) => { setNlText(e.target.value); if (nlStatus !== 'idle') setNlStatus('idle'); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleNlParse(); } }}
+              placeholder='e.g. "Zomato 350 UPI" or "coffee 80 cash"'
+              rows={2}
+              className="form-input resize-none text-sm bg-background/60"
+            />
+            
+            <button
+              onClick={() => void handleNlParse()}
+              disabled={!nlText.trim() || nlStatus === 'loading'}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            >
+              {nlStatus === 'loading'
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Sparkles className="w-4 h-4" />}
+              Parse Expense
+            </button>
             {nlStatus === 'done' && (
-              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-primary/8 border border-primary/20">
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20">
                 <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                 <p className="text-xs font-medium text-primary">Form filled — review and save</p>
               </div>
             )}
             {nlStatus === 'error' && (
-              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-destructive/8 border border-destructive/20">
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-destructive/10 border border-destructive/20">
                 <AlertCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />
-                <p className="text-xs font-medium text-destructive">Couldn't parse — try being more specific or fill manually</p>
+                <p className="text-[11px] font-medium text-destructive">Couldn't parse — try being more specific or fill manually</p>
               </div>
             )}
           </div>

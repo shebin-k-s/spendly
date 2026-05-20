@@ -11,6 +11,8 @@ const log = {
 };
 
 const service = new ExpenseService();
+const categoryService = new CategoryService();
+const aiService = new ExpenseAiService();
 
 export class ExpenseController {
     getByMonth = async (req: Request, res: Response) => {
@@ -57,13 +59,11 @@ export class ExpenseController {
         }
         let categories: { id: string; name: string; icon: string }[] = [];
         try {
-            const categoryService = new CategoryService();
             categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
         } catch (err) {
             log.error('parseText: failed to fetch categories', { error: String(err) });
         }
         const debug = req.query.debug === 'true';
-        const aiService = new ExpenseAiService();
         res.json(await aiService.parseText(text, categories, debug));
     };
 
@@ -83,7 +83,6 @@ export class ExpenseController {
 
         let categories: { id: string; name: string; icon: string }[] = [];
         try {
-            const categoryService = new CategoryService();
             const cats = await categoryService.getAll();
             categories = cats.map(c => ({ id: c.id, name: c.name, icon: c.icon }));
         } catch (err) {
@@ -91,7 +90,6 @@ export class ExpenseController {
         }
 
         const debug = req.query.debug === 'true';
-        const aiService = new ExpenseAiService();
         const parsed = await aiService.parseReceipt(base64, mimeType, categories, debug);
         res.json(parsed);
     };

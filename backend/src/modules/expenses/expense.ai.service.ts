@@ -7,9 +7,22 @@ export class ExpenseAiService {
     private readonly validPaymentMethods = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
     private readonly timeoutMs = 25_000;
     private readonly modelFallbacks = [
+        // CURRENT BEST FREE-TIER PRIMARY
         'gemini-2.5-flash',
-        'gemini-2.5-flash-lite',
+
+        // NEWEST STABLE HIGH-VOLUME MODEL
         'gemini-3.1-flash-lite',
+
+        // CHEAP + FAST
+        'gemini-2.5-flash-lite',
+
+        // OLDER BUT VERY STABLE
+        'gemini-1.5-flash',
+
+        // LIGHTWEIGHT FALLBACK
+        'gemini-1.5-flash-8b',
+
+        // LEGACY FALLBACKS (deprecated soon)
         'gemini-2.0-flash',
         'gemini-2.0-flash-lite',
     ];
@@ -17,6 +30,17 @@ export class ExpenseAiService {
     private readonly merchantCategoryHints = [
         { merchant: 'Ayaans Mart', category: 'Chanthavila Grocery' },
     ];
+    private genAI: GoogleGenerativeAI | null = null;
+
+    private getGenAI(): GoogleGenerativeAI {
+        if (!this.genAI) {
+            if (!process.env.GEMINI_API_KEY) {
+                throw new ApiError('AI parsing not configured', 503);
+            }
+            this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        }
+        return this.genAI;
+    }
 
     private buildCommonBlocks(categories: CategoryOption[]) {
         const categoryBlock = categories.length
@@ -101,21 +125,18 @@ ${categoryBlock}`;
     }
 
     private async runModel(parts: (string | Part)[]): Promise<string> {
-        if (!process.env.GEMINI_API_KEY) {
-            throw new ApiError('AI parsing not configured', 503);
-        }
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const genAI = this.getGenAI();
         const t0 = Date.now();
         let lastError: unknown;
 
         for (const modelName of this.modelFallbacks) {
             const model = genAI.getGenerativeModel({ model: modelName });
-            
+
             let timeoutId!: NodeJS.Timeout;
             const timeoutP = new Promise<never>((_, reject) =>
                 timeoutId = setTimeout(() => reject(new ApiError('AI parsing timed out', 504)), this.timeoutMs)
             );
-            
+
             try {
                 const result = await Promise.race([model.generateContent(parts), timeoutP]);
                 clearTimeout(timeoutId);
