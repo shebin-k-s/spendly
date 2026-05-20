@@ -20,6 +20,7 @@ import EditCategoryPage from '@/features/categories/pages/EditCategoryPage';
 import AnalyticsPage from '@/features/analytics/pages/AnalyticsPage';
 import AiTestPage from '@/features/expenses/pages/AiTestPage';
 import ShareProcessingPage from '@/features/expenses/pages/ShareProcessingPage';
+import PendingSharesPage from '@/features/expenses/pages/PendingSharesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,6 +68,7 @@ export default function App() {
               <Route path="categories/new" element={<AddCategoryPage />} />
               <Route path="categories/:id/edit" element={<EditCategoryPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="share-pending" element={<PendingSharesPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

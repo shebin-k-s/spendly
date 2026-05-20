@@ -69,7 +69,7 @@ export default function DashboardPage() {
         {/* Pending share banner */}
         {pendingShare && (
           <button
-            onClick={() => navigate(`/expenses/new?shared=${pendingShare.type}`)}
+            onClick={() => navigate('/share-pending')}
             className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 active:scale-[0.98] transition-all text-left"
           >
             {pendingShare.type === 'image'

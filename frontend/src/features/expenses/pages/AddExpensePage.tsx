@@ -71,6 +71,26 @@ async function popShareResult(): Promise<(ParsedImage & { cashback?: string }) |
   }
 }
 
+async function removeShareByTs(ts: number): Promise<void> {
+  if (!('caches' in window)) return;
+  try {
+    const cache = await caches.open('spendly-share');
+    const res = await cache.match('/share-queue');
+    if (!res) return;
+    const queue: Array<{ ts: number }> = await res.json();
+    const next = queue.filter((item) => item.ts !== ts);
+    if (next.length === 0) {
+      await cache.delete('/share-queue');
+      navigator.clearAppBadge?.();
+    } else {
+      await cache.put('/share-queue', new Response(JSON.stringify(next), {
+        headers: { 'Content-Type': 'application/json' },
+      }));
+      navigator.setAppBadge?.(next.length);
+    }
+  } catch { /* ignore */ }
+}
+
 async function readSharedText(): Promise<string | null> {
   if (!('caches' in window)) return null;
   try {
@@ -112,20 +132,23 @@ export default function AddExpensePage() {
 
   const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
   const sharedImage = searchParams.get('shared') === 'image';
-  const sharedText  = searchParams.get('shared') === 'text';
+  const sharedText = searchParams.get('shared') === 'text';
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
   const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
+  const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
+  const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? null;
 
+  const ps = parsedShare;
   const now = new Date();
-  const [amount, setAmount] = useState(prefill?.amount ?? parsed?.amount ?? '');
-  const [cashback, setCashback] = useState('');
-  const [description, setDescription] = useState(prefill?.description ?? parsed?.description ?? '');
-  const [date, setDate] = useState(parsed?.date ?? format(now, 'yyyy-MM-dd'));
-  const [time, setTime] = useState<string | null>(parsed?.time ?? format(now, 'HH:mm'));
-  const [categoryId, setCategoryId] = useState(prefill?.categoryId ?? '');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? parsed?.paymentMethod ?? 'upi');
-  const [note, setNote] = useState(prefill?.note ?? '');
-  const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
+  const [amount, setAmount] = useState(prefill?.amount ?? (ps?.amount as string) ?? parsed?.amount ?? '');
+  const [cashback, setCashback] = useState((ps?.cashback as string) ?? '');
+  const [description, setDescription] = useState(prefill?.description ?? (ps?.description as string) ?? parsed?.description ?? '');
+  const [date, setDate] = useState((ps?.date as string) ?? parsed?.date ?? format(now, 'yyyy-MM-dd'));
+  const [time, setTime] = useState<string | null>((ps?.time as string) ?? parsed?.time ?? format(now, 'HH:mm'));
+  const [categoryId, setCategoryId] = useState(prefill?.categoryId ?? (ps?.category_id as string) ?? '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? (ps?.payment_method as PaymentMethod) ?? parsed?.paymentMethod ?? 'upi');
+  const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
+  const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
   const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
   const [nlText, setNlText] = useState('');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
@@ -166,7 +189,7 @@ export default function AddExpensePage() {
   useEffect(() => {
     if (!sharedImage || hasAttemptedParse.current) return;
     hasAttemptedParse.current = true;
-    
+
     // Signal the Service Worker that we are handling the share in the foreground,
     // so it can skip showing a background notification.
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -200,7 +223,7 @@ export default function AddExpensePage() {
       sharedBlobRef.current = blob;
       await runAiParse(blob);
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedImage]);
 
   useEffect(() => {
@@ -247,7 +270,7 @@ export default function AddExpensePage() {
         setAiStatus('error');
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedText]);
 
   const handleNlParse = async () => {
@@ -284,17 +307,17 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: () => { navigator.clearAppBadge?.(); navigate('/expenses'); } },
+      { onSuccess: async () => { if (shareTs) { await removeShareByTs(shareTs); navigate('/share-pending', { replace: true }); } else { navigator.clearAppBadge?.(); navigate('/expenses'); } } },
     );
   };
 
-  const isFromShare = sharedImage || sharedText || !!parsed;
+  const isFromShare = sharedImage || sharedText || !!parsed || !!parsedShare;
 
   return (
     <div className="animate-fade-in">
       <div className="page-header">
         <button
-          onClick={() => isFromShare ? navigate('/expenses') : navigate(-1)}
+          onClick={() => shareTs ? navigate('/share-pending', { replace: true }) : isFromShare ? navigate('/expenses', { replace: true }) : navigate(-1)}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -349,7 +372,7 @@ export default function AddExpensePage() {
         )}
 
         {/* Natural language input */}
-        {!sharedImage && !sharedText && !parsed && !prefill && !showQuickParse && (
+        {!sharedImage && !sharedText && !parsed && !prefill && !parsedShare && !showQuickParse && (
           <button
             onClick={() => setShowQuickParse(true)}
             className="w-full flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20 hover:bg-primary/15 active:scale-[0.98] transition-all"
@@ -359,7 +382,7 @@ export default function AddExpensePage() {
           </button>
         )}
 
-        {!sharedImage && !sharedText && !parsed && !prefill && showQuickParse && (
+        {!sharedImage && !sharedText && !parsed && !prefill && !parsedShare && showQuickParse && (
           <div className="p-3.5 rounded-3xl mb-[30px] bg-primary/5 border border-primary/10 space-y-3 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
@@ -373,7 +396,7 @@ export default function AddExpensePage() {
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
-            
+
             <textarea
               value={nlText}
               onChange={(e) => { setNlText(e.target.value); if (nlStatus !== 'idle') setNlStatus('idle'); }}
@@ -382,7 +405,7 @@ export default function AddExpensePage() {
               rows={2}
               className="form-input resize-none text-sm bg-background/60"
             />
-            
+
             <button
               onClick={() => void handleNlParse()}
               disabled={!nlText.trim() || nlStatus === 'loading'}
@@ -405,6 +428,14 @@ export default function AddExpensePage() {
                 <p className="text-[11px] font-medium text-destructive">Couldn't parse — try being more specific or fill manually</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Pending share pre-fill banner */}
+        {parsedShare && (
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20">
+            <Sparkles className="w-4 h-4 text-primary flex-shrink-0" />
+            <p className="text-xs font-medium text-primary">Pre-filled from pending receipt — review and save</p>
           </div>
         )}
 
