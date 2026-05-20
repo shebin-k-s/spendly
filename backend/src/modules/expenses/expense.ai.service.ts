@@ -57,12 +57,12 @@ ${merchantHintBlock}
 ${categoryBlock}`;
     }
 
-    private buildTextPrompt(text: string, categories: CategoryOption[], today: string): string {
+    private buildTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
         const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
 
         return `You are an expense parsing assistant. A user typed a natural language description of something they spent money on. Extract the expense details.
 
-Today's date is ${today}.
+Today's date is ${today} and current time is ${currentTime}.
 
 Input: "${text}"
 
@@ -82,8 +82,8 @@ Rules:
 - amount: the amount spent (before cashback). Accept plain ("350"), with ₹, or with "rs"/"INR". Return as string with up to 2 decimals
 - description: the merchant or item. Capitalize properly (e.g. "Zomato", "Coffee", "Auto Fare")
 - payment_method: GPay/PhonePe/Paytm/UPI → upi; debit/credit card → card; cash → cash; NEFT/IMPS/bank transfer → bank_transfer. Default to upi if unclear
-- date: ONLY set if the user explicitly mentions a date or relative term ("today", "yesterday", "last Monday", etc.) — resolve those using today's date above. If the user says nothing about a date, return null. Do NOT default to today
-- time: 24h format. Resolve "3pm" → "15:00", "noon" → "12:00", etc. Null if not mentioned
+- date: if mentioned (including relative terms like "today", "yesterday"), resolve using today's date above. If not mentioned at all, default to ${today}
+- time: if mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned, default to ${currentTime}
 - cashback: extract any cashback or reward amount. Return as string or null
 - category_id: pick the best matching category
 
@@ -172,8 +172,10 @@ ${categoryBlock}`;
     }
 
     async parseText(text: string, categories: CategoryOption[], debug = false) {
-        const today = new Date().toISOString().split('T')[0];
-        const prompt = this.buildTextPrompt(text, categories, today);
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const prompt = this.buildTextPrompt(text, categories, today, currentTime);
         const rawText = await this.runModel([prompt]);
         const raw = this.extractJson(rawText);
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
