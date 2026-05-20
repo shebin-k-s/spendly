@@ -155,11 +155,9 @@ export default function Layout() {
           ))}
         </div>
         {typeof __BUILD_TIME__ !== 'undefined' && (
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full px-2 py-0.5 bg-background/80 backdrop-blur-sm border border-border border-b-0 rounded-t-lg pointer-events-none">
-            <p className="text-[8px] font-mono whitespace-nowrap text-muted-foreground/40 leading-none">
-              Build: {new Date(__BUILD_TIME__).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
+          <p className="absolute bottom-1 right-2 text-[7px] font-mono text-muted-foreground/20 pointer-events-none select-none">
+            {new Date(__BUILD_TIME__).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+          </p>
         )}
       </nav>
     </div>
