@@ -186,6 +186,7 @@ self.addEventListener('notificationclick', (event) => {
             }),
           });
           if (!res.ok) throw new Error('save-failed');
+          await removeShareByTs(data.shareTs);
           navigator.clearAppBadge?.().catch?.(() => {});
           await self.registration.showNotification('Expense saved', {
             body: `₹${data.amount} · ${data.description}`,
@@ -233,7 +234,7 @@ self.addEventListener('fetch', (event) => {
           const title = (formData.get('title') || '').trim();
 
           // ── Heartbeat check (shared by text and image paths) ─────────────
-          const APP_HEARTBEAT_TTL = 10_000;
+          const APP_HEARTBEAT_TTL = 70_000;
           const heartbeatAge = await getHeartbeatAge();
           const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
           console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
@@ -304,6 +305,24 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ── Share queue helpers ───────────────────────────────────────────────────────
+async function removeShareByTs(ts) {
+  if (!ts) return;
+  try {
+    const cache = await caches.open(SHARE_CACHE);
+    const res = await cache.match('/share-queue');
+    if (!res) return;
+    const queue = await res.json();
+    const next = queue.filter((item) => item.ts !== ts);
+    if (next.length === 0) {
+      await cache.delete('/share-queue');
+    } else {
+      await cache.put('/share-queue', new Response(JSON.stringify(next), {
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }
+  } catch { /* ignore */ }
+}
+
 async function appendShareQueue(parsed, type, extra = {}) {
   const cache = await caches.open(SHARE_CACHE);
   const existing = await cache.match('/share-queue');

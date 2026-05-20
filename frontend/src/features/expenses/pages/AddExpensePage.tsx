@@ -418,7 +418,7 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); navigate('/share-pending', { replace: true }); } else { navigator.clearAppBadge?.(); navigate('/expenses'); } } },
+      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); parsedShare ? navigate(-1) : navigate('/share-pending', { replace: true }); } else { navigator.clearAppBadge?.(); navigate('/expenses'); } } },
     );
   };
 

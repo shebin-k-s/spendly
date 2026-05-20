@@ -53,10 +53,17 @@ if ('serviceWorker' in navigator) {
           navigator.serviceWorker.controller.postMessage({ type: 'APP_HEARTBEAT' });
         }
       };
+      
       sendHeartbeat();
+      // Heartbeat every 1 minute while the app is open
+      const intervalId = setInterval(sendHeartbeat, 60000);
+      
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden) sendHeartbeat();
       });
+
+      // Cleanup interval if needed (though main.tsx is global)
+      window.addEventListener('beforeunload', () => clearInterval(intervalId));
     });
   });
 }
