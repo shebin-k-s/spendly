@@ -1,5 +1,14 @@
 import axios from 'axios';
 
+export function notifySwToken(token: string) {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+  navigator.serviceWorker.controller.postMessage({
+    type: 'AUTH_UPDATE',
+    token,
+    apiBase: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1',
+  });
+}
+
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1',
   withCredentials: true,
@@ -31,6 +40,7 @@ apiClient.interceptors.response.use(
           { withCredentials: true },
         );
         localStorage.setItem('accessToken', data.accessToken);
+        notifySwToken(data.accessToken);
         original.headers.Authorization = `Bearer ${data.accessToken}`;
         return apiClient(original);
       } catch {

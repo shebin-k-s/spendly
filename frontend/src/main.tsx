@@ -12,5 +12,18 @@ createRoot(document.getElementById('root')!).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+    // Once the SW is controlling this page, send the stored auth token so it
+    // can make authenticated API calls for background receipt parsing.
+    navigator.serviceWorker.ready.then(() => {
+      const token = localStorage.getItem('accessToken');
+      if (token && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'AUTH_UPDATE',
+          token,
+          apiBase: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1',
+        });
+      }
+    });
   });
 }
