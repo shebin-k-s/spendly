@@ -45,6 +45,20 @@ async function readSharedImage(): Promise<Blob | null> {
   }
 }
 
+async function readSharedResult(): Promise<ParsedImage | null> {
+  if (!('caches' in window)) return null;
+  try {
+    const cache = await caches.open('spendly-share');
+    const response = await cache.match('/share-result');
+    if (!response) return null;
+    const result = await response.json();
+    await cache.delete('/share-result');
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 const AI_TIMEOUT_MS = 20_000;
 
 async function parseImage(blob: Blob): Promise<ParsedImage> {
@@ -123,7 +137,24 @@ export default function AddExpensePage() {
   useEffect(() => {
     if (!sharedImage || hasAttemptedParse.current) return;
     hasAttemptedParse.current = true;
+    hasAttemptedParse.current = true;
     void (async () => {
+      // First, check if there's already a cached result from the SW (background parse)
+      const cachedResult = await readSharedResult();
+      if (cachedResult) {
+        console.log('[App] Using cached AI result from Service Worker');
+        if (cachedResult.amount) setAmount(cachedResult.amount);
+        if (cachedResult.description) setDescription(cachedResult.description);
+        if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
+        if (cachedResult.date) setDate(cachedResult.date);
+        if (cachedResult.time) setTime(cachedResult.time);
+        if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
+        if (cachedResult.note) setNote(cachedResult.note);
+        setAiStatus('done');
+        return;
+      }
+
+      // If no cached result, proceed with normal parse
       const blob = await readSharedImage();
       if (!blob) {
         setAiError('failed');

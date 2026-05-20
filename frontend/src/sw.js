@@ -300,7 +300,14 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     const desc     = parsed.description || 'Expense';
     const category = parsed.category_name || '';
     const method   = parsed.payment_method || '';
-    const bodyParts = [category, method].filter(Boolean).join(' · ');
+    const date     = parsed.date ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
+    const bodyParts = [category, method, date].filter(Boolean).join(' · ');
+
+    // Store the parse result so the app can reuse it instead of re-parsing
+    const imageCache = await caches.open(SHARE_CACHE);
+    await imageCache.put('/share-result', new Response(JSON.stringify(parsed), {
+      headers: { 'Content-Type': 'application/json' },
+    }));
 
     console.log('[SW] backgroundParseAndNotify: showing success notification');
     await self.registration.showNotification(`₹${amount} · ${desc}`, {
