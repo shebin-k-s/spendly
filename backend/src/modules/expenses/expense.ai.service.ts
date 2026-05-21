@@ -66,9 +66,10 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "date": "<yyyy-MM-dd or null if not visible>",
   "time": "<HH:mm 24h or null if not visible>",
   "category_id": "<exact id string from the list below, or null>",
-  "note": "<any extra useful details (e.g. specific items, addresses). Do NOT include cashback, rewards, or any transaction/reference ID. Max 100 chars, or null>",
-  "transfer_person": "<full name, phone number, or UPI ID of the individual — ONLY for personal transfers between people. null for merchant/business payments>",
-  "transfer_direction": "<sent | received | null — sent if user paid/transferred money out, received if user received money. null if not a personal transfer>"
+  "note": "<any extra useful details, max 100 chars, or null>",
+  "transfer_person": "<full name, phone, or UPI ID of the person — ONLY for personal transfers. null for business payments>",
+  "transfer_direction": "<sent | received | null — sent if user paid out, received if user got money>",
+  "suggested_flow": "<expense | transfer> — 'transfer' if person is named and it's a personal debt/loan/gift; 'expense' for merchants/stores/shops"
 }
 
 Rules:
@@ -78,8 +79,9 @@ Rules:
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
 - note: Extract anything else useful that helps the user remember the purchase.
-- transfer_person: Extract ONLY when the receipt clearly shows a personal transfer between individuals. CRITICAL: The person should be the OTHER party (the sender if you received money, the recipient if you sent money). If the receipt shows your own name as the recipient/sender, IGNORE it and look for the other name.
+- transfer_person: Extract ONLY when the receipt clearly shows a personal transfer between individuals. CRITICAL: Identify the OTHER party. Ignore your own name. Phone numbers or UPI IDs like 'name@upi' are strong indicators of a person.
 - transfer_direction: sent = user paid/sent money out to someone; received = user got money in from someone. Look for keywords like "Paid to", "Sent to" (sent) or "Received from", "Credit from" (received).
+- suggested_flow: 'transfer' if the transaction is a direct money movement to/from an individual person. 'expense' if it's clearly a payment for an item, bill, or service (e.g. food, rent, recharge), even if paid to a personal account. If the receipt has a merchant logo or business name, it's ALWAYS an 'expense'.
 
 ${merchantHintBlock}
 
@@ -104,9 +106,10 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "time": "<HH:mm 24h or null>",
   "cashback": "<cashback amount as string e.g. \\"100.00\\", or null if not mentioned>",
   "category_id": "<exact id from the list below, or null>",
-  "note": "<any other useful context not captured above, max 100 chars, or null>",
+  "note": "<any other useful context, max 100 chars, or null>",
   "transfer_person": "<name, phone, or UPI ID of the individual — ONLY for personal transfers. null for merchant payments>",
-  "transfer_direction": "<sent | received | null — sent if user paid money out, received if user received money>"
+  "transfer_direction": "<sent | received | null — sent if user paid money out, received if user received money>",
+  "suggested_flow": "<expense | transfer> — 'transfer' for person-to-person; 'expense' for shops/bills/items"
 }
 
 Rules:
@@ -117,8 +120,9 @@ Rules:
 - time: if mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned, default to ${currentTime}
 - cashback: extract any cashback or reward amount. Return as string or null
 - category_id: pick the best matching category
-- transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. If the user says "I received from Rahul", transfer_person is "Rahul". If they say "Paid to Rahul", it is "Rahul". Never return the user themselves as the transfer_person.
+- transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. If the user says "I received from Rahul", transfer_person is "Rahul". Never return the user themselves as the transfer_person.
 - transfer_direction: sent = user paid/sent money out; received = user got money in.
+- suggested_flow: 'transfer' for person-to-person money movements (e.g. "Sent 500 to Rahul", "Rahul gave me 200"). 'expense' if it's for a specific item, service, or bill (e.g. "Paid Rahul for auto fare", "Rent to Priya", "Bought milk"). If an item or service is explicitly mentioned, stay in 'expense'.
 
 ${merchantHintBlock}
 
@@ -203,7 +207,8 @@ ${categoryBlock}`;
             ? raw.transfer_person.trim() : null;
         const transfer_direction = (raw.transfer_direction === 'sent' || raw.transfer_direction === 'received')
             ? raw.transfer_direction as 'sent' | 'received' : null;
-        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note, transfer_person, transfer_direction };
+        const suggested_flow = raw.suggested_flow === 'transfer' ? 'transfer' : 'expense';
+        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note, transfer_person, transfer_direction, suggested_flow };
     }
 
     async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], debug = false) {

@@ -32,6 +32,7 @@ interface ParsedImage {
   shareType?: 'image' | 'text';
   transfer_person?: string | null;
   transfer_direction?: 'sent' | 'received' | null;
+  suggested_flow?: 'expense' | 'transfer';
 }
 
 async function readSharedImage(): Promise<Blob | null> {
@@ -288,6 +289,22 @@ export default function AddExpensePage() {
       if (result.transfer_person) {
         setTransferPerson(result.transfer_person);
         setTransferDirection(result.transfer_direction ?? null);
+        
+        if (result.suggested_flow === 'transfer') {
+           navigate('/share-to-people', {
+            state: {
+              amount: result.amount,
+              note: result.description,
+              date: result.date || format(new Date(), 'yyyy-MM-dd'),
+              shareTs: resolvedShareTs,
+              transfer_person: result.transfer_person,
+              transfer_direction: result.transfer_direction,
+              backRoute: '/',
+            },
+            replace: true,
+          });
+          return;
+        }
         setShowTransferSheet(true);
       }
     } catch (err: unknown) {
@@ -471,6 +488,29 @@ export default function AddExpensePage() {
       </div>
 
       <div className="page-content space-y-5">
+        {/* Switch to lending flow */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => {
+              navigate('/share-to-people', {
+                state: {
+                  amount,
+                  note: description,
+                  date,
+                  shareTs: resolvedShareTs,
+                  transfer_person: transferPerson,
+                  transfer_direction: transferDirection,
+                  backRoute: '/',
+                },
+                replace: true,
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all border border-amber-500/20"
+          >
+            <Users className="w-3.5 h-3.5" />
+            Switch to Lending
+          </button>
+        </div>
         {/* Unified Share/Pre-fill context */}
         {(() => {
           if (aiStatus === 'loading') {

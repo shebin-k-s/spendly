@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { ArrowLeft, ArrowUpRight, ArrowDownLeft, Search, Check, UserPlus, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownLeft, Search, Check, UserPlus, Loader2, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { usePeople } from '../hooks/usePeople';
@@ -160,6 +160,30 @@ export default function ShareToPeoplePage() {
         <div>
           <h1 className="text-xl font-bold">Log to People</h1>
           <p className="text-xs text-muted-foreground">Who was this with?</p>
+        </div>
+        <div className="flex-1 flex justify-end">
+          <button
+            onClick={() => {
+              navigate('/expenses/new', {
+                state: {
+                  prefill: {
+                    amount,
+                    description: note,
+                    date,
+                    paymentMethod: 'upi',
+                    categoryId: '',
+                    note: '',
+                  },
+                  shareTs: state.shareTs,
+                },
+                replace: true,
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all border border-emerald-500/20"
+          >
+            <Receipt className="w-3.5 h-3.5" />
+            Switch to Expense
+          </button>
         </div>
       </div>
 
