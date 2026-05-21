@@ -306,10 +306,20 @@ export default function AddExpensePage() {
     }
 
     void (async () => {
-      // First, check if there's already a cached result from the SW (background parse)
+      // Try fresh image first (app-open share path — SW stored /share-image and redirected).
+      // Must check this before the queue so a stale queued item from a previous session
+      // never clobbers data from a new share.
+      const blob = await readSharedImage();
+      if (blob) {
+        sharedBlobRef.current = blob;
+        await runAiParse(blob);
+        return;
+      }
+
+      // No fresh image — the SW background-parsed while the app was closed.
+      // Find the result in the queue (most recently added item).
       const peeked = await peekShareResult();
       if (peeked) {
-        console.log('[App] Using cached AI result from Service Worker');
         const cachedResult = peeked.result;
         if (cachedResult.amount) setAmount(cachedResult.amount);
         if (cachedResult.description) setDescription(cachedResult.description);
@@ -327,14 +337,7 @@ export default function AddExpensePage() {
         return;
       }
 
-      // If no cached result, proceed with normal parse
-      const blob = await readSharedImage();
-      if (!blob) {
-        setAiStatus('error');
-        return;
-      }
-      sharedBlobRef.current = blob;
-      await runAiParse(blob);
+      setAiStatus('error');
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedImage]);
@@ -348,27 +351,31 @@ export default function AddExpensePage() {
     }
 
     void (async () => {
-      const peeked = await peekShareResult();
-      if (peeked) {
-        const cachedResult = peeked.result;
-        if (cachedResult.amount) setAmount(cachedResult.amount);
-        if (cachedResult.description) setDescription(cachedResult.description);
-        if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
-        if (cachedResult.date) setDate(cachedResult.date);
-        if (cachedResult.time) setTime(cachedResult.time);
-        if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
-        if (cachedResult.note) setNote(cachedResult.note);
-        if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
-        setResolvedShareTs(peeked.ts);
-        setPreviewThumbnail(peeked.thumbnail ?? null);
-        setPreviewRawText(peeked.rawText ?? null);
-        setPreviewShareType(peeked.type);
-        setAiStatus('done');
+      // Try fresh text first (app-open share path).
+      const text = await readSharedText();
+      if (!text) {
+        // No fresh text — check if SW background-parsed it.
+        const peeked = await peekShareResult();
+        if (peeked) {
+          const cachedResult = peeked.result;
+          if (cachedResult.amount) setAmount(cachedResult.amount);
+          if (cachedResult.description) setDescription(cachedResult.description);
+          if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
+          if (cachedResult.date) setDate(cachedResult.date);
+          if (cachedResult.time) setTime(cachedResult.time);
+          if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
+          if (cachedResult.note) setNote(cachedResult.note);
+          if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
+          setResolvedShareTs(peeked.ts);
+          setPreviewThumbnail(peeked.thumbnail ?? null);
+          setPreviewRawText(peeked.rawText ?? null);
+          setPreviewShareType(peeked.type);
+          setAiStatus('done');
+          return;
+        }
+        setAiStatus('error');
         return;
       }
-
-      const text = await readSharedText();
-      if (!text) { setAiStatus('error'); return; }
 
       setAiStatus('loading');
       try {
