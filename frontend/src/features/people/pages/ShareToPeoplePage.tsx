@@ -134,11 +134,10 @@ export default function ShareToPeoplePage() {
     setAddingPerson(true);
     try {
       const newPerson = await peopleApi.createPerson({ name: state.transfer_person });
-      queryClient.invalidateQueries({ queryKey: ['people'] });
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
       setSelectedPersonId(newPerson.id);
       setNewPersonName(newPerson.name);
-      toast.success(`Saved for ${state.transfer_person}`);
-      navigate(`/people/${newPerson.id}`, { replace: true });
+      toast.success('Person added');
     } catch {
       toast.error('Failed to add person');
     } finally {
