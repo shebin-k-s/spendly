@@ -175,6 +175,22 @@ export default function AddExpensePage() {
               if (p.transfer_person) {
                 setTransferPerson(p.transfer_person);
                 setTransferDirection(p.transfer_direction ?? null);
+
+                if (p.suggested_flow === 'transfer') {
+                  navigate('/share-to-people', {
+                    state: {
+                      amount: p.amount,
+                      note: p.description,
+                      date: p.date || format(new Date(), 'yyyy-MM-dd'),
+                      shareTs: item.ts,
+                      transfer_person: p.transfer_person,
+                      transfer_direction: p.transfer_direction,
+                      backRoute: '/',
+                    },
+                    replace: true,
+                  });
+                  return;
+                }
               }
             }
           }

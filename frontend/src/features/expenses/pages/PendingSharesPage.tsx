@@ -21,6 +21,7 @@ interface QueueItem {
     cashback: string | null;
     transfer_person: string | null;
     transfer_direction: 'sent' | 'received' | null;
+    suggested_flow?: 'expense' | 'transfer';
   };
 }
 
@@ -76,15 +77,32 @@ export default function PendingSharesPage() {
 
   const handleReview = (index: number) => {
     const item = queue[index];
-    navigate('/expenses/new', {
-      state: {
-        parsedShare: item.result,
-        shareTs: item.ts,
-        shareType: item.type,
-        thumbnail: item.thumbnail ?? null,
-        rawText: item.rawText ?? null,
-      },
-    });
+    const { result } = item;
+
+    if (result.suggested_flow === 'transfer') {
+      navigate('/share-to-people', {
+        state: {
+          amount: result.amount ?? '',
+          note: result.description ?? '',
+          date: result.date ?? null,
+          shareTs: item.ts,
+          transfer_person: result.transfer_person ?? null,
+          transfer_direction: result.transfer_direction ?? null,
+          backRoute: '/share-pending',
+        },
+        replace: true,
+      });
+    } else {
+      navigate('/expenses/new', {
+        state: {
+          parsedShare: result,
+          shareTs: item.ts,
+          shareType: item.type,
+          thumbnail: item.thumbnail ?? null,
+          rawText: item.rawText ?? null,
+        },
+      });
+    }
   };
 
   const handleLogToPeople = (index: number) => {
@@ -194,17 +212,11 @@ export default function PendingSharesPage() {
                   </button>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleLogToPeople(index)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-secondary text-foreground text-sm font-semibold active:scale-95 transition-transform"
-                    >
-                      <Users className="w-4 h-4" />
-                      Log to People
-                    </button>
-                    <button
                       onClick={() => handleDiscard(index)}
-                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-destructive text-sm font-semibold active:scale-95 transition-transform"
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-secondary text-destructive text-sm font-semibold active:scale-95 transition-transform"
                     >
                       <Trash2 className="w-4 h-4" />
+                      Discard
                     </button>
                   </div>
                 </div>
