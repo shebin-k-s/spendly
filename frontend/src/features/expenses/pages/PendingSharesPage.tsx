@@ -20,6 +20,7 @@ interface QueueItem {
     note: string | null;
     cashback: string | null;
     transfer_person: string | null;
+    transfer_direction: 'sent' | 'received' | null;
   };
 }
 
