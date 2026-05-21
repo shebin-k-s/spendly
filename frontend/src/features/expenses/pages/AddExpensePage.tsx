@@ -798,6 +798,7 @@ export default function AddExpensePage() {
                       transfer_direction: transferDirection,
                       backRoute: '/',
                     },
+                    replace: true,
                   });
                 }}
                 className="py-3.5 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2"

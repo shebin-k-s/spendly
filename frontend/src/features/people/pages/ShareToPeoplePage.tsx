@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { ArrowLeft, ArrowUpRight, ArrowDownLeft, Search, Check, UserPlus, Loader2 } from 'lucide-react';
@@ -82,7 +82,14 @@ export default function ShareToPeoplePage() {
     [state.transfer_person, people],
   );
 
-  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(autoMatch?.id ?? null);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+
+  // Auto-select when people list loads or updates
+  useEffect(() => {
+    if (autoMatch && !selectedPersonId) {
+      setSelectedPersonId(autoMatch.id);
+    }
+  }, [autoMatch, selectedPersonId]);
   const [newPersonName, setNewPersonName] = useState<string | null>(null);
   const [type, setType] = useState<'GIVEN' | 'RETURNED'>(directionType);
   const [amount, setAmount] = useState(state.amount ?? '');
@@ -101,7 +108,7 @@ export default function ShareToPeoplePage() {
       queryClient.invalidateQueries({ queryKey: ['people'] });
       if (state.shareTs) await removeFromQueue(state.shareTs);
       toast.success('Transaction added');
-      navigate(successRoute, { replace: true });
+      navigate('/share-pending', { replace: true });
     },
     onError: () => toast.error('Failed to add transaction'),
   });
@@ -130,7 +137,8 @@ export default function ShareToPeoplePage() {
       queryClient.invalidateQueries({ queryKey: ['people'] });
       setSelectedPersonId(newPerson.id);
       setNewPersonName(newPerson.name);
-      toast.success(`${state.transfer_person} added`);
+      toast.success(`Saved for ${state.transfer_person}`);
+      navigate('/share-pending', { replace: true });
     } catch {
       toast.error('Failed to add person');
     } finally {
@@ -251,11 +259,14 @@ export default function ShareToPeoplePage() {
                       key={person.id}
                       onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
                       className={cn(
-                        'touch-card w-full flex items-center gap-3 px-4 py-3 text-left',
-                        isSelected && 'border-primary/40 bg-primary/5',
+                        'touch-card w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-300',
+                        isSelected ? 'border-primary bg-primary/10 shadow-md shadow-primary/5' : 'border-border/50',
                       )}
                     >
-                      <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black shrink-0 transition-colors",
+                        isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                      )}>
                         {person.name[0].toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">

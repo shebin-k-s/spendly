@@ -99,6 +99,7 @@ export default function PendingSharesPage() {
         transfer_direction: item.result.transfer_direction ?? null,
         backRoute: '/share-pending',
       },
+      replace: true,
     });
   };
 
