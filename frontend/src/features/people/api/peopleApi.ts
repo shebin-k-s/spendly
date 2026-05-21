@@ -42,4 +42,5 @@ export const peopleApi = {
   async deleteTransaction(transactionId: string): Promise<void> {
     await apiClient.delete(`${URL}/transactions/${transactionId}`);
   },
+
 };

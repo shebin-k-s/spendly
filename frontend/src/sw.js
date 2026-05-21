@@ -170,6 +170,11 @@ self.addEventListener('notificationclick', (event) => {
   if (event.action === 'save') {
     event.waitUntil(
       (async () => {
+        // Personal transfer — can't auto-save without person selection, open review instead
+        if (data.transfer_person) {
+          await openReviewWindow(data.shareTs, data.shareType || 'image');
+          return;
+        }
         try {
           console.log('[SW] Saving expense from notification data:', data.amount, data.description);
           const res = await callApi('/expenses', {
@@ -194,7 +199,6 @@ self.addEventListener('notificationclick', (event) => {
             badge: '/badge.svg',
           });
         } catch {
-          // Fallback: open review form
           await openReviewWindow();
         }
       })()
@@ -392,16 +396,18 @@ async function backgroundTextParseAndNotify(text) {
         { action: 'review', title: 'Review' },
       ],
       data: {
-        amount:        parsed.amount,
-        description:   parsed.description,
-        paymentMethod: parsed.payment_method,
-        categoryId:    parsed.category_id,
-        date:          parsed.date,
-        time:          parsed.time,
-        note:          parsed.note,
-        cashback:      parsed.cashback,
-        shareType:     'text',
-        shareTs:       item.ts,
+        amount:            parsed.amount,
+        description:       parsed.description,
+        paymentMethod:     parsed.payment_method,
+        categoryId:        parsed.category_id,
+        date:              parsed.date,
+        time:              parsed.time,
+        note:              parsed.note,
+        cashback:          parsed.cashback,
+        transfer_person:   parsed.transfer_person   || null,
+        transfer_direction: parsed.transfer_direction || null,
+        shareType:         'text',
+        shareTs:           item.ts,
       },
     });
   } catch (err) {
@@ -473,16 +479,18 @@ async function backgroundParseAndNotify(buffer, mimeType) {
         { action: 'review', title: 'Review' },
       ],
       data: {
-        amount:        parsed.amount,
-        description:   parsed.description,
-        paymentMethod: parsed.payment_method,
-        categoryId:    parsed.category_id,
-        date:          parsed.date,
-        time:          parsed.time,
-        note:          parsed.note,
-        cashback:      parsed.cashback,
-        shareType:     'image',
-        shareTs:       item.ts,
+        amount:            parsed.amount,
+        description:       parsed.description,
+        paymentMethod:     parsed.payment_method,
+        categoryId:        parsed.category_id,
+        date:              parsed.date,
+        time:              parsed.time,
+        note:              parsed.note,
+        cashback:          parsed.cashback,
+        transfer_person:   parsed.transfer_person   || null,
+        transfer_direction: parsed.transfer_direction || null,
+        shareType:         'image',
+        shareTs:           item.ts,
       },
     });
     console.log('[SW] backgroundParseAndNotify: notification shown');

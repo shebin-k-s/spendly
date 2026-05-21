@@ -24,6 +24,7 @@ import PendingSharesPage from '@/features/expenses/pages/PendingSharesPage';
 import PeoplePage from '@/features/people/pages/PeoplePage';
 import PersonDetailsPage from '@/features/people/pages/PersonDetailsPage';
 import EditPersonPage from '@/features/people/pages/EditPersonPage';
+import ShareToPeoplePage from '@/features/people/pages/ShareToPeoplePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,7 +75,7 @@ export default function App() {
               <Route path="people" element={<PeoplePage />} />
               <Route path="people/:id" element={<PersonDetailsPage />} />
               <Route path="people/:id/edit" element={<EditPersonPage />} />
-              <Route path="share-pending" element={<PendingSharesPage />} />
+              <Route path="share-to-people" element={<ShareToPeoplePage />} />
               <Route path="share-pending" element={<PendingSharesPage />} />
             </Route>
           </Routes>

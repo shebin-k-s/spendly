@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye, ArrowUpRight, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -32,6 +32,8 @@ interface ParsedImage {
   note?: string | null;
   cashback?: string | number | null;
   shareType?: 'image' | 'text';
+  transfer_person?: string | null;
+  transfer_direction?: 'sent' | 'received' | null;
 }
 
 async function readSharedImage(): Promise<Blob | null> {
@@ -171,6 +173,11 @@ export default function AddExpensePage() {
               if (item.thumbnail) setPreviewThumbnail(item.thumbnail);
               if (item.rawText) setPreviewRawText(item.rawText);
               setPreviewShareType(item.type);
+              if (p.transfer_person) {
+                setTransferPerson(p.transfer_person);
+                setTransferDirection(p.transfer_direction ?? null);
+                setShowTransferSheet(true);
+              }
             }
           }
         } catch (err) {
@@ -251,6 +258,9 @@ export default function AddExpensePage() {
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
   const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
+  const [showTransferSheet, setShowTransferSheet] = useState(false);
+  const [transferPerson, setTransferPerson] = useState<string | null>(null);
+  const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>(null);
   const [nlText, setNlText] = useState('');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [showQuickParse, setShowQuickParse] = useState(false);
@@ -279,6 +289,11 @@ export default function AddExpensePage() {
       if (result.note) setNote(result.note);
       if (result.cashback) setCashback(String(result.cashback));
       setAiStatus('done');
+      if (result.transfer_person) {
+        setTransferPerson(result.transfer_person);
+        setTransferDirection(result.transfer_direction ?? null);
+        setShowTransferSheet(true);
+      }
     } catch (err: unknown) {
       const isAborted = (err as { name?: string })?.name === 'AbortError'
         || (err as { code?: string })?.code === 'ERR_CANCELED';
@@ -376,6 +391,11 @@ export default function AddExpensePage() {
         setNote(typeof result.note === 'string' ? result.note : '');
         setCashback(typeof result.cashback === 'string' ? result.cashback : '');
         setAiStatus('done');
+        if (typeof result.transfer_person === 'string' && result.transfer_person) {
+          setTransferPerson(result.transfer_person);
+          setTransferDirection((result.transfer_direction as 'sent' | 'received' | null) ?? null);
+          setShowTransferSheet(true);
+        }
       } catch {
         setAiError('failed');
         setAiStatus('error');
@@ -740,6 +760,53 @@ export default function AddExpensePage() {
 
             <div className="px-10 pb-16 text-center">
               <p className="text-[13px] font-medium text-white/30 italic">Pinch to zoom · drag to pan</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer detected — Expense or Lending decision sheet */}
+      {showTransferSheet && transferPerson && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowTransferSheet(false)} />
+          <div className="relative w-full bg-card rounded-t-3xl px-5 pt-4 pb-10 space-y-5 animate-in slide-in-from-bottom duration-300 border-t border-border">
+            <div className="w-10 h-1 bg-muted-foreground/20 rounded-full mx-auto" />
+            <div>
+              <p className="text-xs text-muted-foreground">Transfer detected</p>
+              <p className="text-lg font-bold mt-0.5">
+                {transferDirection === 'sent' ? 'Sent' : transferDirection === 'received' ? 'Received' : 'Transfer'}
+                {amount ? ` ₹${amount}` : ''}
+                {' '}{transferDirection === 'received' ? 'from' : 'to'} {transferPerson}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Is this a regular expense or a money transfer between people?</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setShowTransferSheet(false)}
+                className="py-3.5 rounded-2xl bg-secondary font-semibold text-sm flex items-center justify-center gap-2"
+              >
+                <ArrowUpRight className="w-4 h-4" />
+                It's an Expense
+              </button>
+              <button
+                onClick={() => {
+                  setShowTransferSheet(false);
+                  navigate('/share-to-people', {
+                    state: {
+                      amount,
+                      note: description,
+                      date,
+                      shareTs: resolvedShareTs,
+                      transfer_person: transferPerson,
+                      transfer_direction: transferDirection,
+                    },
+                  });
+                }}
+                className="py-3.5 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                It's Lending
+              </button>
             </div>
           </div>
         </div>

@@ -33,4 +33,5 @@ export class PeopleController {
         await service.deleteTransaction(req.params.transactionId as string);
         res.sendStatus(204);
     };
+
 }

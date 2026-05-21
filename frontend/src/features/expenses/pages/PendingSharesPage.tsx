@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MessageSquareText, Trash2, ChevronRight, Inbox, ImageIcon } from 'lucide-react';
+import { ArrowLeft, MessageSquareText, Trash2, ChevronRight, Inbox, ImageIcon, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +19,7 @@ interface QueueItem {
     category_name: string | null;
     note: string | null;
     cashback: string | null;
+    transfer_person: string | null;
   };
 }
 
@@ -81,6 +82,20 @@ export default function PendingSharesPage() {
         shareType: item.type,
         thumbnail: item.thumbnail ?? null,
         rawText: item.rawText ?? null,
+      },
+    });
+  };
+
+  const handleLogToPeople = (index: number) => {
+    const item = queue[index];
+    navigate('/share-to-people', {
+      state: {
+        amount: item.result.amount ?? '',
+        note: item.result.description ?? '',
+        date: item.result.date ?? null,
+        shareTs: item.ts,
+        transfer_person: item.result.transfer_person ?? null,
+        transfer_direction: item.result.transfer_direction ?? null,
       },
     });
   };
@@ -166,21 +181,29 @@ export default function PendingSharesPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleDiscard(index)}
-                    className="flex items-center gap-1.5 px-4 py-3 rounded-2xl text-destructive text-sm font-semibold hover:bg-destructive/8 active:scale-95 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Discard
-                  </button>
+                <div className="space-y-2">
                   <button
                     onClick={() => handleReview(index)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold active:scale-[0.98] transition-transform shadow-md shadow-primary/20"
+                    className="w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold active:scale-[0.98] transition-transform shadow-md shadow-primary/20"
                   >
                     Review & Save
                     <ChevronRight className="w-4 h-4" />
                   </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleLogToPeople(index)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-secondary text-foreground text-sm font-semibold active:scale-95 transition-transform"
+                    >
+                      <Users className="w-4 h-4" />
+                      Log to People
+                    </button>
+                    <button
+                      onClick={() => handleDiscard(index)}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-destructive text-sm font-semibold active:scale-95 transition-transform"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

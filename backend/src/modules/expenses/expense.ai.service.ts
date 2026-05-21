@@ -66,7 +66,9 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "date": "<yyyy-MM-dd or null if not visible>",
   "time": "<HH:mm 24h or null if not visible>",
   "category_id": "<exact id string from the list below, or null>",
-  "note": "<any extra useful details (e.g. specific items, addresses). Do NOT include cashback, rewards, or any transaction/reference ID. Max 100 chars, or null>"
+  "note": "<any extra useful details (e.g. specific items, addresses). Do NOT include cashback, rewards, or any transaction/reference ID. Max 100 chars, or null>",
+  "transfer_person": "<full name, phone number, or UPI ID of the individual — ONLY for personal transfers between people. null for merchant/business payments>",
+  "transfer_direction": "<sent | received | null — sent if user paid/transferred money out, received if user received money. null if not a personal transfer>"
 }
 
 Rules:
@@ -76,6 +78,8 @@ Rules:
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
 - note: Extract anything else useful that helps the user remember the purchase.
+- transfer_person: Extract ONLY when the receipt clearly shows a transfer to/from a named individual (not a business). Full name preferred, else phone or UPI ID.
+- transfer_direction: sent = user paid/sent money out; received = user got money in. Always set when transfer_person is set.
 
 ${merchantHintBlock}
 
@@ -100,7 +104,9 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "time": "<HH:mm 24h or null>",
   "cashback": "<cashback amount as string e.g. \\"100.00\\", or null if not mentioned>",
   "category_id": "<exact id from the list below, or null>",
-  "note": "<any other useful context not captured above, max 100 chars, or null>"
+  "note": "<any other useful context not captured above, max 100 chars, or null>",
+  "transfer_person": "<name, phone, or UPI ID of the individual — ONLY for personal transfers. null for merchant payments>",
+  "transfer_direction": "<sent | received | null — sent if user paid money out, received if user received money>"
 }
 
 Rules:
@@ -111,6 +117,8 @@ Rules:
 - time: if mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned, default to ${currentTime}
 - cashback: extract any cashback or reward amount. Return as string or null
 - category_id: pick the best matching category
+- transfer_person: extract ONLY when the text clearly names an individual receiving or sending money. null for businesses, merchants, or when unclear
+- transfer_direction: sent = paid/sent money out; received = got money in. Always set when transfer_person is set.
 
 ${merchantHintBlock}
 
@@ -191,7 +199,11 @@ ${categoryBlock}`;
         const cashback = typeof raw.cashback === 'string' && /^\d+(\.\d{1,2})?$/.test((raw.cashback as string).trim())
             ? (raw.cashback as string).trim() : null;
         const category_name = category_id ? categories.find(c => c.id === category_id)?.name : null;
-        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note };
+        const transfer_person = typeof raw.transfer_person === 'string' && raw.transfer_person.trim()
+            ? raw.transfer_person.trim() : null;
+        const transfer_direction = (raw.transfer_direction === 'sent' || raw.transfer_direction === 'received')
+            ? raw.transfer_direction as 'sent' | 'received' : null;
+        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note, transfer_person, transfer_direction };
     }
 
     async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], debug = false) {
@@ -212,4 +224,5 @@ ${categoryBlock}`;
         if (debug) payload._debug = { prompt, rawText };
         return payload;
     }
+
 }

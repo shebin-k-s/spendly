@@ -1,0 +1,312 @@
+import { useState, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { ArrowLeft, ArrowUpRight, ArrowDownLeft, Search, Check, UserPlus, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { usePeople } from '../hooks/usePeople';
+import { peopleApi } from '../api/peopleApi';
+import type { Person } from '../types';
+import { formatINR } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { DateTimePicker } from '@/components/DateTimePicker';
+
+interface ShareState {
+  amount?: string;
+  note?: string;
+  date?: string | null;
+  shareTs?: number;
+  transfer_person?: string | null;
+  transfer_direction?: 'sent' | 'received' | null;
+}
+
+function matchPerson(transferPerson: string, people: Person[]): Person | null {
+  const q = transferPerson.toLowerCase().trim();
+
+  let match = people.find(p => p.name.toLowerCase() === q);
+  if (match) return match;
+
+  if (q.includes('@')) {
+    const upiName = q.split('@')[0];
+    match = people.find(p => p.name.toLowerCase() === upiName || p.name.toLowerCase().startsWith(upiName));
+    if (match) return match;
+  }
+
+  const qDigits = q.replace(/\D/g, '');
+  if (qDigits.length >= 6) {
+    match = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
+    if (match) return match;
+  }
+
+  match = people.find(p => {
+    const name = p.name.toLowerCase();
+    return name.includes(q) || q.includes(name);
+  });
+  return match ?? null;
+}
+
+async function removeFromQueue(ts: number): Promise<void> {
+  if (!('caches' in window)) return;
+  try {
+    const cache = await caches.open('spendly-share');
+    const res = await cache.match('/share-queue');
+    if (!res) return;
+    const queue: unknown[] = await res.json();
+    const next = queue.filter((item: any) => item.ts !== ts);
+    if (next.length === 0) {
+      await cache.delete('/share-queue');
+      navigator.clearAppBadge?.();
+    } else {
+      await cache.put('/share-queue', new Response(JSON.stringify(next), {
+        headers: { 'Content-Type': 'application/json' },
+      }));
+      navigator.setAppBadge?.(next.length);
+    }
+  } catch {}
+}
+
+export default function ShareToPeoplePage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const state = (location.state ?? {}) as ShareState;
+
+  const { data: people = [], isLoading } = usePeople();
+  const queryClient = useQueryClient();
+
+  const directionType: 'GIVEN' | 'RETURNED' =
+    state.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
+
+  const autoMatch = useMemo(
+    () => (state.transfer_person && people.length ? matchPerson(state.transfer_person, people) : null),
+    [state.transfer_person, people],
+  );
+
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(autoMatch?.id ?? null);
+  const [type, setType] = useState<'GIVEN' | 'RETURNED'>(directionType);
+  const [amount, setAmount] = useState(state.amount ?? '');
+  const [date, setDate] = useState(state.date ?? format(new Date(), 'yyyy-MM-dd'));
+  const [note, setNote] = useState(state.note ?? '');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [addAndSaving, setAddAndSaving] = useState(false);
+
+  const addTransaction = useMutation({
+    mutationFn: ({ personId, payload }: { personId: string; payload: any }) =>
+      peopleApi.addTransaction(personId, payload),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      if (state.shareTs) await removeFromQueue(state.shareTs);
+      toast.success('Transaction added');
+      navigate('/share-pending');
+    },
+    onError: () => toast.error('Failed to add transaction'),
+  });
+
+  const filteredPeople = people.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const selectedPerson = people.find(p => p.id === selectedPersonId);
+  const canSave = !!selectedPersonId && !!amount && parseFloat(amount) > 0 && !addTransaction.isPending && !addAndSaving;
+
+  const handleSave = () => {
+    if (!canSave || !selectedPersonId) return;
+    addTransaction.mutate({
+      personId: selectedPersonId,
+      payload: { amount: parseFloat(amount), type, date, note: note.trim() || undefined },
+    });
+  };
+
+  const handleAddAndSave = async () => {
+    if (!state.transfer_person || !amount || parseFloat(amount) <= 0) return;
+    setAddAndSaving(true);
+    try {
+      const newPerson = await peopleApi.createPerson({ name: state.transfer_person });
+      await peopleApi.addTransaction(newPerson.id, {
+        amount: parseFloat(amount),
+        type,
+        date,
+        note: note.trim() || undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      if (state.shareTs) await removeFromQueue(state.shareTs);
+      toast.success(`Saved for ${state.transfer_person}`);
+      navigate('/share-pending');
+    } catch {
+      toast.error('Failed to save');
+      setAddAndSaving(false);
+    }
+  };
+
+  const showAddCard = !!state.transfer_person && !autoMatch && !searchQuery;
+
+  return (
+    <div className="animate-fade-in">
+      <div className="page-header">
+        <button
+          onClick={() => navigate(-1)}
+          className="w-10 h-10 rounded-2xl bg-secondary flex items-center justify-center active:scale-95 transition-transform shrink-0"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-xl font-bold">Log to People</h1>
+          <p className="text-xs text-muted-foreground">Who was this with?</p>
+        </div>
+      </div>
+
+      <div className="page-content space-y-5">
+        {/* Amount + type */}
+        <div className="bg-card border border-border rounded-2xl p-4 space-y-4">
+          <div>
+            <label className="form-label">Amount (₹)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              onWheel={e => e.currentTarget.blur()}
+              placeholder="0.00"
+              className="form-input text-xl font-bold"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setType('GIVEN')}
+              className={cn(
+                'flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold text-sm transition-all',
+                type === 'GIVEN' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground',
+              )}
+            >
+              <ArrowUpRight className="w-4 h-4" />
+              I Gave
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('RETURNED')}
+              className={cn(
+                'flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold text-sm transition-all',
+                type === 'RETURNED' ? 'bg-success text-success-foreground' : 'bg-secondary text-muted-foreground',
+              )}
+            >
+              <ArrowDownLeft className="w-4 h-4" />
+              They Gave
+            </button>
+          </div>
+        </div>
+
+        {/* Person picker */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
+            Select Person
+          </p>
+
+          {people.length > 4 && (
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <div key={i} className="h-14 rounded-2xl bg-muted animate-pulse" />)}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Add new person card — shown when AI detected a name not in the list */}
+              {showAddCard && (
+                <button
+                  onClick={handleAddAndSave}
+                  disabled={!amount || parseFloat(amount) <= 0 || addAndSaving}
+                  className="touch-card w-full flex items-center gap-3 px-4 py-3 text-left border-primary/30 bg-primary/5 disabled:opacity-50"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
+                    {addAndSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-primary truncate">Add "{state.transfer_person}"</p>
+                    <p className="text-xs text-muted-foreground">New contact · save transaction in one tap</p>
+                  </div>
+                </button>
+              )}
+
+              {filteredPeople.length === 0 && !showAddCard ? (
+                <div className="py-8 text-center text-sm text-muted-foreground bg-card border border-border rounded-2xl">
+                  {searchQuery ? 'No one matches' : 'No people added yet — go to People tab first'}
+                </div>
+              ) : (
+                filteredPeople.map(person => {
+                  const isSelected = selectedPersonId === person.id;
+                  return (
+                    <button
+                      key={person.id}
+                      onClick={() => setSelectedPersonId(isSelected ? null : person.id)}
+                      className={cn(
+                        'touch-card w-full flex items-center gap-3 px-4 py-3 text-left',
+                        isSelected && 'border-primary/40 bg-primary/5',
+                      )}
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                        {person.name[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{person.name}</p>
+                        {person.balance !== 0 && (
+                          <p className={cn('text-xs', person.balance > 0 ? 'text-primary' : 'text-destructive')}>
+                            {person.balance > 0 ? 'Owes you' : 'You owe'}{' '}
+                            {formatINR(Math.abs(Number(person.balance)))}
+                          </p>
+                        )}
+                      </div>
+                      {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Date + Note */}
+        <div className="space-y-4">
+          <div>
+            <label className="form-label">Date</label>
+            <DateTimePicker date={date} time={null} onChange={d => setDate(d)} />
+          </div>
+          <div>
+            <label className="form-label">Note (Optional)</label>
+            <input
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="What was this for?"
+              className="form-input"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={!canSave}
+          className={cn(
+            'w-full py-3.5 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40',
+            type === 'GIVEN' ? 'bg-primary text-primary-foreground' : 'bg-success text-success-foreground',
+          )}
+        >
+          {addTransaction.isPending
+            ? 'Saving...'
+            : selectedPerson
+              ? `Save for ${selectedPerson.name}`
+              : 'Select a Person'}
+        </button>
+      </div>
+    </div>
+  );
+}
