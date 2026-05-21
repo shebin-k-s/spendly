@@ -322,7 +322,7 @@ self.addEventListener('notificationclick', (event) => {
         const icon  = new URL('/logo-192.png', self.location.origin).href;
         const badge = new URL('/badge.svg',    self.location.origin).href;
 
-        if (data.transfer_person) {
+        if (data.suggested_flow === 'transfer' && data.transfer_person) {
           try {
             const { person, type, isNew } = await autoSaveTransfer(data);
             await removeShareByTs(data.shareTs);
