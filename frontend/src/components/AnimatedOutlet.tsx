@@ -13,7 +13,7 @@ const pageVariants = {
   exit: { opacity: 0, position: 'absolute' as const, width: '100%', transition: { duration: 0 } },
 };
 
-const NAV_TABS = ['/', '/expenses', '/analytics', '/categories'];
+const NAV_TABS = ['/', '/expenses', '/people', '/analytics', '/categories'];
 
 const swipeConfidenceThreshold = 10000;
 const swipePower = (offset: number, velocity: number) => Math.abs(offset) * velocity;

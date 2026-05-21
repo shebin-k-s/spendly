@@ -1,12 +1,13 @@
 import { useState, useRef, useLayoutEffect } from 'react';
 import { NavLink, useLocation, useNavigationType } from 'react-router-dom';
-import { LayoutDashboard, Receipt, Tag, BarChart3, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Receipt, Users, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AnimatedOutlet from './AnimatedOutlet';
 
 const NAV_TABS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { to: '/expenses', icon: Receipt, label: 'Expenses' },
+  { to: '/people', icon: Users, label: 'People' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/categories', icon: Tag, label: 'Categories' },
 ];
@@ -129,7 +130,7 @@ export default function Layout() {
 
       {/* Bottom navigation */}
       <nav className="shrink-0 bg-background border-t border-border safe-bottom relative z-50">
-        <div className="grid grid-cols-4 max-w-full">
+        <div className="grid grid-cols-5 max-w-full">
           {NAV_TABS.map(({ to, icon: Icon, label, exact }) => (
             <NavLink
               key={to}

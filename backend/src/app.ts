@@ -9,6 +9,7 @@ import { errorHandler } from './common/middlewares/error.middleware';
 import authRoutes from './modules/auth/auth.routes';
 import categoryRoutes from './modules/categories/category.routes';
 import expenseRoutes from './modules/expenses/expense.routes';
+import peopleRoutes from './modules/people/people.routes';
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use('/api/v1/auth', authRoutes);
 // Protected routes
 app.use('/api/v1/categories', protect, categoryRoutes);
 app.use('/api/v1/expenses', protect, expenseRoutes);
+app.use('/api/v1/people', protect, peopleRoutes);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'spendly-api' }));
