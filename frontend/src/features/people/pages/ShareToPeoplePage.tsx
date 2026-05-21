@@ -28,9 +28,28 @@ function matchPerson(transferPerson: string, people: Person[]): Person | null {
   const qDigits  = q.replace(/\D/g, '');
 
   // 1. Phone number — strongest signal
+  
   if (qDigits.length >= 6) {
-    const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
-    if (m) return m;
+  const m = people.find(p => {
+    if (!p.phoneNumber) return false;
+
+    const personDigits = p.phoneNumber.replace(/\D/g, '');
+
+    // handle Indian country code
+    const normalizedPerson =
+      personDigits.length > 10
+        ? personDigits.slice(-10)
+        : personDigits;
+
+    const normalizedQuery =
+      qDigits.length > 10
+        ? qDigits.slice(-10)
+        : qDigits;
+
+    return normalizedPerson === normalizedQuery;
+  });
+
+  if (m) return m;
   }
 
   // 2. Exact name
