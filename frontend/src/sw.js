@@ -244,17 +244,41 @@ function cleanPersonName(raw) {
 
 // ── Person matching helper (shared by auto-save and person-check) ─────────────
 function findPersonMatch(transferPerson, people) {
-  const q = (transferPerson || '').toLowerCase().trim();
+  const q        = (transferPerson || '').toLowerCase().trim();
   if (!q) return null;
+  const qCompact = q.replace(/[\s._\-]/g, '');
+  const qDigits  = q.replace(/\D/g, '');
+
+  // 1. Phone number — strongest signal
+  if (qDigits.length >= 6) {
+    const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
+    if (m) return m;
+  }
+
+  // 2. Exact name
+  const exact = people.find(p => p.name.toLowerCase() === q);
+  if (exact) return exact;
+
+  // 3. Compact name (ignore spaces / dots / dashes)
+  if (qCompact.length > 3) {
+    const compact = people.find(p => p.name.toLowerCase().replace(/[\s._\-]/g, '') === qCompact);
+    if (compact) return compact;
+  }
+
+  // 4. UPI prefix
+  if (q.includes('@')) {
+    const upiPrefix = q.split('@')[0];
+    const upiCompact = upiPrefix.replace(/[\s._\-]/g, '');
+    const upi = people.find(p => {
+      const n = p.name.toLowerCase();
+      return n === upiPrefix || n.replace(/[\s._\-]/g, '') === upiCompact;
+    });
+    if (upi) return upi;
+  }
+
+  // 5. Partial name
   return people.find(p => {
     const name = p.name.toLowerCase();
-    if (name === q) return true;
-    if (q.includes('@')) {
-      const upiName = q.split('@')[0];
-      if (name === upiName || name.startsWith(upiName)) return true;
-    }
-    const qDigits = q.replace(/\D/g, '');
-    if (qDigits.length >= 6 && p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits)) return true;
     return name.includes(q) || q.includes(name);
   }) ?? null;
 }
@@ -284,7 +308,10 @@ async function autoSaveTransfer(data) {
     // Person not in list — auto-create so the transaction can be saved immediately
     const createRes = await callApi('/people', {
       method: 'POST',
-      body: JSON.stringify({ name: cleanPersonName(data.transfer_person) }),
+      body: JSON.stringify({
+        name: cleanPersonName(data.transfer_person),
+        ...(data.transfer_phone ? { phoneNumber: data.transfer_phone } : {}),
+      }),
     });
     if (!createRes.ok) throw new Error('person-create-failed');
     person = await createRes.json();
@@ -610,6 +637,7 @@ async function backgroundTextParseAndNotify(text) {
         note:               parsed.note,
         cashback:           parsed.cashback,
         transfer_person:    parsed.transfer_person    || null,
+        transfer_phone:     parsed.transfer_phone     || null,
         transfer_direction: parsed.transfer_direction || null,
         suggested_flow:     parsed.suggested_flow     || 'expense',
         shareType:          'text',
@@ -679,6 +707,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
         note:               parsed.note,
         cashback:           parsed.cashback,
         transfer_person:    parsed.transfer_person    || null,
+        transfer_phone:     parsed.transfer_phone     || null,
         transfer_direction: parsed.transfer_direction || null,
         suggested_flow:     parsed.suggested_flow     || 'expense',
         shareType:          'image',

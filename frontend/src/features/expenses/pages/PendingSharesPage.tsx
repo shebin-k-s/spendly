@@ -21,6 +21,7 @@ interface QueueItem {
     note: string | null;
     cashback: string | null;
     transfer_person: string | null;
+    transfer_phone: string | null;
     transfer_direction: 'sent' | 'received' | null;
     suggested_flow?: 'expense' | 'transfer';
   };
@@ -90,6 +91,7 @@ export default function PendingSharesPage() {
           date: result.date ?? null,
           shareTs: item.ts,
           transfer_person: result.transfer_person ?? null,
+          transfer_phone: result.transfer_phone ?? null,
           transfer_direction: result.transfer_direction ?? null,
           backRoute: '/share-pending',
         },
@@ -117,6 +119,7 @@ export default function PendingSharesPage() {
         date: item.result.date ?? null,
         shareTs: item.ts,
         transfer_person: item.result.transfer_person ?? null,
+        transfer_phone: item.result.transfer_phone ?? null,
         transfer_direction: item.result.transfer_direction ?? null,
         backRoute: '/share-pending',
       },

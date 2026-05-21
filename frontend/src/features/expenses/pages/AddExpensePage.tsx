@@ -176,6 +176,7 @@ export default function AddExpensePage() {
               if (p.transfer_person) {
                 setTransferPerson(p.transfer_person);
                 setTransferDirection(p.transfer_direction ?? null);
+                setTransferPhone((p as any).transfer_phone ?? null);
 
                 if (p.suggested_flow === 'transfer' && !forceExpense) {
                   navigate('/share-to-people', {
@@ -185,6 +186,7 @@ export default function AddExpensePage() {
                       date: p.date || format(new Date(), 'yyyy-MM-dd'),
                       shareTs: item.ts,
                       transfer_person: p.transfer_person,
+                      transfer_phone: (p as any).transfer_phone ?? null,
                       transfer_direction: p.transfer_direction,
                       backRoute: '/',
                     },
@@ -273,10 +275,12 @@ export default function AddExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? (ps?.payment_method as PaymentMethod) ?? parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
-  const stateTransferPerson = (location.state as { transfer_person?: string | null } | null)?.transfer_person ?? null;
+  const stateTransferPerson    = (location.state as { transfer_person?: string | null } | null)?.transfer_person ?? null;
   const stateTransferDirection = (location.state as { transfer_direction?: 'sent' | 'received' | null } | null)?.transfer_direction ?? null;
-  const [transferPerson, setTransferPerson] = useState<string | null>((ps?.transfer_person as string) ?? stateTransferPerson ?? null);
+  const stateTransferPhone     = (location.state as { transfer_phone?: string | null } | null)?.transfer_phone ?? null;
+  const [transferPerson,    setTransferPerson]    = useState<string | null>((ps?.transfer_person as string) ?? stateTransferPerson ?? null);
   const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>((ps?.transfer_direction as 'sent' | 'received' | null) ?? stateTransferDirection ?? null);
+  const [transferPhone,     setTransferPhone]     = useState<string | null>((ps?.transfer_phone as string) ?? stateTransferPhone ?? null);
   const [nlText, setNlText] = useState('');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [showQuickParse, setShowQuickParse] = useState(false);
@@ -316,6 +320,7 @@ export default function AddExpensePage() {
               date: result.date || format(new Date(), 'yyyy-MM-dd'),
               shareTs: resolvedShareTs,
               transfer_person: result.transfer_person,
+              transfer_phone: (result as any).transfer_phone ?? null,
               transfer_direction: result.transfer_direction,
               backRoute: '/',
             },
@@ -515,6 +520,7 @@ export default function AddExpensePage() {
                   date,
                   shareTs: resolvedShareTs,
                   transfer_person: transferPerson,
+                  transfer_phone: transferPhone,
                   transfer_direction: transferDirection,
                   backRoute: '/',
                 },

@@ -17,33 +17,48 @@ interface ShareState {
   date?: string | null;
   shareTs?: number;
   transfer_person?: string | null;
+  transfer_phone?: string | null;
   transfer_direction?: 'sent' | 'received' | null;
   backRoute?: string;
 }
 
 function matchPerson(transferPerson: string, people: Person[]): Person | null {
-  const q = transferPerson.toLowerCase().trim();
+  const q        = transferPerson.toLowerCase().trim();
+  const qCompact = q.replace(/[\s._-]/g, '');
+  const qDigits  = q.replace(/\D/g, '');
 
-  let match = people.find(p => p.name.toLowerCase() === q);
-  if (match) return match;
-
-  if (q.includes('@')) {
-    const upiName = q.split('@')[0];
-    match = people.find(p => p.name.toLowerCase() === upiName || p.name.toLowerCase().startsWith(upiName));
-    if (match) return match;
-  }
-
-  const qDigits = q.replace(/\D/g, '');
+  // 1. Phone number — strongest signal
   if (qDigits.length >= 6) {
-    match = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
-    if (match) return match;
+    const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
+    if (m) return m;
   }
 
-  match = people.find(p => {
+  // 2. Exact name
+  const exact = people.find(p => p.name.toLowerCase() === q);
+  if (exact) return exact;
+
+  // 3. Compact name (ignore spaces / dots / dashes)
+  if (qCompact.length > 3) {
+    const compact = people.find(p => p.name.toLowerCase().replace(/[\s._-]/g, '') === qCompact);
+    if (compact) return compact;
+  }
+
+  // 4. UPI prefix
+  if (q.includes('@')) {
+    const upiPrefix  = q.split('@')[0];
+    const upiCompact = upiPrefix.replace(/[\s._-]/g, '');
+    const upi = people.find(p => {
+      const n = p.name.toLowerCase();
+      return n === upiPrefix || n.replace(/[\s._-]/g, '') === upiCompact;
+    });
+    if (upi) return upi;
+  }
+
+  // 5. Partial name
+  return people.find(p => {
     const name = p.name.toLowerCase();
     return name.includes(q) || q.includes(name);
-  });
-  return match ?? null;
+  }) ?? null;
 }
 
 async function removeFromQueue(ts: number): Promise<void> {
@@ -99,7 +114,6 @@ export default function ShareToPeoplePage() {
   const [addingPerson, setAddingPerson] = useState(false);
 
   const backRoute = state.backRoute ?? '/';
-  const successRoute = state.shareTs ? '/share-pending' : '/people';
 
   const addTransaction = useMutation({
     mutationFn: ({ personId, payload }: { personId: string; payload: any }) =>
@@ -133,7 +147,10 @@ export default function ShareToPeoplePage() {
     if (!state.transfer_person) return;
     setAddingPerson(true);
     try {
-      const newPerson = await peopleApi.createPerson({ name: state.transfer_person });
+      const newPerson = await peopleApi.createPerson({
+        name: state.transfer_person,
+        ...(state.transfer_phone ? { phoneNumber: state.transfer_phone } : {}),
+      });
       await queryClient.invalidateQueries({ queryKey: ['people'] });
       setSelectedPersonId(newPerson.id);
       setNewPersonName(newPerson.name);

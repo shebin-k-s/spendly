@@ -68,6 +68,7 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "category_id": "<exact id string from the list below, or null>",
   "note": "<detailed breakdown of items and prices if available (e.g. 'Burger: 150, Coke: 50'), otherwise extra context, max 500 chars, or null>",
   "transfer_person": "<display name of the person only — ONLY for personal transfers. null for business payments>",
+  "transfer_phone": "<10-digit mobile number of the other party if visible, digits only e.g. \\"9876543210\\", or null>",
   "transfer_direction": "<sent | received | null — sent if user paid out, received if user got money>",
   "suggested_flow": "<expense | transfer> — 'transfer' if person is named and it's a personal debt/loan/gift; 'expense' for merchants/stores/shops"
 }
@@ -80,6 +81,7 @@ Rules:
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
 - note: For receipts/images, provide a detailed line-by-line breakdown of items and their individual prices in the form 'Item: Price, ...'. If it's a single item or no breakdown is visible, provide any other useful context that helps the user remember the purchase.
 - transfer_person: Extract ONLY when the receipt clearly shows a personal transfer between individuals. CRITICAL: Identify the OTHER party. Ignore your own name. Return ONLY the display name (e.g. "Rahul Kumar"). If only a UPI ID is visible (e.g. "rahul@okaxis"), return just the prefix before @ capitalized (e.g. "Rahul"). Never include @domain, never return name + UPI together.
+- transfer_phone: Extract ONLY for personal transfers. Look for a 10-digit number in the UPI ID (e.g. "9876543210@okaxis" → "9876543210") or displayed alongside the name. Return digits only, no spaces or dashes. null if not visible or if it's a business payment.
 - transfer_direction: sent = user paid/sent money out to someone; received = user got money in from someone. Look for keywords like "Paid to", "Sent to" (sent) or "Received from", "Credit from" (received).
 - suggested_flow: 'transfer' if the transaction is a direct money movement to/from an individual person. 'expense' if it's clearly a payment for an item, bill, or service (e.g. food, rent, recharge), even if paid to a personal account. If the receipt has a merchant logo or business name, it's ALWAYS an 'expense'.
 
@@ -108,6 +110,7 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "category_id": "<exact id from the list below, or null>",
   "note": "<detailed breakdown of items and prices (e.g. 'Burger: 150, Coke: 50'), max 500 chars, or null>",
   "transfer_person": "<display name of the individual only — ONLY for personal transfers. null for merchant payments>",
+  "transfer_phone": "<10-digit mobile number of the other party if mentioned, digits only e.g. \\"9876543210\\", or null>",
   "transfer_direction": "<sent | received | null — sent if user paid money out, received if user received money>",
   "suggested_flow": "<expense | transfer> — 'transfer' for person-to-person; 'expense' for shops/bills/items"
 }
@@ -121,6 +124,7 @@ Rules:
 - cashback: extract any cashback or reward amount. Return as string or null
 - category_id: pick the best matching category
 - transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. Return ONLY the display name (e.g. "Rahul"). If the input contains a UPI ID (e.g. "rahul@okaxis"), use just the prefix before @ capitalized. Never include @domain, never combine name and UPI. Never return the user themselves.
+- transfer_phone: Extract ONLY for personal transfers. Look for a 10-digit number mentioned directly or inside a UPI ID (e.g. "9876543210@okaxis" → "9876543210"). Return digits only. null if not present.
 - transfer_direction: sent = user paid/sent money out; received = user got money in.
 - suggested_flow: 'transfer' for person-to-person money movements (e.g. "Sent 500 to Rahul", "Rahul gave me 200"). 'expense' if it's for a specific item, service, or bill (e.g. "Paid Rahul for auto fare", "Rent to Priya", "Bought milk"). If an item or service is explicitly mentioned, stay in 'expense'.
 
@@ -205,10 +209,12 @@ ${categoryBlock}`;
         const category_name = category_id ? categories.find(c => c.id === category_id)?.name : null;
         const transfer_person = typeof raw.transfer_person === 'string' && raw.transfer_person.trim()
             ? raw.transfer_person.trim() : null;
+        const transfer_phone = typeof raw.transfer_phone === 'string' && /^\d{10}$/.test(raw.transfer_phone.trim())
+            ? raw.transfer_phone.trim() : null;
         const transfer_direction = (raw.transfer_direction === 'sent' || raw.transfer_direction === 'received')
             ? raw.transfer_direction as 'sent' | 'received' : null;
         const suggested_flow = raw.suggested_flow === 'transfer' ? 'transfer' : 'expense';
-        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note, transfer_person, transfer_direction, suggested_flow };
+        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note, transfer_person, transfer_phone, transfer_direction, suggested_flow };
     }
 
     async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], debug = false) {
