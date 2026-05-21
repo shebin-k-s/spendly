@@ -181,16 +181,17 @@ function buildNotifContent(parsed, personKnown = null) {
   const isTransfer = parsed.suggested_flow === 'transfer' && parsed.transfer_person;
 
   if (isTransfer) {
-    const isSent    = parsed.transfer_direction === 'sent';
-    const verb      = isSent ? 'Gave' : 'Received';
+    const isSent     = parsed.transfer_direction === 'sent';
+    const verb       = isSent ? 'Gave' : 'Received';
+    const prep       = isSent ? 'to' : 'from';
     const personName = cleanPersonName(parsed.transfer_person);
-    const personTag  = personKnown === false ? ` (New Contact)` : '';
-    const title     = `Lending · ${verb} ₹${amount} to ${personName}${personTag}`;
+    const title      = `Lending · ${verb} ₹${amount} ${prep} ${personName}`;
 
     const lines = [];
-    const meta  = [method, date, time].filter(Boolean).join(' · ');
-    if (meta)         lines.push(meta);
-    if (parsed.note)  lines.push(`Note: ${parsed.note}`);
+    if (personKnown === false) lines.push('New Contact');
+    const meta = [method, date, time].filter(Boolean).join(' · ');
+    if (meta)        lines.push(meta);
+    if (parsed.note) lines.push(`Note: ${parsed.note}`);
 
     const body    = lines.join('\n') || 'Tap to log this transfer';
     const actions = [
@@ -204,7 +205,7 @@ function buildNotifContent(parsed, personKnown = null) {
   const title = `Expense · ₹${amount}`;
   const lines = [];
 
-  if (parsed.description)  lines.push(parsed.description);
+  if (parsed.description) lines.push(parsed.description);
 
   const meta = [parsed.category_name, method, date, time].filter(Boolean).join(' · ');
   if (meta) lines.push(meta);
@@ -326,15 +327,17 @@ self.addEventListener('notificationclick', (event) => {
             const { person, type, isNew } = await autoSaveTransfer(data);
             await removeShareByTs(data.shareTs);
             navigator.clearAppBadge?.().catch?.(() => {});
-            const verb    = type === 'GIVEN' ? 'Gave' : 'Received';
+            const isSent  = type === 'GIVEN';
+            const verb    = isSent ? 'Gave' : 'Received';
+            const prep    = isSent ? 'to' : 'from';
             const method  = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
             const date    = fmtDate(data.date);
             const meta    = [method, date].filter(Boolean).join(' · ');
             const lines   = [];
+            if (isNew)     lines.push('New contact added to your people list');
             if (meta)      lines.push(meta);
             if (data.note) lines.push(`Note: ${data.note}`);
-            if (isNew)     lines.push('New contact added to your people list');
-            await self.registration.showNotification(`Lending saved · ${verb} ₹${data.amount} to ${person.name}`, {
+            await self.registration.showNotification(`Lending saved · ${verb} ₹${data.amount} ${prep} ${person.name}`, {
               body: lines.join('\n'),
               icon, badge,
               data: { successRoute: `/people/${person.id}` },
