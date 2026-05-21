@@ -181,22 +181,16 @@ function buildNotifContent(parsed, personKnown = null) {
   const isTransfer = parsed.suggested_flow === 'transfer' && parsed.transfer_person;
 
   if (isTransfer) {
-    const isSent   = parsed.transfer_direction === 'sent';
-    const verb     = isSent ? 'Sent' : 'Received';
-    const prep     = isSent ? 'to' : 'from';
-    const title    = `${verb} ₹${amount} ${prep} ${cleanPersonName(parsed.transfer_person)}`;
+    const isSent    = parsed.transfer_direction === 'sent';
+    const verb      = isSent ? 'Gave' : 'Received';
+    const personName = cleanPersonName(parsed.transfer_person);
+    const personTag  = personKnown === false ? ` (New Contact)` : '';
+    const title     = `Lending · ${verb} ₹${amount} to ${personName}${personTag}`;
 
     const lines = [];
-
-    // Line 1: method · date · time (transfer form has no description field)
-    const meta = [method, date, time].filter(Boolean).join(' · ');
-    if (meta) lines.push(meta);
-
-    // Line 2: note (the only context field in the transfer form)
-    if (parsed.note) lines.push(parsed.note);
-
-    // Line 3: new-contact warning so the user knows they'll need to add this person
-    if (personKnown === false) lines.push('New contact — tap Review to add');
+    const meta  = [method, date, time].filter(Boolean).join(' · ');
+    if (meta)         lines.push(meta);
+    if (parsed.note)  lines.push(`Note: ${parsed.note}`);
 
     const body    = lines.join('\n') || 'Tap to log this transfer';
     const actions = [
@@ -207,22 +201,20 @@ function buildNotifContent(parsed, personKnown = null) {
   }
 
   // ── Expense ──
-  const desc  = parsed.description || 'Expense';
-  const title = `₹${amount} · ${desc}`;
+  const title = `Expense · ₹${amount}`;
   const lines = [];
 
-  // Line 1: category · method · date · time
+  if (parsed.description)  lines.push(parsed.description);
+
   const meta = [parsed.category_name, method, date, time].filter(Boolean).join(' · ');
   if (meta) lines.push(meta);
 
-  // Line 2: cashback → net amount
   if (parsed.cashback) {
     const net = parseFloat(parsed.amount || '0') - parseFloat(parsed.cashback);
-    lines.push(`Cashback ₹${parsed.cashback}  →  Net ₹${net.toFixed(2)}`);
+    lines.push(`Cashback ₹${parsed.cashback} → Net ₹${net.toFixed(2)}`);
   }
 
-  // Line 3: note / item breakdown
-  if (parsed.note) lines.push(parsed.note);
+  if (parsed.note) lines.push(`Note: ${parsed.note}`);
 
   const body    = lines.join('\n') || 'Tap to review before saving';
   const actions = [
@@ -317,6 +309,12 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
 
+  // Tapping a success notification → go to the relevant list page
+  if (data.successRoute) {
+    event.waitUntil(openWindow(data.successRoute));
+    return;
+  }
+
   if (event.action === 'save') {
     event.waitUntil(
       (async () => {
@@ -328,17 +326,18 @@ self.addEventListener('notificationclick', (event) => {
             const { person, type, isNew } = await autoSaveTransfer(data);
             await removeShareByTs(data.shareTs);
             navigator.clearAppBadge?.().catch?.(() => {});
-            const verb    = type === 'GIVEN' ? 'Gave' : 'Got';
+            const verb    = type === 'GIVEN' ? 'Gave' : 'Received';
             const method  = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
             const date    = fmtDate(data.date);
             const meta    = [method, date].filter(Boolean).join(' · ');
-            const lines   = [`${verb} ₹${data.amount} to/from ${person.name}`];
-            if (meta)   lines.push(meta);
-            if (data.note) lines.push(data.note);
-            if (isNew)  lines.push('New contact added to your people list');
-            await self.registration.showNotification('Lending logged', {
+            const lines   = [];
+            if (meta)      lines.push(meta);
+            if (data.note) lines.push(`Note: ${data.note}`);
+            if (isNew)     lines.push('New contact added to your people list');
+            await self.registration.showNotification(`Lending saved · ${verb} ₹${data.amount} to ${person.name}`, {
               body: lines.join('\n'),
               icon, badge,
+              data: { successRoute: `/people/${person.id}` },
             });
           } catch (err) {
             const isAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
@@ -373,16 +372,18 @@ self.addEventListener('notificationclick', (event) => {
           const date     = fmtDate(data.date);
           const category = data.categoryName || '';
           const meta     = [category, method, date].filter(Boolean).join(' · ');
-          const lines    = [`₹${data.amount} · ${data.description}`];
-          if (meta) lines.push(meta);
+          const lines    = [];
+          if (data.description) lines.push(data.description);
+          if (meta)             lines.push(meta);
           if (data.cashback) {
             const net = parseFloat(data.amount) - parseFloat(data.cashback);
-            lines.push(`Cashback ₹${data.cashback}  →  Net ₹${net.toFixed(2)}`);
+            lines.push(`Cashback ₹${data.cashback} → Net ₹${net.toFixed(2)}`);
           }
-          if (data.note) lines.push(data.note);
-          await self.registration.showNotification('Expense saved', {
+          if (data.note) lines.push(`Note: ${data.note}`);
+          await self.registration.showNotification(`Expense saved · ₹${data.amount}`, {
             body: lines.join('\n'),
             icon, badge,
+            data: { successRoute: '/expenses' },
           });
         } catch (err) {
           const isAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
@@ -400,6 +401,14 @@ self.addEventListener('notificationclick', (event) => {
   // "review" action or plain tap
   event.waitUntil(openReviewWindow(data.shareTs, data.shareType || 'image'));
 });
+
+async function openWindow(path) {
+  const target  = new URL(path, self.location.origin).href;
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const any     = clients[0];
+  if (any) { any.navigate(target); any.focus(); return; }
+  await self.clients.openWindow(target);
+}
 
 async function openReviewWindow(shareTs, shareType = 'image') {
   // When we have a shareTs the item is already in the queue — load by ts only.
