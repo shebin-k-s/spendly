@@ -97,6 +97,7 @@ export default function PendingSharesPage() {
         shareTs: item.ts,
         transfer_person: item.result.transfer_person ?? null,
         transfer_direction: item.result.transfer_direction ?? null,
+        backRoute: '/share-pending',
       },
     });
   };

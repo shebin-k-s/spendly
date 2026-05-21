@@ -18,6 +18,7 @@ interface ShareState {
   shareTs?: number;
   transfer_person?: string | null;
   transfer_direction?: 'sent' | 'received' | null;
+  backRoute?: string;
 }
 
 function matchPerson(transferPerson: string, people: Person[]): Person | null {
@@ -82,12 +83,16 @@ export default function ShareToPeoplePage() {
   );
 
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(autoMatch?.id ?? null);
+  const [newPersonName, setNewPersonName] = useState<string | null>(null);
   const [type, setType] = useState<'GIVEN' | 'RETURNED'>(directionType);
   const [amount, setAmount] = useState(state.amount ?? '');
   const [date, setDate] = useState(state.date ?? format(new Date(), 'yyyy-MM-dd'));
   const [note, setNote] = useState(state.note ?? '');
   const [searchQuery, setSearchQuery] = useState('');
-  const [addAndSaving, setAddAndSaving] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
+
+  const backRoute = state.backRoute ?? '/';
+  const successRoute = state.shareTs ? '/share-pending' : '/people';
 
   const addTransaction = useMutation({
     mutationFn: ({ personId, payload }: { personId: string; payload: any }) =>
@@ -96,7 +101,7 @@ export default function ShareToPeoplePage() {
       queryClient.invalidateQueries({ queryKey: ['people'] });
       if (state.shareTs) await removeFromQueue(state.shareTs);
       toast.success('Transaction added');
-      navigate('/share-pending');
+      navigate(successRoute, { replace: true });
     },
     onError: () => toast.error('Failed to add transaction'),
   });
@@ -106,7 +111,8 @@ export default function ShareToPeoplePage() {
   );
 
   const selectedPerson = people.find(p => p.id === selectedPersonId);
-  const canSave = !!selectedPersonId && !!amount && parseFloat(amount) > 0 && !addTransaction.isPending && !addAndSaving;
+  const displayName = selectedPerson?.name ?? newPersonName;
+  const canSave = !!selectedPersonId && !!amount && parseFloat(amount) > 0 && !addTransaction.isPending && !addingPerson;
 
   const handleSave = () => {
     if (!canSave || !selectedPersonId) return;
@@ -116,34 +122,29 @@ export default function ShareToPeoplePage() {
     });
   };
 
-  const handleAddAndSave = async () => {
-    if (!state.transfer_person || !amount || parseFloat(amount) <= 0) return;
-    setAddAndSaving(true);
+  const handleAddPerson = async () => {
+    if (!state.transfer_person) return;
+    setAddingPerson(true);
     try {
       const newPerson = await peopleApi.createPerson({ name: state.transfer_person });
-      await peopleApi.addTransaction(newPerson.id, {
-        amount: parseFloat(amount),
-        type,
-        date,
-        note: note.trim() || undefined,
-      });
       queryClient.invalidateQueries({ queryKey: ['people'] });
-      if (state.shareTs) await removeFromQueue(state.shareTs);
-      toast.success(`Saved for ${state.transfer_person}`);
-      navigate('/share-pending');
+      setSelectedPersonId(newPerson.id);
+      setNewPersonName(newPerson.name);
+      toast.success(`${state.transfer_person} added`);
     } catch {
-      toast.error('Failed to save');
-      setAddAndSaving(false);
+      toast.error('Failed to add person');
+    } finally {
+      setAddingPerson(false);
     }
   };
 
-  const showAddCard = !!state.transfer_person && !autoMatch && !searchQuery;
+  const showAddCard = !!state.transfer_person && !autoMatch && !selectedPersonId && !searchQuery;
 
   return (
     <div className="animate-fade-in">
       <div className="page-header">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(backRoute, { replace: true })}
           className="w-10 h-10 rounded-2xl bg-secondary flex items-center justify-center active:scale-95 transition-transform shrink-0"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -224,16 +225,16 @@ export default function ShareToPeoplePage() {
               {/* Add new person card — shown when AI detected a name not in the list */}
               {showAddCard && (
                 <button
-                  onClick={handleAddAndSave}
-                  disabled={!amount || parseFloat(amount) <= 0 || addAndSaving}
+                  onClick={handleAddPerson}
+                  disabled={addingPerson}
                   className="touch-card w-full flex items-center gap-3 px-4 py-3 text-left border-primary/30 bg-primary/5 disabled:opacity-50"
                 >
                   <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
-                    {addAndSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    {addingPerson ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-primary truncate">Add "{state.transfer_person}"</p>
-                    <p className="text-xs text-muted-foreground">New contact · save transaction in one tap</p>
+                    <p className="text-xs text-muted-foreground">Tap to add as new contact</p>
                   </div>
                 </button>
               )}
@@ -302,8 +303,8 @@ export default function ShareToPeoplePage() {
         >
           {addTransaction.isPending
             ? 'Saving...'
-            : selectedPerson
-              ? `Save for ${selectedPerson.name}`
+            : displayName
+              ? `Save for ${displayName}`
               : 'Select a Person'}
         </button>
       </div>

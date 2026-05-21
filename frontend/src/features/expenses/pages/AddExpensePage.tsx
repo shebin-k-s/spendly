@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, RefreshCw, RotateCcw, X, Eye, ArrowUpRight, Users } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, X, Eye, ArrowUpRight, Users } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -12,10 +12,8 @@ import { DateTimePicker } from '@/components/DateTimePicker';
 import apiClient from '@/lib/apiClient';
 import { expensesApi } from '../api/expensesApi';
 import type { PaymentMethod } from '../types';
-import type { Category } from '@/features/categories/types';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
-type CategoryOption = Pick<Category, 'id' | 'name' | 'icon'>;
 
 const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 
@@ -257,7 +255,6 @@ export default function AddExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? (ps?.payment_method as PaymentMethod) ?? parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
-  const [aiError, setAiError] = useState<'timeout' | 'failed' | null>(null);
   const [showTransferSheet, setShowTransferSheet] = useState(false);
   const [transferPerson, setTransferPerson] = useState<string | null>(null);
   const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>(null);
@@ -277,7 +274,6 @@ export default function AddExpensePage() {
 
   const runAiParse = async (blob: Blob) => {
     setAiStatus('loading');
-    setAiError(null);
     try {
       const result = await parseImage(blob);
       if (result.amount) setAmount(result.amount);
@@ -295,9 +291,6 @@ export default function AddExpensePage() {
         setShowTransferSheet(true);
       }
     } catch (err: unknown) {
-      const isAborted = (err as { name?: string })?.name === 'AbortError'
-        || (err as { code?: string })?.code === 'ERR_CANCELED';
-      setAiError(isAborted ? 'timeout' : 'failed');
       setAiStatus('error');
     }
   };
@@ -337,7 +330,6 @@ export default function AddExpensePage() {
       // If no cached result, proceed with normal parse
       const blob = await readSharedImage();
       if (!blob) {
-        setAiError('failed');
         setAiStatus('error');
         return;
       }
@@ -376,10 +368,9 @@ export default function AddExpensePage() {
       }
 
       const text = await readSharedText();
-      if (!text) { setAiError('failed'); setAiStatus('error'); return; }
+      if (!text) { setAiStatus('error'); return; }
 
       setAiStatus('loading');
-      setAiError(null);
       try {
         const result = await expensesApi.parseText(text);
         setAmount(typeof result.amount === 'string' ? result.amount : '');
@@ -397,7 +388,6 @@ export default function AddExpensePage() {
           setShowTransferSheet(true);
         }
       } catch {
-        setAiError('failed');
         setAiStatus('error');
       }
     })();
@@ -799,6 +789,7 @@ export default function AddExpensePage() {
                       shareTs: resolvedShareTs,
                       transfer_person: transferPerson,
                       transfer_direction: transferDirection,
+                      backRoute: '/',
                     },
                   });
                 }}
