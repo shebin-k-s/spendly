@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, MessageSquareText, Trash2, ChevronRight, Inbox, ImageIcon, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface QueueItem {
   type: 'image' | 'text';
@@ -52,9 +53,11 @@ async function saveQueue(queue: QueueItem[]): Promise<void> {
 
 export default function PendingSharesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [discarding, setDiscarding] = useState<number | null>(null);
+  const [confirmTs, setConfirmTs] = useState<number | null>(null);
 
   useEffect(() => {
     loadQueue().then(q => { 
@@ -66,8 +69,8 @@ export default function PendingSharesPage() {
 
   const handleDiscard = async (index: number) => {
     const ts = queue[index].ts;
+    setConfirmTs(null);
     setDiscarding(ts);
-    // Let CSS exit animation play before removing from state
     await new Promise(r => setTimeout(r, 180));
     setDiscarding(null);
     const next = queue.filter((_, i) => i !== index);
@@ -125,7 +128,7 @@ export default function PendingSharesPage() {
     <div className="animate-fade-in max-w-lg mx-auto">
       <div className="page-header !mb-5">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => location.key === 'default' ? navigate('/', { replace: true }) : navigate(-1)}
           className="w-10 h-10 rounded-2xl bg-secondary flex items-center justify-center active:scale-95 transition-transform"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -202,29 +205,38 @@ export default function PendingSharesPage() {
                 )}
 
                 {/* Actions */}
-                <div className="space-y-2">
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={() => setConfirmTs(item.ts)}
+                    className="w-11 h-11 flex items-center justify-center rounded-2xl bg-destructive/8 text-destructive active:scale-90 transition-transform flex-shrink-0 border border-destructive/15"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => handleReview(index)}
-                    className="w-full flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold active:scale-[0.98] transition-transform shadow-md shadow-primary/20"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary text-primary-foreground text-sm font-bold active:scale-[0.98] transition-transform shadow-sm shadow-primary/25"
                   >
                     Review & Save
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4 opacity-70" />
                   </button>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDiscard(index)}
-                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-secondary text-destructive text-sm font-semibold active:scale-95 transition-transform"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Discard
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
           ))
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmTs !== null}
+        onOpenChange={(open) => { if (!open) setConfirmTs(null); }}
+        title="Discard receipt?"
+        description="This parsed receipt will be permanently removed and can't be recovered."
+        confirmText="Discard"
+        onConfirm={() => {
+          const index = queue.findIndex(q => q.ts === confirmTs);
+          if (index !== -1) handleDiscard(index);
+        }}
+      />
     </div>
   );
 }

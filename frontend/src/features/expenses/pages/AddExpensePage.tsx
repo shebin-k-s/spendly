@@ -138,6 +138,7 @@ export default function AddExpensePage() {
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
   const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
   const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
+  const forceExpense = (location.state as { forceExpense?: boolean } | null)?.forceExpense ?? false;
   const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? (searchParams.get('shareTs') ? parseInt(searchParams.get('shareTs')!, 10) : null);
   const stateThumb = (location.state as { thumbnail?: string } | null)?.thumbnail ?? null;
   const stateRawText = (location.state as { rawText?: string } | null)?.rawText ?? null;
@@ -176,7 +177,7 @@ export default function AddExpensePage() {
                 setTransferPerson(p.transfer_person);
                 setTransferDirection(p.transfer_direction ?? null);
 
-                if (p.suggested_flow === 'transfer') {
+                if (p.suggested_flow === 'transfer' && !forceExpense) {
                   navigate('/share-to-people', {
                     state: {
                       amount: p.amount,
@@ -517,9 +518,9 @@ export default function AddExpensePage() {
                 replace: true,
               });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all border border-amber-500/20"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-semibold active:scale-95 transition-all border border-border/50 shadow-sm"
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-4 h-4" />
             Switch to Lending
           </button>
         </div>

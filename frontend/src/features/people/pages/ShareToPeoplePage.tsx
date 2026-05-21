@@ -174,13 +174,14 @@ export default function ShareToPeoplePage() {
                     note: '',
                   },
                   shareTs: state.shareTs,
+                  forceExpense: true,
                 },
                 replace: true,
               });
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all border border-emerald-500/20"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-semibold active:scale-95 transition-all border border-border/50 shadow-sm"
           >
-            <Receipt className="w-3.5 h-3.5" />
+            <Receipt className="w-4 h-4" />
             Switch to Expense
           </button>
         </div>
