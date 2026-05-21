@@ -184,7 +184,7 @@ function buildNotifContent(parsed, personKnown = null) {
     const isSent   = parsed.transfer_direction === 'sent';
     const verb     = isSent ? 'Sent' : 'Received';
     const prep     = isSent ? 'to' : 'from';
-    const title    = `${verb} ₹${amount} ${prep} ${parsed.transfer_person}`;
+    const title    = `${verb} ₹${amount} ${prep} ${cleanPersonName(parsed.transfer_person)}`;
 
     const lines = [];
 
@@ -232,6 +232,23 @@ function buildNotifContent(parsed, personKnown = null) {
   return { title, body, actions };
 }
 
+// ── Person name cleanup ───────────────────────────────────────────────────────
+// Strips @domain from UPI IDs and removes any UPI fragment mixed into a name.
+// "rahul@okaxis"          → "Rahul"
+// "Rahul Kumar rahul@ok"  → "Rahul Kumar"
+// "Rahul Kumar"           → "Rahul Kumar"
+function cleanPersonName(raw) {
+  if (!raw) return raw;
+  const trimmed = raw.trim();
+  // Pure UPI ID — take prefix, capitalise first letter
+  if (/^[a-z0-9._-]+@[a-z]+$/i.test(trimmed)) {
+    const prefix = trimmed.split('@')[0].replace(/[._-]/g, ' ').trim();
+    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+  // Name with a UPI fragment appended — strip the @... part and surrounding space/brackets
+  return trimmed.replace(/\s*[\(\[]?[a-z0-9._-]+@[a-z]+[\)\]]?\s*/gi, '').trim() || trimmed;
+}
+
 // ── Person matching helper (shared by auto-save and person-check) ─────────────
 function findPersonMatch(transferPerson, people) {
   const q = (transferPerson || '').toLowerCase().trim();
@@ -267,11 +284,22 @@ async function autoSaveTransfer(data) {
   if (!res.ok) throw new Error('people-fetch-failed');
   const people = await res.json();
 
-  const match = findPersonMatch(data.transfer_person, people);
-  if (!match) throw new Error('person-not-found');
+  let person = findPersonMatch(data.transfer_person, people);
+  let isNew  = false;
+
+  if (!person) {
+    // Person not in list — auto-create so the transaction can be saved immediately
+    const createRes = await callApi('/people', {
+      method: 'POST',
+      body: JSON.stringify({ name: cleanPersonName(data.transfer_person) }),
+    });
+    if (!createRes.ok) throw new Error('person-create-failed');
+    person = await createRes.json();
+    isNew  = true;
+  }
 
   const type  = data.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
-  const txRes = await callApi(`/people/${match.id}/transactions`, {
+  const txRes = await callApi(`/people/${person.id}/transactions`, {
     method: 'POST',
     body: JSON.stringify({
       amount: parseFloat(data.amount),
@@ -281,7 +309,7 @@ async function autoSaveTransfer(data) {
     }),
   });
   if (!txRes.ok) throw new Error('transaction-failed');
-  return { person: match, type };
+  return { person, type, isNew };
 }
 
 // ── Notification click ────────────────────────────────────────────────────────
@@ -292,24 +320,38 @@ self.addEventListener('notificationclick', (event) => {
   if (event.action === 'save') {
     event.waitUntil(
       (async () => {
+        const icon  = new URL('/logo-192.png', self.location.origin).href;
+        const badge = new URL('/badge.svg',    self.location.origin).href;
+
         if (data.transfer_person) {
           try {
-            const { person, type } = await autoSaveTransfer(data);
+            const { person, type, isNew } = await autoSaveTransfer(data);
             await removeShareByTs(data.shareTs);
             navigator.clearAppBadge?.().catch?.(() => {});
-            const label = type === 'GIVEN'
-              ? `Gave ₹${data.amount} to ${person.name}`
-              : `Got ₹${data.amount} from ${person.name}`;
-            await self.registration.showNotification(label, {
-              body:  'Transaction logged',
-              icon:  new URL('/logo-192.png', self.location.origin).href,
-              badge: new URL('/badge.svg',    self.location.origin).href,
+            const verb    = type === 'GIVEN' ? 'Gave' : 'Got';
+            const method  = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
+            const date    = fmtDate(data.date);
+            const meta    = [method, date].filter(Boolean).join(' · ');
+            const lines   = [`${verb} ₹${data.amount} to/from ${person.name}`];
+            if (meta)   lines.push(meta);
+            if (data.note) lines.push(data.note);
+            if (isNew)  lines.push('New contact added to your people list');
+            await self.registration.showNotification('Lending logged', {
+              body: lines.join('\n'),
+              icon, badge,
             });
-          } catch {
-            await openReviewWindow(data.shareTs, data.shareType || 'image');
+          } catch (err) {
+            const isAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
+            await self.registration.showNotification('Could not save lending', {
+              body: isAuth ? 'Session expired — open app to save manually' : 'Tap to review and save manually',
+              icon, badge,
+              data: { shareTs: data.shareTs, shareType: data.shareType, suggested_flow: 'transfer' },
+            });
           }
           return;
         }
+
+        // ── Expense ──
         try {
           const res = await callApi('/expenses', {
             method: 'POST',
@@ -327,13 +369,28 @@ self.addEventListener('notificationclick', (event) => {
           if (!res.ok) throw new Error('save-failed');
           await removeShareByTs(data.shareTs);
           navigator.clearAppBadge?.().catch?.(() => {});
+          const method   = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
+          const date     = fmtDate(data.date);
+          const category = data.categoryName || '';
+          const meta     = [category, method, date].filter(Boolean).join(' · ');
+          const lines    = [`₹${data.amount} · ${data.description}`];
+          if (meta) lines.push(meta);
+          if (data.cashback) {
+            const net = parseFloat(data.amount) - parseFloat(data.cashback);
+            lines.push(`Cashback ₹${data.cashback}  →  Net ₹${net.toFixed(2)}`);
+          }
+          if (data.note) lines.push(data.note);
           await self.registration.showNotification('Expense saved', {
-            body:  `₹${data.amount} · ${data.description}`,
-            icon:  new URL('/logo-192.png', self.location.origin).href,
-            badge: new URL('/badge.svg',    self.location.origin).href,
+            body: lines.join('\n'),
+            icon, badge,
           });
-        } catch {
-          await openReviewWindow(data.shareTs, data.shareType || 'image');
+        } catch (err) {
+          const isAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
+          await self.registration.showNotification('Could not save expense', {
+            body: isAuth ? 'Session expired — open app to save manually' : 'Tap to review and save manually',
+            icon, badge,
+            data: { shareTs: data.shareTs, shareType: data.shareType },
+          });
         }
       })()
     );
@@ -535,6 +592,7 @@ async function backgroundTextParseAndNotify(text) {
         description:        parsed.description,
         paymentMethod:      parsed.payment_method,
         categoryId:         parsed.category_id,
+        categoryName:       parsed.category_name      || null,
         date:               parsed.date,
         time:               parsed.time,
         note:               parsed.note,
@@ -603,6 +661,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
         description:        parsed.description,
         paymentMethod:      parsed.payment_method,
         categoryId:         parsed.category_id,
+        categoryName:       parsed.category_name      || null,
         date:               parsed.date,
         time:               parsed.time,
         note:               parsed.note,

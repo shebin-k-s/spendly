@@ -202,7 +202,6 @@ export default function ShareToPeoplePage() {
               onWheel={e => e.currentTarget.blur()}
               placeholder="0.00"
               className="form-input text-xl font-bold"
-              autoFocus
             />
           </div>
 
