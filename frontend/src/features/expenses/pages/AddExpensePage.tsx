@@ -193,6 +193,7 @@ export default function AddExpensePage() {
                   return;
                 }
               }
+              setAiStatus('done');
             }
           }
         } catch (err) {
@@ -272,8 +273,10 @@ export default function AddExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? (ps?.payment_method as PaymentMethod) ?? parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
-  const [transferPerson, setTransferPerson] = useState<string | null>(null);
-  const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>(null);
+  const stateTransferPerson = (location.state as { transfer_person?: string | null } | null)?.transfer_person ?? null;
+  const stateTransferDirection = (location.state as { transfer_direction?: 'sent' | 'received' | null } | null)?.transfer_direction ?? null;
+  const [transferPerson, setTransferPerson] = useState<string | null>((ps?.transfer_person as string) ?? stateTransferPerson ?? null);
+  const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>((ps?.transfer_direction as 'sent' | 'received' | null) ?? stateTransferDirection ?? null);
   const [nlText, setNlText] = useState('');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [showQuickParse, setShowQuickParse] = useState(false);
@@ -469,7 +472,7 @@ export default function AddExpensePage() {
     );
   };
 
-  const isFromShare = sharedImage || sharedText || !!parsed || !!parsedShare;
+  const isFromShare = sharedImage || sharedText || !!parsed || !!parsedShare || !!resolvedShareTs;
 
   return (
     <div className="animate-fade-in">
@@ -556,7 +559,7 @@ export default function AddExpensePage() {
           }
 
           // Combined success/pre-fill state
-          const hasPrefill = parsedShare || parsed || prefill || (aiStatus === 'done' && (sharedImage || sharedText));
+          const hasPrefill = parsedShare || parsed || prefill || aiStatus === 'done';
           if (!hasPrefill) return null;
 
           let sourceLabel = "Reviewing details";

@@ -175,6 +175,8 @@ export default function ShareToPeoplePage() {
                   },
                   shareTs: state.shareTs,
                   forceExpense: true,
+                  transfer_person: state.transfer_person ?? null,
+                  transfer_direction: state.transfer_direction ?? null,
                 },
                 replace: true,
               });

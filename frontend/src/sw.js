@@ -162,6 +162,84 @@ async function serveSpa(request) {
   });
 }
 
+// ── Notification content builder ─────────────────────────────────────────────
+function buildNotifContent(parsed) {
+  const amount = parsed.amount || '?';
+  const isTransfer = parsed.suggested_flow === 'transfer' && parsed.transfer_person;
+
+  if (isTransfer) {
+    const isSent = parsed.transfer_direction === 'sent';
+    const prep   = isSent ? 'to' : 'from';
+    const verb   = isSent ? 'Sent' : 'Received';
+    const title  = `${verb} ₹${amount} ${prep} ${parsed.transfer_person}`;
+    const method = (parsed.payment_method || '').toUpperCase();
+    const date   = parsed.date
+      ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+      : '';
+    const body = [method, date].filter(Boolean).join(' · ') || 'Tap to log this transfer';
+    const actions = [
+      { action: 'save',   title: 'Log it'  },
+      { action: 'review', title: 'Review'  },
+    ];
+    return { title, body, actions };
+  }
+
+  const desc     = parsed.description  || 'Expense';
+  const title    = `₹${amount} · ${desc}`;
+  const category = parsed.category_name || '';
+  const method   = parsed.payment_method || '';
+  const date     = parsed.date
+    ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    : '';
+  const time     = parsed.time || '';
+  const lines    = [];
+  const main     = [category, method, date, time].filter(Boolean).join(' · ');
+  if (main) lines.push(main);
+  if (parsed.cashback) lines.push(`Cashback: ₹${parsed.cashback}`);
+  if (parsed.note)     lines.push(`Note: ${parsed.note}`);
+  const body    = lines.join('\n') || 'Tap to review before saving';
+  const actions = [
+    { action: 'save',   title: 'Save'   },
+    { action: 'review', title: 'Review' },
+  ];
+  return { title, body, actions };
+}
+
+// ── Auto-save transfer via people API ─────────────────────────────────────────
+async function autoSaveTransfer(data) {
+  const res = await callApi('/people', { method: 'GET' });
+  if (!res.ok) throw new Error('people-fetch-failed');
+  const people = await res.json();
+
+  const q = (data.transfer_person || '').toLowerCase().trim();
+  const match = people.find(p => {
+    const name = p.name.toLowerCase();
+    if (name === q) return true;
+    if (q.includes('@')) {
+      const upiName = q.split('@')[0];
+      if (name === upiName || name.startsWith(upiName)) return true;
+    }
+    const qDigits = q.replace(/\D/g, '');
+    if (qDigits.length >= 6 && p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits)) return true;
+    return name.includes(q) || q.includes(name);
+  });
+
+  if (!match) throw new Error('person-not-found');
+
+  const type  = data.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
+  const txRes = await callApi(`/people/${match.id}/transactions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      amount: parseFloat(data.amount),
+      type,
+      date: data.date || new Date().toISOString().split('T')[0],
+      note: data.description || undefined,
+    }),
+  });
+  if (!txRes.ok) throw new Error('transaction-failed');
+  return { person: match, type };
+}
+
 // ── Notification click ────────────────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -170,20 +248,32 @@ self.addEventListener('notificationclick', (event) => {
   if (event.action === 'save') {
     event.waitUntil(
       (async () => {
-        // Personal transfer — can't auto-save without person selection, open review instead
         if (data.transfer_person) {
-          await openReviewWindow(data.shareTs, data.shareType || 'image');
+          try {
+            const { person, type } = await autoSaveTransfer(data);
+            await removeShareByTs(data.shareTs);
+            navigator.clearAppBadge?.().catch?.(() => {});
+            const label = type === 'GIVEN'
+              ? `Gave ₹${data.amount} to ${person.name}`
+              : `Got ₹${data.amount} from ${person.name}`;
+            await self.registration.showNotification(label, {
+              body:  'Transaction logged',
+              icon:  new URL('/logo-192.png', self.location.origin).href,
+              badge: new URL('/badge.svg',    self.location.origin).href,
+            });
+          } catch {
+            await openReviewWindow(data.shareTs, data.shareType || 'image');
+          }
           return;
         }
         try {
-          console.log('[SW] Saving expense from notification data:', data.amount, data.description);
           const res = await callApi('/expenses', {
             method: 'POST',
             body: JSON.stringify({
               amount:        parseFloat(data.amount),
               description:   data.description,
               date:          data.date,
-              time:          data.time   || undefined,
+              time:          data.time          || undefined,
               paymentMethod: data.paymentMethod || 'upi',
               categoryId:    data.categoryId    || undefined,
               note:          data.note          || undefined,
@@ -194,25 +284,31 @@ self.addEventListener('notificationclick', (event) => {
           await removeShareByTs(data.shareTs);
           navigator.clearAppBadge?.().catch?.(() => {});
           await self.registration.showNotification('Expense saved', {
-            body: `₹${data.amount} · ${data.description}`,
-            icon: '/logo-192.png',
-            badge: '/badge.svg',
+            body:  `₹${data.amount} · ${data.description}`,
+            icon:  new URL('/logo-192.png', self.location.origin).href,
+            badge: new URL('/badge.svg',    self.location.origin).href,
           });
         } catch {
-          await openReviewWindow();
+          await openReviewWindow(data.shareTs, data.shareType || 'image');
         }
       })()
     );
     return;
   }
 
-  // "review" action or plain tap → open add expense form
+  // "review" action or plain tap
   event.waitUntil(openReviewWindow(data.shareTs, data.shareType || 'image'));
 });
 
 async function openReviewWindow(shareTs, shareType = 'image') {
-  let urlStr = `/expenses/new?shared=${shareType}`;
-  if (shareTs) urlStr += `&shareTs=${shareTs}`;
+  // When we have a shareTs the item is already in the queue — load by ts only.
+  // Omitting ?shared= prevents the raw-share useEffect in AddExpensePage from
+  // firing alongside the loadFromQueue effect (double-population race).
+  // Without a shareTs (parse-failed fallback) we send ?shared= so the page can
+  // still try to read any raw image/text left in the cache.
+  const urlStr = shareTs
+    ? `/expenses/new?shareTs=${shareTs}`
+    : `/expenses/new?shared=${shareType}`;
   const target = new URL(urlStr, self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const existing = clients.find((c) => c.url.includes('/expenses/new'));
@@ -380,35 +476,27 @@ async function backgroundTextParseAndNotify(text) {
     const rawCache = await caches.open(SHARE_CACHE);
     await rawCache.delete('/share-text');
 
-    const amount   = parsed.amount      || '?';
-    const desc     = parsed.description || 'Expense';
-    const category = parsed.category_name || '';
-    const method   = parsed.payment_method || '';
-    const bodyParts = [category, method].filter(Boolean).join(' · ');
-
-    await self.registration.showNotification(`₹${amount} · ${desc}`, {
-      body:               bodyParts || 'Tap to review before saving',
+    const { title, body, actions } = buildNotifContent(parsed);
+    await self.registration.showNotification(title, {
+      body,
       icon:               new URL('/logo-192.png', self.location.origin).href,
-      badge:              new URL('/badge.svg', self.location.origin).href,
+      badge:              new URL('/badge.svg',    self.location.origin).href,
       requireInteraction: true,
-      actions: [
-        { action: 'save',   title: 'Save'   },
-        { action: 'review', title: 'Review' },
-      ],
+      actions,
       data: {
-        amount:            parsed.amount,
-        description:       parsed.description,
-        paymentMethod:     parsed.payment_method,
-        categoryId:        parsed.category_id,
-        date:              parsed.date,
-        time:              parsed.time,
-        note:              parsed.note,
-        cashback:          parsed.cashback,
-        transfer_person:   parsed.transfer_person   || null,
+        amount:             parsed.amount,
+        description:        parsed.description,
+        paymentMethod:      parsed.payment_method,
+        categoryId:         parsed.category_id,
+        date:               parsed.date,
+        time:               parsed.time,
+        note:               parsed.note,
+        cashback:           parsed.cashback,
+        transfer_person:    parsed.transfer_person    || null,
         transfer_direction: parsed.transfer_direction || null,
-        suggested_flow:    parsed.suggested_flow     || 'expense',
-        shareType:         'text',
-        shareTs:           item.ts,
+        suggested_flow:     parsed.suggested_flow     || 'expense',
+        shareType:          'text',
+        shareTs:            item.ts,
       },
     });
   } catch (err) {
@@ -440,23 +528,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     if (!res.ok) throw new Error('parse-failed');
     const parsed = await res.json();
 
-    const amount    = parsed.amount      || '?';
-    const desc      = parsed.description || 'Expense';
-    const category  = parsed.category_name || '';
-    const method    = parsed.payment_method || '';
-    const date      = parsed.date ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '';
-    const time      = parsed.time || '';
-    
-    const lines = [];
-    const mainParts = [category, method, date, time].filter(Boolean).join(' · ');
-    if (mainParts) lines.push(mainParts);
-    if (parsed.cashback !== undefined && parsed.cashback !== null && parsed.cashback !== '') {
-      lines.push(`Cashback: ₹${parsed.cashback}`);
-    }
-    if (parsed.note) {
-      lines.push(`Note: ${parsed.note}`);
-    }
-    const body = lines.join('\n') || 'Tap to review before saving';
+    const { title, body, actions } = buildNotifContent(parsed);
 
     const thumbnail = await generateThumbnail(buffer, mimeType);
     const item = await appendShareQueue(parsed, 'image', thumbnail ? { thumbnail } : {});
@@ -470,29 +542,26 @@ async function backgroundParseAndNotify(buffer, mimeType) {
       return;
     }
 
-    await self.registration.showNotification(`₹${amount} · ${desc}`, {
+    await self.registration.showNotification(title, {
       body,
-      icon:             new URL('/logo-192.png', self.location.origin).href,
-      badge:            new URL('/badge.svg', self.location.origin).href,
+      icon:               new URL('/logo-192.png', self.location.origin).href,
+      badge:              new URL('/badge.svg',    self.location.origin).href,
       requireInteraction: true,
-      actions: [
-        { action: 'save',   title: 'Save'   },
-        { action: 'review', title: 'Review' },
-      ],
+      actions,
       data: {
-        amount:            parsed.amount,
-        description:       parsed.description,
-        paymentMethod:     parsed.payment_method,
-        categoryId:        parsed.category_id,
-        date:              parsed.date,
-        time:              parsed.time,
-        note:              parsed.note,
-        cashback:          parsed.cashback,
-        transfer_person:   parsed.transfer_person   || null,
+        amount:             parsed.amount,
+        description:        parsed.description,
+        paymentMethod:      parsed.payment_method,
+        categoryId:         parsed.category_id,
+        date:               parsed.date,
+        time:               parsed.time,
+        note:               parsed.note,
+        cashback:           parsed.cashback,
+        transfer_person:    parsed.transfer_person    || null,
         transfer_direction: parsed.transfer_direction || null,
-        suggested_flow:    parsed.suggested_flow     || 'expense',
-        shareType:         'image',
-        shareTs:           item.ts,
+        suggested_flow:     parsed.suggested_flow     || 'expense',
+        shareType:          'image',
+        shareTs:            item.ts,
       },
     });
     console.log('[SW] backgroundParseAndNotify: notification shown');
