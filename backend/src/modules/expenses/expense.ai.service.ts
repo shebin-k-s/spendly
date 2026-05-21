@@ -78,8 +78,8 @@ Rules:
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
 - note: Extract anything else useful that helps the user remember the purchase.
-- transfer_person: Extract ONLY when the receipt clearly shows a transfer to/from a named individual (not a business). Full name preferred, else phone or UPI ID.
-- transfer_direction: sent = user paid/sent money out; received = user got money in. Always set when transfer_person is set.
+- transfer_person: Extract ONLY when the receipt clearly shows a personal transfer between individuals. CRITICAL: The person should be the OTHER party (the sender if you received money, the recipient if you sent money). If the receipt shows your own name as the recipient/sender, IGNORE it and look for the other name.
+- transfer_direction: sent = user paid/sent money out to someone; received = user got money in from someone. Look for keywords like "Paid to", "Sent to" (sent) or "Received from", "Credit from" (received).
 
 ${merchantHintBlock}
 
@@ -117,8 +117,8 @@ Rules:
 - time: if mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned, default to ${currentTime}
 - cashback: extract any cashback or reward amount. Return as string or null
 - category_id: pick the best matching category
-- transfer_person: extract ONLY when the text clearly names an individual receiving or sending money. null for businesses, merchants, or when unclear
-- transfer_direction: sent = paid/sent money out; received = got money in. Always set when transfer_person is set.
+- transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. If the user says "I received from Rahul", transfer_person is "Rahul". If they say "Paid to Rahul", it is "Rahul". Never return the user themselves as the transfer_person.
+- transfer_direction: sent = user paid/sent money out; received = user got money in.
 
 ${merchantHintBlock}
 

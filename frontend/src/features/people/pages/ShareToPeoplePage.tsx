@@ -108,7 +108,7 @@ export default function ShareToPeoplePage() {
       queryClient.invalidateQueries({ queryKey: ['people'] });
       if (state.shareTs) await removeFromQueue(state.shareTs);
       toast.success('Transaction added');
-      navigate('/share-pending', { replace: true });
+      navigate(`/people/${selectedPersonId}`, { replace: true });
     },
     onError: () => toast.error('Failed to add transaction'),
   });
@@ -138,7 +138,7 @@ export default function ShareToPeoplePage() {
       setSelectedPersonId(newPerson.id);
       setNewPersonName(newPerson.name);
       toast.success(`Saved for ${state.transfer_person}`);
-      navigate('/share-pending', { replace: true });
+      navigate(`/people/${newPerson.id}`, { replace: true });
     } catch {
       toast.error('Failed to add person');
     } finally {
