@@ -66,7 +66,7 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "date": "<yyyy-MM-dd or null if not visible>",
   "time": "<HH:mm 24h or null if not visible>",
   "category_id": "<exact id string from the list below, or null>",
-  "note": "<any extra useful details, max 100 chars, or null>",
+  "note": "<detailed breakdown of items and prices if available (e.g. 'Burger: 150, Coke: 50'), otherwise extra context, max 500 chars, or null>",
   "transfer_person": "<full name, phone, or UPI ID of the person — ONLY for personal transfers. null for business payments>",
   "transfer_direction": "<sent | received | null — sent if user paid out, received if user got money>",
   "suggested_flow": "<expense | transfer> — 'transfer' if person is named and it's a personal debt/loan/gift; 'expense' for merchants/stores/shops"
@@ -78,7 +78,7 @@ Rules:
 - payment_method: GPay/PhonePe/Paytm/UPI → upi, debit/credit card → card
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
-- note: Extract anything else useful that helps the user remember the purchase.
+- note: For receipts/images, provide a detailed line-by-line breakdown of items and their individual prices in the form 'Item: Price, ...'. If it's a single item or no breakdown is visible, provide any other useful context that helps the user remember the purchase.
 - transfer_person: Extract ONLY when the receipt clearly shows a personal transfer between individuals. CRITICAL: Identify the OTHER party. Ignore your own name. Phone numbers or UPI IDs like 'name@upi' are strong indicators of a person.
 - transfer_direction: sent = user paid/sent money out to someone; received = user got money in from someone. Look for keywords like "Paid to", "Sent to" (sent) or "Received from", "Credit from" (received).
 - suggested_flow: 'transfer' if the transaction is a direct money movement to/from an individual person. 'expense' if it's clearly a payment for an item, bill, or service (e.g. food, rent, recharge), even if paid to a personal account. If the receipt has a merchant logo or business name, it's ALWAYS an 'expense'.
@@ -106,7 +106,7 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "time": "<HH:mm 24h or null>",
   "cashback": "<cashback amount as string e.g. \\"100.00\\", or null if not mentioned>",
   "category_id": "<exact id from the list below, or null>",
-  "note": "<any other useful context, max 100 chars, or null>",
+  "note": "<detailed breakdown of items and prices (e.g. 'Burger: 150, Coke: 50'), max 500 chars, or null>",
   "transfer_person": "<name, phone, or UPI ID of the individual — ONLY for personal transfers. null for merchant payments>",
   "transfer_direction": "<sent | received | null — sent if user paid money out, received if user received money>",
   "suggested_flow": "<expense | transfer> — 'transfer' for person-to-person; 'expense' for shops/bills/items"

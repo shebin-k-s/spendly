@@ -175,7 +175,6 @@ export default function AddExpensePage() {
               if (p.transfer_person) {
                 setTransferPerson(p.transfer_person);
                 setTransferDirection(p.transfer_direction ?? null);
-                setShowTransferSheet(true);
               }
             }
           }
@@ -256,7 +255,6 @@ export default function AddExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? (ps?.payment_method as PaymentMethod) ?? parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
-  const [showTransferSheet, setShowTransferSheet] = useState(false);
   const [transferPerson, setTransferPerson] = useState<string | null>(null);
   const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>(null);
   const [nlText, setNlText] = useState('');
@@ -305,7 +303,6 @@ export default function AddExpensePage() {
           });
           return;
         }
-        setShowTransferSheet(true);
       }
     } catch (err: unknown) {
       setAiStatus('error');
@@ -409,7 +406,6 @@ export default function AddExpensePage() {
         if (typeof result.transfer_person === 'string' && result.transfer_person) {
           setTransferPerson(result.transfer_person);
           setTransferDirection((result.transfer_direction as 'sent' | 'received' | null) ?? null);
-          setShowTransferSheet(true);
         }
       } catch {
         setAiStatus('error');
@@ -802,54 +798,6 @@ export default function AddExpensePage() {
         </div>
       )}
 
-      {/* Transfer detected — Expense or Lending decision sheet */}
-      {showTransferSheet && transferPerson && (
-        <div className="fixed inset-0 z-50 flex items-end">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowTransferSheet(false)} />
-          <div className="relative w-full bg-card rounded-t-3xl px-5 pt-4 pb-10 space-y-5 animate-in slide-in-from-bottom duration-300 border-t border-border">
-            <div className="w-10 h-1 bg-muted-foreground/20 rounded-full mx-auto" />
-            <div>
-              <p className="text-xs text-muted-foreground">Transfer detected</p>
-              <p className="text-lg font-bold mt-0.5">
-                {transferDirection === 'sent' ? 'Sent' : transferDirection === 'received' ? 'Received' : 'Transfer'}
-                {amount ? ` ₹${amount}` : ''}
-                {' '}{transferDirection === 'received' ? 'from' : 'to'} {transferPerson}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Is this a regular expense or a money transfer between people?</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setShowTransferSheet(false)}
-                className="py-3.5 rounded-2xl bg-secondary font-semibold text-sm flex items-center justify-center gap-2"
-              >
-                <ArrowUpRight className="w-4 h-4" />
-                It's an Expense
-              </button>
-              <button
-                onClick={() => {
-                  setShowTransferSheet(false);
-                  navigate('/share-to-people', {
-                    state: {
-                      amount,
-                      note: description,
-                      date,
-                      shareTs: resolvedShareTs,
-                      transfer_person: transferPerson,
-                      transfer_direction: transferDirection,
-                      backRoute: '/',
-                    },
-                    replace: true,
-                  });
-                }}
-                className="py-3.5 rounded-2xl bg-primary text-primary-foreground font-semibold text-sm flex items-center justify-center gap-2"
-              >
-                <Users className="w-4 h-4" />
-                It's Lending
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Text — Elegant Bottom Sheet with Swipe-to-Dismiss */}
       <Dialog.Root open={showReceiptModal && previewShareType === 'text'} onOpenChange={setShowReceiptModal}>
