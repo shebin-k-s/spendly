@@ -163,40 +163,67 @@ async function serveSpa(request) {
 }
 
 // ── Notification content builder ─────────────────────────────────────────────
-function buildNotifContent(parsed) {
-  const amount = parsed.amount || '?';
+const METHOD_LABEL = {
+  upi: 'UPI', card: 'Card', cash: 'Cash',
+  bank_transfer: 'Bank Transfer', other: 'Other',
+};
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+function buildNotifContent(parsed, personKnown = null) {
+  const amount     = parsed.amount || '?';
+  const method     = METHOD_LABEL[parsed.payment_method] || parsed.payment_method || '';
+  const date       = fmtDate(parsed.date);
+  const time       = parsed.time || '';
   const isTransfer = parsed.suggested_flow === 'transfer' && parsed.transfer_person;
 
   if (isTransfer) {
-    const isSent = parsed.transfer_direction === 'sent';
-    const prep   = isSent ? 'to' : 'from';
-    const verb   = isSent ? 'Sent' : 'Received';
-    const title  = `${verb} ₹${amount} ${prep} ${parsed.transfer_person}`;
-    const method = (parsed.payment_method || '').toUpperCase();
-    const date   = parsed.date
-      ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-      : '';
-    const body = [method, date].filter(Boolean).join(' · ') || 'Tap to log this transfer';
+    const isSent   = parsed.transfer_direction === 'sent';
+    const verb     = isSent ? 'Sent' : 'Received';
+    const prep     = isSent ? 'to' : 'from';
+    const title    = `${verb} ₹${amount} ${prep} ${parsed.transfer_person}`;
+
+    const lines = [];
+
+    // Line 1: method · date · time (transfer form has no description field)
+    const meta = [method, date, time].filter(Boolean).join(' · ');
+    if (meta) lines.push(meta);
+
+    // Line 2: note (the only context field in the transfer form)
+    if (parsed.note) lines.push(parsed.note);
+
+    // Line 3: new-contact warning so the user knows they'll need to add this person
+    if (personKnown === false) lines.push('New contact — tap Review to add');
+
+    const body    = lines.join('\n') || 'Tap to log this transfer';
     const actions = [
-      { action: 'save',   title: 'Log it'  },
-      { action: 'review', title: 'Review'  },
+      { action: 'save',   title: 'Log it' },
+      { action: 'review', title: 'Review' },
     ];
     return { title, body, actions };
   }
 
-  const desc     = parsed.description  || 'Expense';
-  const title    = `₹${amount} · ${desc}`;
-  const category = parsed.category_name || '';
-  const method   = parsed.payment_method || '';
-  const date     = parsed.date
-    ? new Date(parsed.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-    : '';
-  const time     = parsed.time || '';
-  const lines    = [];
-  const main     = [category, method, date, time].filter(Boolean).join(' · ');
-  if (main) lines.push(main);
-  if (parsed.cashback) lines.push(`Cashback: ₹${parsed.cashback}`);
-  if (parsed.note)     lines.push(`Note: ${parsed.note}`);
+  // ── Expense ──
+  const desc  = parsed.description || 'Expense';
+  const title = `₹${amount} · ${desc}`;
+  const lines = [];
+
+  // Line 1: category · method · date · time
+  const meta = [parsed.category_name, method, date, time].filter(Boolean).join(' · ');
+  if (meta) lines.push(meta);
+
+  // Line 2: cashback → net amount
+  if (parsed.cashback) {
+    const net = parseFloat(parsed.amount || '0') - parseFloat(parsed.cashback);
+    lines.push(`Cashback ₹${parsed.cashback}  →  Net ₹${net.toFixed(2)}`);
+  }
+
+  // Line 3: note / item breakdown
+  if (parsed.note) lines.push(parsed.note);
+
   const body    = lines.join('\n') || 'Tap to review before saving';
   const actions = [
     { action: 'save',   title: 'Save'   },
@@ -205,14 +232,11 @@ function buildNotifContent(parsed) {
   return { title, body, actions };
 }
 
-// ── Auto-save transfer via people API ─────────────────────────────────────────
-async function autoSaveTransfer(data) {
-  const res = await callApi('/people', { method: 'GET' });
-  if (!res.ok) throw new Error('people-fetch-failed');
-  const people = await res.json();
-
-  const q = (data.transfer_person || '').toLowerCase().trim();
-  const match = people.find(p => {
+// ── Person matching helper (shared by auto-save and person-check) ─────────────
+function findPersonMatch(transferPerson, people) {
+  const q = (transferPerson || '').toLowerCase().trim();
+  if (!q) return null;
+  return people.find(p => {
     const name = p.name.toLowerCase();
     if (name === q) return true;
     if (q.includes('@')) {
@@ -222,8 +246,28 @@ async function autoSaveTransfer(data) {
     const qDigits = q.replace(/\D/g, '');
     if (qDigits.length >= 6 && p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits)) return true;
     return name.includes(q) || q.includes(name);
-  });
+  }) ?? null;
+}
 
+// Returns true/false if list loaded, null if the check failed (network/auth)
+async function checkPersonKnown(transferPerson) {
+  try {
+    const res = await callApi('/people', { method: 'GET' });
+    if (!res.ok) return null;
+    const people = await res.json();
+    return !!findPersonMatch(transferPerson, people);
+  } catch {
+    return null;
+  }
+}
+
+// ── Auto-save transfer via people API ─────────────────────────────────────────
+async function autoSaveTransfer(data) {
+  const res = await callApi('/people', { method: 'GET' });
+  if (!res.ok) throw new Error('people-fetch-failed');
+  const people = await res.json();
+
+  const match = findPersonMatch(data.transfer_person, people);
   if (!match) throw new Error('person-not-found');
 
   const type  = data.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
@@ -233,7 +277,7 @@ async function autoSaveTransfer(data) {
       amount: parseFloat(data.amount),
       type,
       date: data.date || new Date().toISOString().split('T')[0],
-      note: data.description || undefined,
+      note: data.note || undefined,
     }),
   });
   if (!txRes.ok) throw new Error('transaction-failed');
@@ -334,7 +378,7 @@ self.addEventListener('fetch', (event) => {
           const title = (formData.get('title') || '').trim();
 
           // ── Heartbeat check (shared by text and image paths) ─────────────
-          const APP_HEARTBEAT_TTL = 70_000;
+          const APP_HEARTBEAT_TTL = 10_000;
           const heartbeatAge = await getHeartbeatAge();
           const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
           console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
@@ -476,7 +520,10 @@ async function backgroundTextParseAndNotify(text) {
     const rawCache = await caches.open(SHARE_CACHE);
     await rawCache.delete('/share-text');
 
-    const { title, body, actions } = buildNotifContent(parsed);
+    const personKnown = parsed.suggested_flow === 'transfer' && parsed.transfer_person
+      ? await checkPersonKnown(parsed.transfer_person)
+      : null;
+    const { title, body, actions } = buildNotifContent(parsed, personKnown);
     await self.registration.showNotification(title, {
       body,
       icon:               new URL('/logo-192.png', self.location.origin).href,
@@ -528,7 +575,10 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     if (!res.ok) throw new Error('parse-failed');
     const parsed = await res.json();
 
-    const { title, body, actions } = buildNotifContent(parsed);
+    const personKnown = parsed.suggested_flow === 'transfer' && parsed.transfer_person
+      ? await checkPersonKnown(parsed.transfer_person)
+      : null;
+    const { title, body, actions } = buildNotifContent(parsed, personKnown);
 
     const thumbnail = await generateThumbnail(buffer, mimeType);
     const item = await appendShareQueue(parsed, 'image', thumbnail ? { thumbnail } : {});
