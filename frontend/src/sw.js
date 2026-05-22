@@ -13,6 +13,53 @@ const AUTH_CACHE  = 'spendly-auth-v1';
 const WB_MANIFEST = self.__WB_MANIFEST || [];
 let activeShareTakeover = false;
 
+// ── Shared Processing UI (Direct Response) ──────────────────────────────────
+const PROCESSING_HTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Spendly · Processing</title>
+    <style>
+        body { margin: 0; background: #050505; color: white; font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        .container { display: flex; flex-direction: column; items: center; gap: 40px; text-align: center; max-width: 280px; }
+        .logo { width: 80px; height: 80px; border-radius: 28px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); 
+                display: flex; items: center; justify-content: center; position: relative; box-shadow: 0 0 40px -10px rgba(168, 85, 247, 0.4); 
+                animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .logo img { width: 54px; height: 54px; }
+        .ring { position: absolute; inset: 0; border: 1px solid rgba(168, 85, 247, 0.2); border-radius: 28px; animation: pulse 2s infinite ease-out; }
+        h1 { font-size: 20px; font-weight: 700; margin: 0; animation: fadeUp 0.6s 0.3s both; color: white; }
+        p { font-size: 13px; margin: 10px 0 0 0; opacity: 0.5; animation: fadeUp 0.6s 0.4s both; line-height: 1.5; }
+        .btn { margin-top: 24px; padding: 12px 32px; border-radius: 14px; background: white; color: black; font-weight: 700; font-size: 13px;
+               border: none; cursor: pointer; opacity: 0; transform: translateY(10px); transition: 0.3s; }
+        .btn.show { opacity: 1; transform: translateY(0); }
+        @keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes pulse { from { transform: scale(1); opacity: 0.4; } to { transform: scale(1.4); opacity: 0; } }
+        @keyframes fadeUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo"><img src="/logo-192.png"><div class="ring"></div></div>
+        <div>
+            <h1 id="t">Working our magic!</h1>
+            <p id="d">Organizing your expense. Check your notifications shortly.</p>
+            <button class="btn" id="b" onclick="window.close(); window.location.href='/';">Done</button>
+        </div>
+    </div>
+    <script>
+        setTimeout(() => {
+            document.getElementById('t').innerText = 'Analyzed & Ready!';
+            document.getElementById('b').classList.add('show');
+            // Auto close if not in focus
+            setTimeout(() => { if (document.visibilityState !== 'visible') window.close(); }, 5000);
+        }, 2200);
+    </script>
+</body>
+</html>
+`;
+
 // In-memory heartbeat (set by app via postMessage)
 let lastAppHeartbeat = 0;
 
@@ -481,36 +528,28 @@ self.addEventListener('fetch', (event) => {
 
           // ── Text share ────────────────────────────────────────────────────
           if (!image || !(image instanceof File) || image.size === 0) {
-            const shareText = text || title;
-            if (!shareText) {
-              return Response.redirect(new URL('/expenses/new', self.location.origin).href, 303);
+            const shareText = text || title || url;
+            if (shareText) {
+              const textCache = await caches.open(SHARE_CACHE);
+              await textCache.put('/share-text', new Response(shareText, {
+                headers: { 'Content-Type': 'text/plain' },
+              }));
+              event.waitUntil(backgroundTextParseAndNotify(shareText));
             }
-            // Store text so the app can read it from cache (same pattern as image)
-            const textCache = await caches.open(SHARE_CACHE);
-            await textCache.put('/share-text', new Response(shareText, {
-              headers: { 'Content-Type': 'text/plain' },
+          } else {
+            // ── Image share ───────────────────────────────────────────────────
+            const buffer = await image.arrayBuffer();
+            const imageCache = await caches.open(SHARE_CACHE);
+            await imageCache.put('/share-image', new Response(buffer, {
+              headers: { 'Content-Type': image.type || 'image/jpeg' },
             }));
-            if (appWasOpen) {
-              return Response.redirect(new URL('/expenses/new?shared=text', self.location.origin).href, 303);
-            }
-            activeShareTakeover = false;
-            event.waitUntil(backgroundTextParseAndNotify(shareText));
-            return Response.redirect(new URL('/share-processing', self.location.origin).href, 303);
+            event.waitUntil(backgroundParseAndNotify(buffer, image.type));
           }
 
-          // ── Image share ───────────────────────────────────────────────────
-          const buffer = await image.arrayBuffer();
-          const imageCache = await caches.open(SHARE_CACHE);
-          await imageCache.put('/share-image', new Response(buffer, {
-            headers: { 'Content-Type': image.type || 'image/jpeg' },
-          }));
-
-          if (appWasOpen) {
-            return Response.redirect(new URL('/expenses/new?shared=image', self.location.origin).href, 303);
-          }
-          activeShareTakeover = false;
-          event.waitUntil(backgroundParseAndNotify(buffer, image.type));
-          return Response.redirect(new URL('/share-processing', self.location.origin).href, 303);
+          // ── Instant Response (Bypass Redirect) ───────────────────────────
+          return new Response(PROCESSING_HTML, {
+            headers: { 'Content-Type': 'text/html' }
+          });
 
         } catch (err) {
           console.error('[SW] share-target error:', err);
