@@ -27,6 +27,7 @@ function matchPerson(transferPerson: string, phone: string | null, people: Perso
   const qCompact = q.replace(/[\s._-]/g, '');
   const qDigits  = q.replace(/\D/g, '');
 
+<<<<<<< HEAD
   // 1. Explicit Phone number (highest priority)
   if (phone) {
     const pDigits = phone.replace(/\D/g, '');
@@ -37,9 +38,31 @@ function matchPerson(transferPerson: string, phone: string | null, people: Perso
   }
 
   // 2. Fallback: Phone number hidden in transfer person string
+=======
+  // 1. Phone number — strongest signal
+  
+>>>>>>> beb8ab864bc0c5ef295c9c791d6cba455ce4edb1
   if (qDigits.length >= 6) {
-    const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
-    if (m) return m;
+  const m = people.find(p => {
+    if (!p.phoneNumber) return false;
+
+    const personDigits = p.phoneNumber.replace(/\D/g, '');
+
+    // handle Indian country code
+    const normalizedPerson =
+      personDigits.length > 10
+        ? personDigits.slice(-10)
+        : personDigits;
+
+    const normalizedQuery =
+      qDigits.length > 10
+        ? qDigits.slice(-10)
+        : qDigits;
+
+    return normalizedPerson === normalizedQuery;
+  });
+
+  if (m) return m;
   }
 
   // 3. Exact name
