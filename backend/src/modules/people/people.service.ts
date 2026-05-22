@@ -51,6 +51,17 @@ export class PeopleService {
     }
 
     async createPerson(data: Partial<Person>) {
+        if (data.phoneNumber) {
+            const existing = await this.personRepo.findOneBy({ phoneNumber: data.phoneNumber });
+            if (existing) {
+                // If name changed, update it to the latest version found
+                if (data.name && existing.name !== data.name) {
+                    existing.name = data.name;
+                    return this.personRepo.save(existing);
+                }
+                return existing;
+            }
+        }
         const person = this.personRepo.create(data);
         return this.personRepo.save(person);
     }

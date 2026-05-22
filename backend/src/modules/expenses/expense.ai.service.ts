@@ -66,7 +66,8 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "date": "<yyyy-MM-dd or null if not visible>",
   "time": "<HH:mm 24h or null if not visible>",
   "category_id": "<exact id string from the list below, or null>",
-  "note": "<detailed breakdown of items and prices if available (e.g. 'Burger: 150, Coke: 50'), otherwise extra context, max 500 chars, or null>",
+  "note": "<detailed breakdown of items and prices if available (e.g. 'Burger: 150, Coke: 50'), max 500 chars, or null>",
+  "cashback": "<cashback amount as string e.g. \"10.00\", or null if not visible>",
   "transfer_person": "<display name of the person only — ONLY for personal transfers. null for business payments>",
   "transfer_phone": "<10-digit mobile number of the other party if visible, digits only e.g. \\"9876543210\\", or null>",
   "transfer_direction": "<sent | received | null — sent if user paid out, received if user got money>",
@@ -75,11 +76,12 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 
 Rules:
 - amount: debit/paid amount only, not balance
-- description: Use the merchant name if visible (e.g., 'Swiggy', 'Zomato', 'Amazon', 'Reliance Smart'). Otherwise, summarize the item. Be concise.
+- description: Use the merchant name if visible (e.g., 'Swiggy', 'Zomato', 'Amazon', 'Reliance Smart'). Otherwise, summarize the item. Be concise. CRITICAL: Never include cashback or reward details here.
 - payment_method: GPay/PhonePe/Paytm/UPI → upi, debit/credit card → card
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
-- note: For receipts/images, provide a detailed line-by-line breakdown of items and their individual prices in the form 'Item: Price, ...'. If it's a single item or no breakdown is visible, provide any other useful context that helps the user remember the purchase.
+- note: For receipts/images, provide a detailed line-by-line breakdown of items and their individual prices in the form 'Item: Price, ...'. If it's a single item or no breakdown is visible, provide any other useful context that helps the user remember the purchase. CRITICAL: Never mention cashback or reward amounts in this field.
+- cashback: Extract any clearly visible cashback or reward amount. Return as string or null.
 - transfer_person: Extract ONLY when the receipt clearly shows a personal transfer between individuals. CRITICAL: Identify the OTHER party. Ignore your own name. Return ONLY the display name (e.g. "Rahul Kumar"). If only a UPI ID is visible (e.g. "rahul@okaxis"), return just the prefix before @ capitalized (e.g. "Rahul"). Never include @domain, never return name + UPI together.
 - transfer_phone: Extract ONLY for personal transfers. Look for a 10-digit number in the UPI ID (e.g. "9876543210@okaxis" → "9876543210") or displayed alongside the name. Return digits only, no spaces or dashes. null if not visible or if it's a business payment.
 - transfer_direction: sent = user paid/sent money out to someone; received = user got money in from someone. Look for keywords like "Paid to", "Sent to" (sent) or "Received from", "Credit from" (received).
@@ -117,11 +119,12 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 
 Rules:
 - amount: the amount spent (before cashback). Accept plain ("350"), with ₹, or with "rs"/"INR". Return as string with up to 2 decimals
-- description: the merchant or item. Capitalize properly (e.g. "Zomato", "Coffee", "Auto Fare")
+- description: the merchant or item. Capitalize properly (e.g. "Zomato", "Coffee", "Auto Fare"). CRITICAL: Never include cashback or reward details here.
 - payment_method: GPay/PhonePe/Paytm/UPI → upi; debit/credit card → card; cash → cash; NEFT/IMPS/bank transfer → bank_transfer. Default to upi if unclear
 - date: if mentioned (including relative terms like "today", "yesterday"), resolve using today's date above. If not mentioned at all, default to ${today}
 - time: if mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned, default to ${currentTime}
-- cashback: extract any cashback or reward amount. Return as string or null
+- cashback: extract any cashback or reward amount. Return as string or null.
+- note: detailed breakdown of items and prices. CRITICAL: Never mention cashback or reward amounts in this field. All cashback information must only be placed in the dedicated 'cashback' field.
 - category_id: pick the best matching category
 - transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. Return ONLY the display name (e.g. "Rahul"). If the input contains a UPI ID (e.g. "rahul@okaxis"), use just the prefix before @ capitalized. Never include @domain, never combine name and UPI. Never return the user themselves.
 - transfer_phone: Extract ONLY for personal transfers. Look for a 10-digit number mentioned directly or inside a UPI ID (e.g. "9876543210@okaxis" → "9876543210"). Return digits only. null if not present.

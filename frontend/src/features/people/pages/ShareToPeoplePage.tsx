@@ -22,28 +22,37 @@ interface ShareState {
   backRoute?: string;
 }
 
-function matchPerson(transferPerson: string, people: Person[]): Person | null {
+function matchPerson(transferPerson: string, phone: string | null, people: Person[]): Person | null {
   const q        = transferPerson.toLowerCase().trim();
   const qCompact = q.replace(/[\s._-]/g, '');
   const qDigits  = q.replace(/\D/g, '');
 
-  // 1. Phone number — strongest signal
+  // 1. Explicit Phone number (highest priority)
+  if (phone) {
+    const pDigits = phone.replace(/\D/g, '');
+    if (pDigits.length >= 6) {
+      const match = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(pDigits));
+      if (match) return match;
+    }
+  }
+
+  // 2. Fallback: Phone number hidden in transfer person string
   if (qDigits.length >= 6) {
     const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
     if (m) return m;
   }
 
-  // 2. Exact name
+  // 3. Exact name
   const exact = people.find(p => p.name.toLowerCase() === q);
   if (exact) return exact;
 
-  // 3. Compact name (ignore spaces / dots / dashes)
+  // 4. Compact name (ignore spaces / dots / dashes)
   if (qCompact.length > 3) {
     const compact = people.find(p => p.name.toLowerCase().replace(/[\s._-]/g, '') === qCompact);
     if (compact) return compact;
   }
 
-  // 4. UPI prefix
+  // 5. UPI prefix
   if (q.includes('@')) {
     const upiPrefix  = q.split('@')[0];
     const upiCompact = upiPrefix.replace(/[\s._-]/g, '');
@@ -54,7 +63,7 @@ function matchPerson(transferPerson: string, people: Person[]): Person | null {
     if (upi) return upi;
   }
 
-  // 5. Partial name
+  // 6. Partial name
   return people.find(p => {
     const name = p.name.toLowerCase();
     return name.includes(q) || q.includes(name);
@@ -93,8 +102,8 @@ export default function ShareToPeoplePage() {
     state.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
 
   const autoMatch = useMemo(
-    () => (state.transfer_person && people.length ? matchPerson(state.transfer_person, people) : null),
-    [state.transfer_person, people],
+    () => (state.transfer_person && people.length ? matchPerson(state.transfer_person, state.transfer_phone ?? null, people) : null),
+    [state.transfer_person, state.transfer_phone, people],
   );
 
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
