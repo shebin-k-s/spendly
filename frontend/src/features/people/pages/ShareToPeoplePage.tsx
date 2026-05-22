@@ -23,11 +23,10 @@ interface ShareState {
 }
 
 function matchPerson(transferPerson: string, phone: string | null, people: Person[]): Person | null {
-  const q        = transferPerson.toLowerCase().trim();
+  const q = transferPerson.toLowerCase().trim();
   const qCompact = q.replace(/[\s._-]/g, '');
-  const qDigits  = q.replace(/\D/g, '');
+  const qDigits = q.replace(/\D/g, '');
 
-<<<<<<< HEAD
   // 1. Explicit Phone number (highest priority)
   if (phone) {
     const pDigits = phone.replace(/\D/g, '');
@@ -38,31 +37,27 @@ function matchPerson(transferPerson: string, phone: string | null, people: Perso
   }
 
   // 2. Fallback: Phone number hidden in transfer person string
-=======
-  // 1. Phone number — strongest signal
-  
->>>>>>> beb8ab864bc0c5ef295c9c791d6cba455ce4edb1
   if (qDigits.length >= 6) {
-  const m = people.find(p => {
-    if (!p.phoneNumber) return false;
+    const m = people.find(p => {
+      if (!p.phoneNumber) return false;
 
-    const personDigits = p.phoneNumber.replace(/\D/g, '');
+      const personDigits = p.phoneNumber.replace(/\D/g, '');
 
-    // handle Indian country code
-    const normalizedPerson =
-      personDigits.length > 10
-        ? personDigits.slice(-10)
-        : personDigits;
+      // handle Indian country code
+      const normalizedPerson =
+        personDigits.length > 10
+          ? personDigits.slice(-10)
+          : personDigits;
 
-    const normalizedQuery =
-      qDigits.length > 10
-        ? qDigits.slice(-10)
-        : qDigits;
+      const normalizedQuery =
+        qDigits.length > 10
+          ? qDigits.slice(-10)
+          : qDigits;
 
-    return normalizedPerson === normalizedQuery;
-  });
+      return normalizedPerson === normalizedQuery;
+    });
 
-  if (m) return m;
+    if (m) return m;
   }
 
   // 3. Exact name
@@ -77,7 +72,7 @@ function matchPerson(transferPerson: string, phone: string | null, people: Perso
 
   // 5. UPI prefix
   if (q.includes('@')) {
-    const upiPrefix  = q.split('@')[0];
+    const upiPrefix = q.split('@')[0];
     const upiCompact = upiPrefix.replace(/[\s._-]/g, '');
     const upi = people.find(p => {
       const n = p.name.toLowerCase();
@@ -110,7 +105,7 @@ async function removeFromQueue(ts: number): Promise<void> {
       }));
       navigator.setAppBadge?.(next.length);
     }
-  } catch {}
+  } catch { }
 }
 
 export default function ShareToPeoplePage() {
