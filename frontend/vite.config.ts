@@ -29,6 +29,8 @@ export default defineConfig({
         description: 'Track your monthly expenses with clarity',
         start_url: '/',
         display: 'standalone',
+        background_color: '#000000',
+        theme_color: '#000000',
         lang: 'en',
         scope: '/',
         orientation: 'portrait',
