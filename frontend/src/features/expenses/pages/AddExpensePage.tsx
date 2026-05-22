@@ -1,11 +1,15 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, X, Eye, ArrowUpRight, Users } from 'lucide-react';
+import { ArrowLeft, Check, Share2, Sparkles, AlertCircle, Loader2, X, Eye, ArrowUpRight, ArrowDownLeft, Users, Receipt, Search, UserPlus, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { useCreateExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
+import { usePeople } from '@/features/people/hooks/usePeople';
+import { peopleApi } from '@/features/people/api/peopleApi';
+import type { Person } from '@/features/people/types';
 import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
 import { parseShareText } from '../utils/parseShareText';
 import { DateTimePicker } from '@/components/DateTimePicker';
@@ -13,6 +17,8 @@ import apiClient from '@/lib/apiClient';
 import { expensesApi } from '../api/expensesApi';
 import type { PaymentMethod } from '../types';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { cn, formatINR } from '@/lib/utils';
+import { toast } from 'sonner';
 
 
 const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
@@ -107,6 +113,34 @@ async function readSharedText(): Promise<string | null> {
   }
 }
 
+function matchPerson(name: string, phone: string | null, list: Person[]): Person | null {
+  const q = name.toLowerCase().trim();
+  const qCompact = q.replace(/[\s._-]/g, '');
+  const qDigits = q.replace(/\D/g, '');
+  if (phone) {
+    const pd = phone.replace(/\D/g, '');
+    if (pd.length >= 6) {
+      const m = list.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(pd));
+      if (m) return m;
+    }
+  }
+  if (qDigits.length >= 6) {
+    const m = list.find(p => {
+      if (!p.phoneNumber) return false;
+      const n = p.phoneNumber.replace(/\D/g, '');
+      return (n.length > 10 ? n.slice(-10) : n) === (qDigits.length > 10 ? qDigits.slice(-10) : qDigits);
+    });
+    if (m) return m;
+  }
+  const exact = list.find(p => p.name.toLowerCase() === q);
+  if (exact) return exact;
+  if (qCompact.length > 3) {
+    const compact = list.find(p => p.name.toLowerCase().replace(/[\s._-]/g, '') === qCompact);
+    if (compact) return compact;
+  }
+  return null;
+}
+
 const AI_TIMEOUT_MS = 20_000;
 
 async function parseImage(blob: Blob): Promise<ParsedImage> {
@@ -143,6 +177,7 @@ export default function AddExpensePage() {
   const stateThumb = (location.state as { thumbnail?: string } | null)?.thumbnail ?? null;
   const stateRawText = (location.state as { rawText?: string } | null)?.rawText ?? null;
   const stateShareType = (location.state as { shareType?: string } | null)?.shareType ?? null;
+  const stateFromNlParse = (location.state as { fromNlParse?: boolean } | null)?.fromNlParse ?? false;
 
   const [resolvedShareTs, setResolvedShareTs] = useState<number | null>(shareTs);
   const [previewThumbnail, setPreviewThumbnail] = useState<string | null>(stateThumb);
@@ -281,9 +316,100 @@ export default function AddExpensePage() {
   const [transferPerson,    setTransferPerson]    = useState<string | null>((ps?.transfer_person as string) ?? stateTransferPerson ?? null);
   const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>((ps?.transfer_direction as 'sent' | 'received' | null) ?? stateTransferDirection ?? null);
   const [transferPhone,     setTransferPhone]     = useState<string | null>((ps?.transfer_phone as string) ?? stateTransferPhone ?? null);
-  const [nlText, setNlText] = useState('');
+  const [nlText, setNlText] = useState(stateFromNlParse && stateRawText ? stateRawText : '');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [showQuickParse, setShowQuickParse] = useState(false);
+  const [showQuickParse, setShowQuickParse] = useState(stateFromNlParse && !!stateRawText);
+
+  // Lending mode (inline — no navigation)
+  const queryClient = useQueryClient();
+  const { data: people = [] } = usePeople();
+  const [lendingMode, setLendingMode] = useState(false);
+  const [lendingType, setLendingType] = useState<'GIVEN' | 'RETURNED'>('GIVEN');
+  const [personSearch, setPersonSearch] = useState('');
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [showAddPersonForm, setShowAddPersonForm] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
+  const [newPersonPhone, setNewPersonPhone] = useState('');
+  const [addingLendingPerson, setAddingLendingPerson] = useState(false);
+  const [pinnedPersonId, setPinnedPersonId] = useState<string | null>(null);
+
+  const filteredPeople = useMemo(() =>
+    people
+      .filter(p => p.name.toLowerCase().includes(personSearch.toLowerCase()))
+      .sort((a, b) => (b.id === pinnedPersonId ? 1 : 0) - (a.id === pinnedPersonId ? 1 : 0)),
+    [people, personSearch, pinnedPersonId],
+  );
+  const selectedPerson = people.find(p => p.id === selectedPersonId);
+
+  const addTransaction = useMutation({
+    mutationFn: ({ personId, payload }: { personId: string; payload: any }) =>
+      peopleApi.addTransaction(personId, payload),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['people'] });
+      if (resolvedShareTs) await removeShareByTs(resolvedShareTs);
+      navigator.clearAppBadge?.();
+      navigate(`/people/${selectedPersonId}`, { replace: true });
+    },
+    onError: () => toast.error('Failed to add transaction'),
+  });
+
+  // Auto-match person when switching to lending mode
+  useEffect(() => {
+    if (lendingMode && transferPerson && people.length > 0 && !selectedPersonId) {
+      const matched = matchPerson(transferPerson, transferPhone, people);
+      if (matched) { setSelectedPersonId(matched.id); setPinnedPersonId(matched.id); }
+    }
+  }, [lendingMode, people]);
+
+  const handleCreateLendingPerson = async () => {
+    if (!newPersonName.trim()) return;
+    setAddingLendingPerson(true);
+    try {
+      const created = await peopleApi.createPerson({
+        name: newPersonName.trim(),
+        ...(newPersonPhone.trim() ? { phoneNumber: newPersonPhone.trim() } : {}),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+      setSelectedPersonId(created.id);
+      setPinnedPersonId(created.id);
+      setShowAddPersonForm(false);
+      setNewPersonName('');
+      setNewPersonPhone('');
+      toast.success('Person added');
+    } catch {
+      toast.error('Failed to add person');
+    } finally {
+      setAddingLendingPerson(false);
+    }
+  };
+
+  const handleQuickAddTransferPerson = async () => {
+    if (!transferPerson) return;
+    setAddingLendingPerson(true);
+    try {
+      const created = await peopleApi.createPerson({
+        name: transferPerson,
+        ...(transferPhone ? { phoneNumber: transferPhone } : {}),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+      setSelectedPersonId(created.id);
+      setPinnedPersonId(created.id);
+      toast.success('Person added');
+    } catch {
+      toast.error('Failed to add person');
+    } finally {
+      setAddingLendingPerson(false);
+    }
+  };
+
+  const handleLendingSave = () => {
+    if (!selectedPersonId || !amount || parseFloat(amount) <= 0 || addTransaction.isPending) return;
+    addTransaction.mutate({
+      personId: selectedPersonId,
+      payload: { amount: parseFloat(amount), type: lendingType, date, note: note.trim() || undefined },
+    });
+  };
+
   const sharedBlobRef = useRef<Blob | null>(null);
   const hasAttemptedParse = useRef(false);
   const hasAttemptedTextParse = useRef(false);
@@ -307,13 +433,16 @@ export default function AddExpensePage() {
       if (result.category_id) setCategoryId(result.category_id);
       if (result.note) setNote(result.note);
       if (result.cashback) setCashback(String(result.cashback));
+      const thumbUrl = URL.createObjectURL(blob);
+      setPreviewThumbnail(thumbUrl);
+      setPreviewShareType('image');
       setAiStatus('done');
       if (result.transfer_person) {
         setTransferPerson(result.transfer_person);
         setTransferDirection(result.transfer_direction ?? null);
-        
+
         if (result.suggested_flow === 'transfer') {
-           navigate('/share-to-people', {
+          navigate('/share-to-people', {
             state: {
               amount: result.amount,
               note: result.description,
@@ -323,6 +452,8 @@ export default function AddExpensePage() {
               transfer_phone: (result as any).transfer_phone ?? null,
               transfer_direction: result.transfer_direction,
               backRoute: '/',
+              thumbnail: thumbUrl,
+              shareType: 'image',
             },
             replace: true,
           });
@@ -427,10 +558,31 @@ export default function AddExpensePage() {
         setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
         setNote(typeof result.note === 'string' ? result.note : '');
         setCashback(typeof result.cashback === 'string' ? result.cashback : '');
+        setPreviewRawText(text);
+        setPreviewShareType('text');
         setAiStatus('done');
         if (typeof result.transfer_person === 'string' && result.transfer_person) {
           setTransferPerson(result.transfer_person);
           setTransferDirection((result.transfer_direction as 'sent' | 'received' | null) ?? null);
+          setTransferPhone((result as any).transfer_phone ?? null);
+          if (result.suggested_flow === 'transfer' && !forceExpense) {
+            navigate('/share-to-people', {
+              state: {
+                amount: typeof result.amount === 'string' ? result.amount : '',
+                note: typeof result.description === 'string' ? result.description : '',
+                date: typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'),
+                shareTs: resolvedShareTs,
+                transfer_person: result.transfer_person,
+                transfer_phone: (result as any).transfer_phone ?? null,
+                transfer_direction: (result.transfer_direction as 'sent' | 'received' | null) ?? null,
+                backRoute: '/',
+                rawText: text,
+                shareType: 'text',
+              },
+              replace: true,
+            });
+            return;
+          }
         }
       } catch {
         setAiStatus('error');
@@ -452,6 +604,25 @@ export default function AddExpensePage() {
       setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
       setNote(typeof result.note === 'string' ? result.note : '');
       setCashback(typeof result.cashback === 'string' ? result.cashback : '');
+      // Update lending direction regardless of whether a person name was detected
+      if (result.transfer_direction === 'received') setLendingType('RETURNED');
+      else if (result.transfer_direction === 'sent') setLendingType('GIVEN');
+
+      const person = typeof result.transfer_person === 'string' && result.transfer_person ? result.transfer_person : null;
+      if (person) {
+        setTransferPerson(person);
+        setTransferDirection((result.transfer_direction as 'sent' | 'received' | null) ?? null);
+        setTransferPhone((result as any).transfer_phone ?? null);
+        const matched = matchPerson(person, (result as any).transfer_phone ?? null, people);
+        if (matched) { setSelectedPersonId(matched.id); setPinnedPersonId(matched.id); }
+      }
+
+      if (result.suggested_flow === 'transfer') {
+        setLendingMode(true);
+      } else if (result.suggested_flow === 'expense' && lendingMode) {
+        setLendingMode(false);
+      }
+
       setNlStatus('done');
     } catch {
       setNlStatus('error');
@@ -498,10 +669,10 @@ export default function AddExpensePage() {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold flex-1">Add Expense</h1>
+        <h1 className="text-xl font-bold flex-1">{lendingMode ? 'Log to People' : 'Add Expense'}</h1>
         <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
+          onClick={lendingMode ? handleLendingSave : handleSubmit}
+          disabled={lendingMode ? (!selectedPersonId || !amount || parseFloat(amount || '0') <= 0 || addTransaction.isPending) : !canSubmit}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
         >
           <Check className="w-4 h-4 text-primary" />
@@ -509,28 +680,21 @@ export default function AddExpensePage() {
       </div>
 
       <div className="page-content space-y-5">
-        {/* Switch to lending flow */}
-        <div className="flex justify-end">
+        {/* Flow switcher */}
+        <div className="flex bg-secondary rounded-2xl p-1">
           <button
-            onClick={() => {
-              navigate('/share-to-people', {
-                state: {
-                  amount,
-                  note: description,
-                  date,
-                  shareTs: resolvedShareTs,
-                  transfer_person: transferPerson,
-                  transfer_phone: transferPhone,
-                  transfer_direction: transferDirection,
-                  backRoute: '/',
-                },
-                replace: true,
-              });
-            }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-secondary text-foreground text-xs font-semibold active:scale-95 transition-all border border-border/50 shadow-sm"
+            onClick={() => setLendingMode(false)}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all', !lendingMode ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground active:scale-95')}
           >
-            <Users className="w-4 h-4" />
-            Switch to Lending
+            <Receipt className="w-3.5 h-3.5" />
+            Expense
+          </button>
+          <button
+            onClick={() => setLendingMode(true)}
+            className={cn('flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all', lendingMode ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground active:scale-95')}
+          >
+            <Users className="w-3.5 h-3.5" />
+            Lending
           </button>
         </div>
         {/* Unified Share/Pre-fill context */}
@@ -566,17 +730,18 @@ export default function AddExpensePage() {
 
           // Combined success/pre-fill state
           const hasPrefill = parsedShare || parsed || prefill || aiStatus === 'done';
-          if (!hasPrefill) return null;
+          // Switching from lending sets forceExpense+prefill but has no receipt to review — hide the banner
+          if (!hasPrefill || (forceExpense && prefill && !previewThumbnail && !previewRawText)) return null;
 
           let sourceLabel = "Reviewing details";
           if (resolvedShareTs) {
             sourceLabel = "Reviewing pending receipt";
-          } else if (prefill) {
-            sourceLabel = "Refilling recent expense";
-          } else if (ps?.type === 'image' || sharedImage) {
+          } else if (ps?.type === 'image' || sharedImage || previewShareType === 'image') {
             sourceLabel = "Reviewing shared receipt";
-          } else if (ps?.type === 'text' || sharedText || parsed) {
+          } else if (ps?.type === 'text' || sharedText || parsed || previewShareType === 'text') {
             sourceLabel = "Reviewing shared message";
+          } else if (prefill && !forceExpense) {
+            sourceLabel = "Refilling recent expense";
           }
 
           return (
@@ -597,29 +762,25 @@ export default function AddExpensePage() {
           );
         })()}
 
-        {/* Natural language input */}
+        {/* Natural language input — toggleable */}
         {!isFromShare && !prefill && !showQuickParse && (
           <button
             onClick={() => setShowQuickParse(true)}
-            className="w-full flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl bg-primary/8 border border-primary/20 hover:bg-primary/15 active:scale-[0.98] transition-all"
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all"
           >
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-xs font-semibold text-primary">Use AI Quick Parse</span>
+            <Sparkles className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">Use AI Quick Parse</span>
           </button>
         )}
-
-        {showQuickParse && (
-          <div className="p-3.5 rounded-3xl mb-[30px] bg-primary/5 border border-primary/10 space-y-3 animate-in fade-in zoom-in-95 duration-200">
+        {!isFromShare && !prefill && showQuickParse && (
+          <div className="p-3.5 rounded-3xl bg-primary/5 border border-primary/10 space-y-3">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <span className="text-sm font-semibold text-primary">AI Quick Parse</span>
               </div>
-              <button
-                onClick={() => setShowQuickParse(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 active:scale-95 transition-all"
-              >
-                <X className="w-3.5 h-3.5" />
+              <button onClick={() => setShowQuickParse(false)} className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center active:scale-90 transition-all">
+                <X className="w-3.5 h-3.5 text-primary" />
               </button>
             </div>
 
@@ -630,6 +791,7 @@ export default function AddExpensePage() {
               placeholder='e.g. "Zomato 350 UPI" or "coffee 80 cash"'
               rows={2}
               className="form-input resize-none text-sm bg-background/60"
+              autoFocus
             />
 
             <button
@@ -640,12 +802,12 @@ export default function AddExpensePage() {
               {nlStatus === 'loading'
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <Sparkles className="w-4 h-4" />}
-              Parse Expense
+              {lendingMode ? 'Parse' : 'Parse Expense'}
             </button>
             {nlStatus === 'done' && (
               <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20">
                 <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <p className="text-xs font-medium text-primary">Form filled — review and save</p>
+                <p className="text-xs font-medium text-primary">Form filled — edit or re-parse</p>
               </div>
             )}
             {nlStatus === 'error' && (
@@ -657,7 +819,7 @@ export default function AddExpensePage() {
           </div>
         )}
 
-        {/* Amount */}
+        {/* Amount — shared between modes */}
         <div>
           <label className="form-label">Amount (₹)</label>
           <input
@@ -671,105 +833,192 @@ export default function AddExpensePage() {
           />
         </div>
 
-        {/* Description */}
-        <div>
-          <label className="form-label">Description</label>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="What did you spend on?"
-            className="form-input"
-          />
-        </div>
+        {/* ── EXPENSE MODE ── */}
+        {!lendingMode && (
+          <>
+            {/* Description */}
+            <div>
+              <label className="form-label">Description</label>
+              <input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What did you spend on?"
+                className="form-input"
+              />
+            </div>
 
-        {/* Cashback */}
-        <div>
-          <label className="form-label">
-            Cashback (₹) <span className="text-muted-foreground font-normal">— Optional</span>
-          </label>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={cashback}
-            onChange={(e) => setCashback(e.target.value)}
-            onWheel={(e) => e.currentTarget.blur()}
-            placeholder="0.00"
-            className="form-input"
-          />
-          {cashback && parseFloat(cashback) > 0 && amount && parseFloat(amount) > 0 && (
-            <p className="text-xs text-emerald-500 mt-1.5">
-              Net: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(amount) - parseFloat(cashback))}
-            </p>
-          )}
-        </div>
+            {/* Cashback */}
+            <div>
+              <label className="form-label">
+                Cashback (₹) <span className="text-muted-foreground font-normal">— Optional</span>
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={cashback}
+                onChange={(e) => setCashback(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
+                placeholder="0.00"
+                className="form-input"
+              />
+              {cashback && parseFloat(cashback) > 0 && amount && parseFloat(amount) > 0 && (
+                <p className="text-xs text-emerald-500 mt-1.5">
+                  Net: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(parseFloat(amount) - parseFloat(cashback))}
+                </p>
+              )}
+            </div>
 
-        {/* Date & Time */}
-        <div>
-          <label className="form-label">Date & Time</label>
-          <DateTimePicker
-            date={date}
-            time={time}
-            onChange={(d, t) => { setDate(d); setTime(t); }}
-          />
-        </div>
+            {/* Date & Time */}
+            <div>
+              <label className="form-label">Date & Time</label>
+              <DateTimePicker date={date} time={time} onChange={(d, t) => { setDate(d); setTime(t); }} />
+            </div>
 
-        {/* Category */}
-        <div>
-          <label className="form-label">Category</label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => setCategoryId('')}
-              className={`py-2.5 rounded-xl text-xs font-medium transition-colors
-                ${!categoryId ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-            >
-              None
+            {/* Category */}
+            <div>
+              <label className="form-label">Category</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => setCategoryId('')} className={`py-2.5 rounded-xl text-xs font-medium transition-colors ${!categoryId ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>None</button>
+                {categories.map((cat) => (
+                  <button key={cat.id} onClick={() => setCategoryId(cat.id)} className={`py-2.5 px-2 rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5 justify-center ${categoryId === cat.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
+                    <span>{cat.icon}</span>
+                    <span className="truncate">{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment method */}
+            <div>
+              <label className="form-label">Payment Method</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map((method) => (
+                  <button key={method} onClick={() => setPaymentMethod(method)} className={`py-2.5 rounded-xl text-xs font-medium transition-colors ${paymentMethod === method ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Note */}
+            <div>
+              <label className="form-label">Note (Optional)</label>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Any additional details..." rows={2} className="form-input resize-none" />
+            </div>
+
+            <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
+              {createExpense.isPending ? 'Saving...' : aiStatus === 'loading' ? 'Analyzing...' : 'Add Expense'}
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryId(cat.id)}
-                className={`py-2.5 px-2 rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5 justify-center
-                  ${categoryId === cat.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-              >
-                <span>{cat.icon}</span>
-                <span className="truncate">{cat.name}</span>
+          </>
+        )}
+
+        {/* ── LENDING MODE ── */}
+        {lendingMode && (
+          <>
+            {/* Type toggle */}
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setLendingType('GIVEN')} className={cn('flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold text-sm transition-all', lendingType === 'GIVEN' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground')}>
+                <ArrowUpRight className="w-4 h-4" /> I Gave
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Payment method */}
-        <div>
-          <label className="form-label">Payment Method</label>
-          <div className="grid grid-cols-3 gap-2">
-            {PAYMENT_METHODS.map((method) => (
-              <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
-                className={`py-2.5 rounded-xl text-xs font-medium transition-colors
-                  ${paymentMethod === method ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-              >
-                {PAYMENT_METHOD_LABELS[method]}
+              <button onClick={() => setLendingType('RETURNED')} className={cn('flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-semibold text-sm transition-all', lendingType === 'RETURNED' ? 'bg-success text-success-foreground' : 'bg-secondary text-muted-foreground')}>
+                <ArrowDownLeft className="w-4 h-4" /> They Gave
               </button>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* Note */}
-        <div>
-          <label className="form-label">Note (Optional)</label>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Any additional details..."
-            rows={2}
-            className="form-input resize-none"
-          />
-        </div>
+            {/* Date */}
+            <div>
+              <label className="form-label">Date</label>
+              <DateTimePicker date={date} time={null} onChange={(d) => setDate(d)} />
+            </div>
 
-        <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
-          {createExpense.isPending ? 'Saving...' : aiStatus === 'loading' ? 'Analyzing...' : 'Add Expense'}
-        </button>
+            {/* Person picker */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Person</p>
+                <button onClick={() => { setShowAddPersonForm(f => !f); setNewPersonName(''); setNewPersonPhone(''); }} className="flex items-center gap-1 text-xs font-semibold text-primary active:scale-95 transition-all">
+                  {showAddPersonForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  {showAddPersonForm ? 'Cancel' : 'Add Person'}
+                </button>
+              </div>
+
+              {showAddPersonForm && (
+                <div className="bg-card border border-primary/20 rounded-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                  <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void handleCreateLendingPerson(); }} placeholder="Name *" autoFocus className="form-input text-sm" />
+                  <input value={newPersonPhone} onChange={e => setNewPersonPhone(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void handleCreateLendingPerson(); }} placeholder="Phone (optional)" inputMode="tel" className="form-input text-sm" />
+                  <button onClick={() => void handleCreateLendingPerson()} disabled={!newPersonName.trim() || addingLendingPerson} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                    {addingLendingPerson ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    Add & Select
+                  </button>
+                </div>
+              )}
+
+              {people.length >= 3 && (
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <input value={personSearch} onChange={e => setPersonSearch(e.target.value)} placeholder="Search..." className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
+                </div>
+              )}
+
+              <div className="space-y-2 max-h-64 overflow-y-auto overscroll-contain [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {/* AI quick-add card — shown when AI detected a name not in the list */}
+                {transferPerson && !selectedPersonId && !personSearch && (
+                  <button
+                    onClick={() => void handleQuickAddTransferPerson()}
+                    disabled={addingLendingPerson}
+                    className="touch-card w-full flex items-center gap-3 px-4 py-3 text-left border-primary/30 bg-primary/5 disabled:opacity-50"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
+                      {addingLendingPerson ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-primary truncate">Add "{transferPerson}"</p>
+                      <p className="text-xs text-muted-foreground">Tap to add as new contact</p>
+                    </div>
+                  </button>
+                )}
+                {filteredPeople.length === 0 && !(transferPerson && !selectedPersonId && !personSearch) ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground bg-card border border-border rounded-2xl">
+                    {personSearch ? 'No one matches' : 'No people yet — tap + Add Person'}
+                  </div>
+                ) : (
+                  filteredPeople.map(person => {
+                    const isSel = selectedPersonId === person.id;
+                    return (
+                      <button key={person.id} onClick={() => setSelectedPersonId(isSel ? null : person.id)} className={cn('touch-card w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-300', isSel ? 'border-primary bg-primary/10 shadow-md shadow-primary/5' : 'border-border/50')}>
+                        <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black shrink-0 transition-colors', isSel ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary')}>
+                          {person.name[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{person.name}</p>
+                          {person.balance !== 0 && (
+                            <p className={cn('text-xs', person.balance > 0 ? 'text-primary' : 'text-destructive')}>
+                              {person.balance > 0 ? 'Owes you' : 'You owe'} {formatINR(Math.abs(Number(person.balance)))}
+                            </p>
+                          )}
+                        </div>
+                        {isSel && <Check className="w-4 h-4 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Note */}
+            <div>
+              <label className="form-label">Note (Optional)</label>
+              <input value={note} onChange={e => setNote(e.target.value)} placeholder="What was this for?" className="form-input" />
+            </div>
+
+            <button
+              onClick={handleLendingSave}
+              disabled={!selectedPersonId || !amount || parseFloat(amount || '0') <= 0 || addTransaction.isPending}
+              className={cn('w-full py-3.5 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40', lendingType === 'GIVEN' ? 'bg-primary text-primary-foreground' : 'bg-success text-success-foreground')}
+            >
+              {addTransaction.isPending ? 'Saving...' : selectedPerson ? `Save for ${selectedPerson.name}` : 'Select a Person'}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Image — Immersive lightbox with pinch-to-zoom */}

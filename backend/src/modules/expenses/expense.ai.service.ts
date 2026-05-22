@@ -118,17 +118,17 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 }
 
 Rules:
-- amount: the amount spent (before cashback). Accept plain ("350"), with ₹, or with "rs"/"INR". Return as string with up to 2 decimals
+- amount: the amount spent (before cashback). CRITICAL: The number the user states is ALWAYS the total amount paid — never multiply it by a quantity. e.g. "egg 20rs for 2" → amount is "20.00" (total), NOT 40. Accept plain ("350"), with ₹, or with "rs"/"INR". Return as string with up to 2 decimals
 - description: the merchant or item. Capitalize properly (e.g. "Zomato", "Coffee", "Auto Fare"). CRITICAL: Never include cashback or reward details here.
 - payment_method: GPay/PhonePe/Paytm/UPI → upi; debit/credit card → card; cash → cash; NEFT/IMPS/bank transfer → bank_transfer. Default to upi if unclear
 - date: if mentioned (including relative terms like "today", "yesterday"), resolve using today's date above. If not mentioned at all, default to ${today}
-- time: if mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned, default to ${currentTime}
+- time: if explicitly mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned but a meal is referenced, infer a typical time: breakfast → "08:30", morning tea/coffee → "09:00", lunch → "13:00", evening tea/snack → "16:30", dinner → "20:00". Only fall back to ${currentTime} if no time or meal context exists
 - cashback: extract any cashback or reward amount. Return as string or null.
-- note: detailed breakdown of items and prices. CRITICAL: Never mention cashback or reward amounts in this field. All cashback information must only be placed in the dedicated 'cashback' field.
+- note: if a quantity is mentioned (e.g. "for 2", "×3"), capture it naturally (e.g. "2 eggs"). Do NOT recalculate or multiply prices — the stated amount is always the total. CRITICAL: Never mention cashback or reward amounts in this field. All cashback information must only be placed in the dedicated 'cashback' field.
 - category_id: pick the best matching category
 - transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. Return ONLY the display name (e.g. "Rahul"). If the input contains a UPI ID (e.g. "rahul@okaxis"), use just the prefix before @ capitalized. Never include @domain, never combine name and UPI. Never return the user themselves.
 - transfer_phone: Extract ONLY for personal transfers. Look for a 10-digit number mentioned directly or inside a UPI ID (e.g. "9876543210@okaxis" → "9876543210"). Return digits only. null if not present.
-- transfer_direction: sent = user paid/sent money out; received = user got money in.
+- transfer_direction: Determine from the USER's perspective ONLY. sent = user paid/sent money out to someone. received = user got/received money from someone. CRITICAL: The verb "got", "received", "collected", "took" always means received, even if "to" or a person's name follows (e.g. "got 500 to shee" → received, "shee gave me 200" → received, "sent 300 to rahul" → sent, "gave priya 100" → sent). Do NOT let the word "to" override a receive-verb.
 - suggested_flow: 'transfer' for person-to-person money movements (e.g. "Sent 500 to Rahul", "Rahul gave me 200"). 'expense' if it's for a specific item, service, or bill (e.g. "Paid Rahul for auto fare", "Rent to Priya", "Bought milk"). If an item or service is explicitly mentioned, stay in 'expense'.
 
 ${merchantHintBlock}

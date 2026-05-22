@@ -269,7 +269,7 @@ export default function PersonDetailsPage() {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm">{formatINR(t.amount)}</p>
+                            <p className="font-medium text-sm">{formatINR(Number(t.amount))}</p>
                             <span className={cn(
                               'text-[10px] font-semibold px-1.5 py-0.5 rounded-md',
                               t.type === 'GIVEN' ? 'bg-primary/10 text-primary' : 'bg-success/10 text-success',

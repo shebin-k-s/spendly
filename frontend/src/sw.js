@@ -173,8 +173,14 @@ function fmtDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
+function fmtAmount(amount) {
+  const n = parseFloat(amount);
+  if (isNaN(n)) return amount || '?';
+  return n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
 function buildNotifContent(parsed, personKnown = null) {
-  const amount     = parsed.amount || '?';
+  const amount     = fmtAmount(parsed.amount);
   const method     = METHOD_LABEL[parsed.payment_method] || parsed.payment_method || '';
   const date       = fmtDate(parsed.date);
   const time       = parsed.time || '';
@@ -202,7 +208,7 @@ function buildNotifContent(parsed, personKnown = null) {
   }
 
   // ── Expense ──
-  const title = `Expense · ₹${amount}`;
+  const title = `Expense · ₹${fmtAmount(parsed.amount)}`;
   const lines = [];
 
   if (parsed.description) lines.push(parsed.description);
@@ -212,7 +218,7 @@ function buildNotifContent(parsed, personKnown = null) {
 
   if (parsed.cashback) {
     const net = parseFloat(parsed.amount || '0') - parseFloat(parsed.cashback);
-    lines.push(`Cashback ₹${parsed.cashback} → Net ₹${net.toFixed(2)}`);
+    lines.push(`Cashback ₹${fmtAmount(parsed.cashback)} → Net ₹${fmtAmount(net)}`);
   }
 
   if (parsed.note) lines.push(`Note: ${parsed.note}`);
@@ -243,29 +249,38 @@ function cleanPersonName(raw) {
 }
 
 // ── Person matching helper (shared by auto-save and person-check) ─────────────
-function findPersonMatch(transferPerson, people) {
+function findPersonMatch(transferPerson, people, phone = null) {
   const q        = (transferPerson || '').toLowerCase().trim();
   if (!q) return null;
   const qCompact = q.replace(/[\s._\-]/g, '');
   const qDigits  = q.replace(/\D/g, '');
 
-  // 1. Phone number — strongest signal
+  // 1. Explicit phone — strongest signal
+  if (phone) {
+    const pd = phone.replace(/\D/g, '');
+    if (pd.length >= 6) {
+      const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(pd));
+      if (m) return m;
+    }
+  }
+
+  // 2. Phone digits embedded in name string (UPI ID like "9876543210@okaxis")
   if (qDigits.length >= 6) {
     const m = people.find(p => p.phoneNumber && p.phoneNumber.replace(/\D/g, '').includes(qDigits));
     if (m) return m;
   }
 
-  // 2. Exact name
+  // 3. Exact name
   const exact = people.find(p => p.name.toLowerCase() === q);
   if (exact) return exact;
 
-  // 3. Compact name (ignore spaces / dots / dashes)
+  // 4. Compact name (ignore spaces / dots / dashes)
   if (qCompact.length > 3) {
     const compact = people.find(p => p.name.toLowerCase().replace(/[\s._\-]/g, '') === qCompact);
     if (compact) return compact;
   }
 
-  // 4. UPI prefix
+  // 5. UPI prefix
   if (q.includes('@')) {
     const upiPrefix = q.split('@')[0];
     const upiCompact = upiPrefix.replace(/[\s._\-]/g, '');
@@ -276,7 +291,7 @@ function findPersonMatch(transferPerson, people) {
     if (upi) return upi;
   }
 
-  // 5. Partial name
+  // 6. Partial name
   return people.find(p => {
     const name = p.name.toLowerCase();
     return name.includes(q) || q.includes(name);
@@ -284,12 +299,12 @@ function findPersonMatch(transferPerson, people) {
 }
 
 // Returns true/false if list loaded, null if the check failed (network/auth)
-async function checkPersonKnown(transferPerson) {
+async function checkPersonKnown(transferPerson, transferPhone = null) {
   try {
     const res = await callApi('/people', { method: 'GET' });
     if (!res.ok) return null;
     const people = await res.json();
-    return !!findPersonMatch(transferPerson, people);
+    return !!findPersonMatch(transferPerson, people, transferPhone);
   } catch {
     return null;
   }
@@ -301,7 +316,7 @@ async function autoSaveTransfer(data) {
   if (!res.ok) throw new Error('people-fetch-failed');
   const people = await res.json();
 
-  let person = findPersonMatch(data.transfer_person, people);
+  let person = findPersonMatch(data.transfer_person, people, data.transfer_phone ?? null);
   let isNew  = false;
 
   if (!person) {
@@ -364,7 +379,7 @@ self.addEventListener('notificationclick', (event) => {
             if (isNew)     lines.push('New contact added to your people list');
             if (meta)      lines.push(meta);
             if (data.note) lines.push(`Note: ${data.note}`);
-            await self.registration.showNotification(`Lending saved · ${verb} ₹${data.amount} ${prep} ${person.name}`, {
+            await self.registration.showNotification(`Lending saved · ${verb} ₹${fmtAmount(data.amount)} ${prep} ${person.name}`, {
               body: lines.join('\n'),
               icon, badge,
               data: { successRoute: `/people/${person.id}` },
@@ -407,10 +422,10 @@ self.addEventListener('notificationclick', (event) => {
           if (meta)             lines.push(meta);
           if (data.cashback) {
             const net = parseFloat(data.amount) - parseFloat(data.cashback);
-            lines.push(`Cashback ₹${data.cashback} → Net ₹${net.toFixed(2)}`);
+            lines.push(`Cashback ₹${fmtAmount(data.cashback)} → Net ₹${fmtAmount(net)}`);
           }
           if (data.note) lines.push(`Note: ${data.note}`);
-          await self.registration.showNotification(`Expense saved · ₹${data.amount}`, {
+          await self.registration.showNotification(`Expense saved · ₹${fmtAmount(data.amount)}`, {
             body: lines.join('\n'),
             icon, badge,
             data: { successRoute: '/expenses' },
@@ -617,7 +632,7 @@ async function backgroundTextParseAndNotify(text) {
     await rawCache.delete('/share-text');
 
     const personKnown = parsed.suggested_flow === 'transfer' && parsed.transfer_person
-      ? await checkPersonKnown(parsed.transfer_person)
+      ? await checkPersonKnown(parsed.transfer_person, parsed.transfer_phone ?? null)
       : null;
     const { title, body, actions } = buildNotifContent(parsed, personKnown);
     await self.registration.showNotification(title, {
@@ -674,7 +689,7 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     const parsed = await res.json();
 
     const personKnown = parsed.suggested_flow === 'transfer' && parsed.transfer_person
-      ? await checkPersonKnown(parsed.transfer_person)
+      ? await checkPersonKnown(parsed.transfer_person, parsed.transfer_phone ?? null)
       : null;
     const { title, body, actions } = buildNotifContent(parsed, personKnown);
 
