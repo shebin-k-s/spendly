@@ -1,8 +1,13 @@
-import { useState, useRef, useLayoutEffect } from 'react';
+import { useState, useRef, useLayoutEffect, lazy, Suspense } from 'react';
 import { NavLink, useLocation, useNavigationType } from 'react-router-dom';
 import { LayoutDashboard, Receipt, Users, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import AnimatedOutlet from './AnimatedOutlet';
+
+const AnimatedOutlet = lazy(() => import('./AnimatedOutlet'));
+
+function InertOutlet() {
+  return <div className="w-full h-full bg-background" />;
+}
 
 const NAV_TABS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -125,7 +130,9 @@ export default function Layout() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <AnimatedOutlet />
+        <Suspense fallback={<InertOutlet />}>
+          <AnimatedOutlet />
+        </Suspense>
       </main>
 
       {/* Bottom navigation */}

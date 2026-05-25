@@ -27,11 +27,34 @@ const PersonDetailsPage   = lazy(() => import('@/features/people/pages/PersonDet
 const EditPersonPage      = lazy(() => import('@/features/people/pages/EditPersonPage'));
 const ShareToPeoplePage   = lazy(() => import('@/features/people/pages/ShareToPeoplePage'));
 
+// After first render, prefetch all route chunks in the background so navigations are instant
+function prefetchRoutes() {
+  import('@/features/dashboard/pages/DashboardPage');
+  import('@/features/expenses/pages/ExpensesPage');
+  import('@/features/expenses/pages/AddExpensePage');
+  import('@/features/expenses/pages/EditExpensePage');
+  import('@/features/categories/pages/CategoriesPage');
+  import('@/features/categories/pages/AddCategoryPage');
+  import('@/features/categories/pages/EditCategoryPage');
+  import('@/features/analytics/pages/AnalyticsPage');
+  import('@/features/expenses/pages/ShareProcessingPage');
+  import('@/features/expenses/pages/PendingSharesPage');
+  import('@/features/people/pages/PeoplePage');
+  import('@/features/people/pages/PersonDetailsPage');
+  import('@/features/people/pages/EditPersonPage');
+  import('@/features/people/pages/ShareToPeoplePage');
+  import('@/features/unlock/UnlockPage');
+  import('@/components/AnimatedOutlet');
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 30_000 },
   },
 });
+
+// Start prefetching all route chunks immediately at module load time
+prefetchRoutes();
 
 export default function App() {
   return (
