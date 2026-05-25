@@ -152,12 +152,19 @@ self.addEventListener('message', (event) => {
 
 // ── SPA shell ─────────────────────────────────────────────────────────────────
 async function serveSpa(request) {
+  const cached = await caches.match('/index.html') || await caches.match('/');
+  if (cached) {
+    // Revalidate in the background without blocking the response
+    fetch(request).then((res) => {
+      if (res.ok) caches.open(CACHE_NAME).then((c) => c.put('/index.html', res));
+    }).catch(() => {});
+    return cached;
+  }
   try {
     const res = await fetch(request);
     if (res.ok) return res;
   } catch { /* offline */ }
-  const cached = await caches.match('/index.html') || await caches.match('/');
-  return cached || new Response('<h1>You are offline</h1>', {
+  return new Response('<h1>You are offline</h1>', {
     headers: { 'Content-Type': 'text/html' },
   });
 }
