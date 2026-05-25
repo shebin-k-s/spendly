@@ -1,4 +1,3 @@
-import { lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
@@ -10,51 +9,28 @@ import ProtectedRoute from '@/routes/ProtectedRoute';
 import PublicRoute from '@/routes/PublicRoute';
 import Layout from '@/components/Layout';
 
-const UnlockPage          = lazy(() => import('@/features/unlock/UnlockPage'));
-const DashboardPage       = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
-const ExpensesPage        = lazy(() => import('@/features/expenses/pages/ExpensesPage'));
-const AddExpensePage      = lazy(() => import('@/features/expenses/pages/AddExpensePage'));
-const EditExpensePage     = lazy(() => import('@/features/expenses/pages/EditExpensePage'));
-const CategoriesPage      = lazy(() => import('@/features/categories/pages/CategoriesPage'));
-const AddCategoryPage     = lazy(() => import('@/features/categories/pages/AddCategoryPage'));
-const EditCategoryPage    = lazy(() => import('@/features/categories/pages/EditCategoryPage'));
-const AnalyticsPage       = lazy(() => import('@/features/analytics/pages/AnalyticsPage'));
-const AiTestPage          = lazy(() => import('@/features/expenses/pages/AiTestPage'));
-const ShareProcessingPage = lazy(() => import('@/features/expenses/pages/ShareProcessingPage'));
-const PendingSharesPage   = lazy(() => import('@/features/expenses/pages/PendingSharesPage'));
-const PeoplePage          = lazy(() => import('@/features/people/pages/PeoplePage'));
-const PersonDetailsPage   = lazy(() => import('@/features/people/pages/PersonDetailsPage'));
-const EditPersonPage      = lazy(() => import('@/features/people/pages/EditPersonPage'));
-const ShareToPeoplePage   = lazy(() => import('@/features/people/pages/ShareToPeoplePage'));
-
-// After first render, prefetch all route chunks in the background so navigations are instant
-function prefetchRoutes() {
-  import('@/features/dashboard/pages/DashboardPage');
-  import('@/features/expenses/pages/ExpensesPage');
-  import('@/features/expenses/pages/AddExpensePage');
-  import('@/features/expenses/pages/EditExpensePage');
-  import('@/features/categories/pages/CategoriesPage');
-  import('@/features/categories/pages/AddCategoryPage');
-  import('@/features/categories/pages/EditCategoryPage');
-  import('@/features/analytics/pages/AnalyticsPage');
-  import('@/features/expenses/pages/ShareProcessingPage');
-  import('@/features/expenses/pages/PendingSharesPage');
-  import('@/features/people/pages/PeoplePage');
-  import('@/features/people/pages/PersonDetailsPage');
-  import('@/features/people/pages/EditPersonPage');
-  import('@/features/people/pages/ShareToPeoplePage');
-  import('@/features/unlock/UnlockPage');
-  import('@/components/AnimatedOutlet');
-}
+import UnlockPage from '@/features/unlock/UnlockPage';
+import DashboardPage from '@/features/dashboard/pages/DashboardPage';
+import ExpensesPage from '@/features/expenses/pages/ExpensesPage';
+import AddExpensePage from '@/features/expenses/pages/AddExpensePage';
+import EditExpensePage from '@/features/expenses/pages/EditExpensePage';
+import CategoriesPage from '@/features/categories/pages/CategoriesPage';
+import AddCategoryPage from '@/features/categories/pages/AddCategoryPage';
+import EditCategoryPage from '@/features/categories/pages/EditCategoryPage';
+import AnalyticsPage from '@/features/analytics/pages/AnalyticsPage';
+import AiTestPage from '@/features/expenses/pages/AiTestPage';
+import ShareProcessingPage from '@/features/expenses/pages/ShareProcessingPage';
+import PendingSharesPage from '@/features/expenses/pages/PendingSharesPage';
+import PeoplePage from '@/features/people/pages/PeoplePage';
+import PersonDetailsPage from '@/features/people/pages/PersonDetailsPage';
+import EditPersonPage from '@/features/people/pages/EditPersonPage';
+import ShareToPeoplePage from '@/features/people/pages/ShareToPeoplePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 30_000 },
   },
 });
-
-// Start prefetching all route chunks immediately at module load time
-prefetchRoutes();
 
 export default function App() {
   return (
@@ -83,28 +59,26 @@ export default function App() {
           }}
         />
         <BrowserRouter>
-          <Suspense>
-            <Routes>
-              <Route path="/unlock" element={<PublicRoute><UnlockPage /></PublicRoute>} />
-              <Route path="/share-processing" element={<ShareProcessingPage />} />
-              <Route path="/ai-test" element={<ProtectedRoute><AiTestPage /></ProtectedRoute>} />
-              <Route path="/*" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route index element={<DashboardPage />} />
-                <Route path="expenses" element={<ExpensesPage />} />
-                <Route path="expenses/new" element={<AddExpensePage />} />
-                <Route path="expenses/:id/edit" element={<EditExpensePage />} />
-                <Route path="categories" element={<CategoriesPage />} />
-                <Route path="categories/new" element={<AddCategoryPage />} />
-                <Route path="categories/:id/edit" element={<EditCategoryPage />} />
-                <Route path="analytics" element={<AnalyticsPage />} />
-                <Route path="people" element={<PeoplePage />} />
-                <Route path="people/:id" element={<PersonDetailsPage />} />
-                <Route path="people/:id/edit" element={<EditPersonPage />} />
-                <Route path="share-to-people" element={<ShareToPeoplePage />} />
-                <Route path="share-pending" element={<PendingSharesPage />} />
-              </Route>
-            </Routes>
-          </Suspense>
+          <Routes>
+            <Route path="/unlock" element={<PublicRoute><UnlockPage /></PublicRoute>} />
+            <Route path="/share-processing" element={<ShareProcessingPage />} />
+            <Route path="/ai-test" element={<ProtectedRoute><AiTestPage /></ProtectedRoute>} />
+            <Route path="/*" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<DashboardPage />} />
+              <Route path="expenses" element={<ExpensesPage />} />
+              <Route path="expenses/new" element={<AddExpensePage />} />
+              <Route path="expenses/:id/edit" element={<EditExpensePage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="categories/new" element={<AddCategoryPage />} />
+              <Route path="categories/:id/edit" element={<EditCategoryPage />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="people" element={<PeoplePage />} />
+              <Route path="people/:id" element={<PersonDetailsPage />} />
+              <Route path="people/:id/edit" element={<EditPersonPage />} />
+              <Route path="share-to-people" element={<ShareToPeoplePage />} />
+              <Route path="share-pending" element={<PendingSharesPage />} />
+            </Route>
+          </Routes>
         </BrowserRouter>
       </SwipeGestureProvider>
     </QueryClientProvider>
