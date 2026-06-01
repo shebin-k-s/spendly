@@ -1,15 +1,18 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { SmartFilterCriteria } from '@/features/expenses/types';
 
 export interface FilterState {
   searchTerm: string;
   selectedCategoryIds: string[];
   isFilterOpen: boolean;
+  smartFilter: SmartFilterCriteria | null;
 }
 
 const initialState: FilterState = {
   searchTerm: '',
   selectedCategoryIds: [],
   isFilterOpen: false,
+  smartFilter: null,
 };
 
 const filterSlice = createSlice({
@@ -31,9 +34,13 @@ const filterSlice = createSlice({
     setFilterOpen: (state, action: PayloadAction<boolean>) => {
       state.isFilterOpen = action.payload;
     },
+    setSmartFilter: (state, action: PayloadAction<SmartFilterCriteria | null>) => {
+      state.smartFilter = action.payload;
+    },
     clearFilters: (state) => {
       state.searchTerm = '';
       state.selectedCategoryIds = [];
+      state.smartFilter = null;
     },
     clearCategories: (state) => {
       state.selectedCategoryIds = [];
@@ -41,5 +48,5 @@ const filterSlice = createSlice({
   },
 });
 
-export const { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } = filterSlice.actions;
+export const { setSearchTerm, toggleCategoryId, setFilterOpen, setSmartFilter, clearFilters, clearCategories } = filterSlice.actions;
 export default filterSlice.reducer;

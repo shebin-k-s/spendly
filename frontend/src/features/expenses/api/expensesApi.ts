@@ -48,4 +48,6 @@ export const expensesApi = {
     const { data } = await apiClient.post(`${URL}/parse-text`, { text });
     return data;
   },
+
 };
+

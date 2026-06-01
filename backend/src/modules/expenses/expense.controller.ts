@@ -70,6 +70,7 @@ export class ExpenseController {
         res.json(await aiService.parseText(text, categories, debug));
     };
 
+
     parseImage = async (req: Request, res: Response) => {
         const file = (req as Request & { file?: Express.Multer.File }).file;
         if (!file) {

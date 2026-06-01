@@ -82,3 +82,4 @@ export function useDeleteExpense() {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 }
+

@@ -57,3 +57,4 @@ export interface MonthlyAnalytic {
   cashbackTotal?: number;
   count: number;
 }
+

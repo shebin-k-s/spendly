@@ -52,6 +52,10 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
   const [touchY, setTouchY] = useState<number | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    // If the click is on a button, don't capture pointer on the wrapper.
+    // This allows the button's onClick to fire normally on web.
+    if ((e.target as HTMLElement).closest('button')) return;
+
     setTouchY(e.clientY);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -60,8 +64,8 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
     const currentY = e.clientY;
     const diff = touchY - currentY;
     
-    // Swipe distance threshold
-    if (Math.abs(diff) > 12) {
+    // Swipe distance threshold - increased to 36 for better control (less sensitive)
+    if (Math.abs(diff) > 36) {
       onAdjust(diff > 0 ? step : -step);
       setTouchY(currentY); // Reset to allow continuous swiping
     }

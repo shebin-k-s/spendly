@@ -62,7 +62,7 @@ export default function ExpenseFilter({
     handleCurrentY.current = 0;
   };
 
-  const hasActiveFilters = searchTerm || selectedCategoryIds.length > 0;
+  const hasActiveFilters = !!(searchTerm || selectedCategoryIds.length > 0);
 
   useEffect(() => {
     if (!isOpen || selectedCategoryIds.length === 0) return;
@@ -102,8 +102,11 @@ export default function ExpenseFilter({
         }}
       >
         <div className="bg-card/50 px-4 py-4 space-y-4">
+          {/* Header row with label + clear */}
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Filter Transactions</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+              Search & Filter
+            </h3>
             {hasActiveFilters && (
               <button onClick={onClearFilters} className="text-xs text-muted-foreground px-2 py-1">
                 Clear all
@@ -157,9 +160,7 @@ export default function ExpenseFilter({
                 <ChevronsUpDown className="w-3 h-3" />
               </button>
             </div>
-            <div
-              className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1"
-            >
+            <div className="flex gap-2 overflow-x-auto overscroll-x-contain disable-scrollbars pb-1">
               <button
                 id="category-filter-all"
                 onClick={() => selectedCategoryIds.length > 0 && onClearCategories()}
