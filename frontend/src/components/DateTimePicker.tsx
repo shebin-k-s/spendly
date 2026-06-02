@@ -83,7 +83,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 
   return (
     <div
-      className="flex flex-col items-center gap-1.5 touch-none select-none py-12 -my-10 cursor-ns-resize"
+      className="flex flex-col items-center gap-1.5 touch-none select-none py-24 -my-20 w-20 cursor-ns-resize"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -402,11 +402,11 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
                 <div />
 
                 {/* Center layout */}
-                <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-0">
                   {/* Hour column */}
                   <ScrollableNumberColumn value={hour12} onAdjust={adjustHour} step={1} />
 
-                  <span className="text-3xl font-bold text-muted-foreground self-center pb-1">:</span>
+                  <span className="text-3xl font-bold text-muted-foreground self-center pb-1 pointer-events-none">:</span>
 
                   {/* Minute column — steps of 1 */}
                   <ScrollableNumberColumn value={minute} onAdjust={adjustMinute} step={1} />
