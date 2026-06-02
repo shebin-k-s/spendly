@@ -49,29 +49,28 @@ function toTime24(h12: number, minute: number, period: 'AM' | 'PM'): string {
 }
 
 function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; onAdjust: (delta: number) => void; step?: number }) {
-  const [touchY, setTouchY] = useState<number | null>(null);
+  const lastY = useRef<number | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    // If the click is on a button, don't capture pointer on the wrapper.
-    // This allows the button's onClick to fire normally on web.
     if ((e.target as HTMLElement).closest('button')) return;
-
-    setTouchY(e.clientY);
+    lastY.current = e.clientY;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
+
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (touchY === null) return;
+    if (lastY.current === null) return;
     const currentY = e.clientY;
-    const diff = touchY - currentY;
+    const diff = lastY.current - currentY;
     
-    // Swipe distance threshold - increased to 36 for better control (less sensitive)
-    if (Math.abs(diff) > 36) {
+    // Significantly reduced threshold (from 36 to 14) for much better mobile responsiveness
+    if (Math.abs(diff) > 14) {
       onAdjust(diff > 0 ? step : -step);
-      setTouchY(currentY); // Reset to allow continuous swiping
+      lastY.current = currentY;
     }
   };
+
   const handlePointerUp = (e: React.PointerEvent) => {
-    setTouchY(null);
+    lastY.current = null;
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
@@ -84,7 +83,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 
   return (
     <div
-      className="flex flex-col items-center gap-2 touch-none select-none py-1 cursor-ns-resize"
+      className="flex flex-col items-center gap-1.5 touch-none select-none py-12 -my-10 cursor-ns-resize"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -94,17 +93,17 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
       <button
         type="button"
         onClick={() => onAdjust(step)}
-        className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+        className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center active:bg-secondary/40 transition-colors"
       >
         <ChevronUp className="w-5 h-5" />
       </button>
-      <span className="text-3xl font-bold w-14 text-center tabular-nums pointer-events-none">
+      <span className="text-3xl font-bold w-14 text-center tabular-nums pointer-events-none py-1">
         {value.toString().padStart(2, '0')}
       </span>
       <button
         type="button"
         onClick={() => onAdjust(-step)}
-        className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+        className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center active:bg-secondary/40 transition-colors"
       >
         <ChevronDown className="w-5 h-5" />
       </button>
