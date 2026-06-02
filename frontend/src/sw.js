@@ -5,9 +5,9 @@
 //  – Background AI parse + push notification when app is closed
 // ============================================================
 
-const CACHE_NAME  = 'spendly-cache-v3';
+const CACHE_NAME = 'spendly-cache-v3';
 const SHARE_CACHE = 'spendly-share';
-const AUTH_CACHE  = 'spendly-auth-v1';
+const AUTH_CACHE = 'spendly-auth-v1';
 
 // Injected by vite-plugin-pwa at build time
 const WB_MANIFEST = self.__WB_MANIFEST || [];
@@ -141,9 +141,9 @@ async function callApi(path, options = {}) {
 // ── Message listener (app → SW) ───────────────────────────────────────────────
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'AUTH_UPDATE') {
-    saveAuth(event.data.token, event.data.apiBase).catch(() => {});
+    saveAuth(event.data.token, event.data.apiBase).catch(() => { });
   } else if (event.data?.type === 'APP_HEARTBEAT') {
-    saveHeartbeat().catch(() => {});
+    saveHeartbeat().catch(() => { });
   } else if (event.data?.type === 'APP_TAKEN_OVER_SHARE') {
     console.log('[SW] App has taken over share flow, will skip notification');
     activeShareTakeover = true;
@@ -157,7 +157,7 @@ async function serveSpa(request) {
     // Revalidate in the background without blocking the response
     fetch(request).then((res) => {
       if (res.ok) caches.open(CACHE_NAME).then((c) => c.put('/index.html', res));
-    }).catch(() => {});
+    }).catch(() => { });
     return cached;
   }
   try {
@@ -187,28 +187,28 @@ function fmtAmount(amount) {
 }
 
 function buildNotifContent(parsed, personKnown = null) {
-  const amount     = fmtAmount(parsed.amount);
-  const method     = METHOD_LABEL[parsed.payment_method] || parsed.payment_method || '';
-  const date       = fmtDate(parsed.date);
-  const time       = parsed.time || '';
+  const amount = fmtAmount(parsed.amount);
+  const method = METHOD_LABEL[parsed.payment_method] || parsed.payment_method || '';
+  const date = fmtDate(parsed.date);
+  const time = parsed.time || '';
   const isTransfer = parsed.suggested_flow === 'transfer' && parsed.transfer_person;
 
   if (isTransfer) {
-    const isSent     = parsed.transfer_direction === 'sent';
-    const verb       = isSent ? 'Gave' : 'Received';
-    const prep       = isSent ? 'to' : 'from';
+    const isSent = parsed.transfer_direction === 'sent';
+    const verb = isSent ? 'Gave' : 'Received';
+    const prep = isSent ? 'to' : 'from';
     const personName = cleanPersonName(parsed.transfer_person);
-    const title      = `Lending · ${verb} ₹${amount} ${prep} ${personName}`;
+    const title = `Lending · ${verb} ₹${amount} ${prep} ${personName}`;
 
     const lines = [];
     if (personKnown === false) lines.push('New Contact');
     const meta = [method, date, time].filter(Boolean).join(' · ');
-    if (meta)        lines.push(meta);
+    if (meta) lines.push(meta);
     if (parsed.note) lines.push(`Note: ${parsed.note}`);
 
-    const body    = lines.join('\n') || 'Tap to log this transfer';
+    const body = lines.join('\n') || 'Tap to log this transfer';
     const actions = [
-      { action: 'save',   title: 'Log it' },
+      { action: 'save', title: 'Log it' },
       { action: 'review', title: 'Review' },
     ];
     return { title, body, actions };
@@ -230,9 +230,9 @@ function buildNotifContent(parsed, personKnown = null) {
 
   if (parsed.note) lines.push(`Note: ${parsed.note}`);
 
-  const body    = lines.join('\n') || 'Tap to review before saving';
+  const body = lines.join('\n') || 'Tap to review before saving';
   const actions = [
-    { action: 'save',   title: 'Save'   },
+    { action: 'save', title: 'Save' },
     { action: 'review', title: 'Review' },
   ];
   return { title, body, actions };
@@ -257,10 +257,10 @@ function cleanPersonName(raw) {
 
 // ── Person matching helper (shared by auto-save and person-check) ─────────────
 function findPersonMatch(transferPerson, people, phone = null) {
-  const q        = (transferPerson || '').toLowerCase().trim();
+  const q = (transferPerson || '').toLowerCase().trim();
   if (!q) return null;
   const qCompact = q.replace(/[\s._\-]/g, '');
-  const qDigits  = q.replace(/\D/g, '');
+  const qDigits = q.replace(/\D/g, '');
 
   // 1. Explicit phone — strongest signal
   if (phone) {
@@ -324,7 +324,7 @@ async function autoSaveTransfer(data) {
   const people = await res.json();
 
   let person = findPersonMatch(data.transfer_person, people, data.transfer_phone ?? null);
-  let isNew  = false;
+  let isNew = false;
 
   if (!person) {
     // Person not in list — auto-create so the transaction can be saved immediately
@@ -337,10 +337,10 @@ async function autoSaveTransfer(data) {
     });
     if (!createRes.ok) throw new Error('person-create-failed');
     person = await createRes.json();
-    isNew  = true;
+    isNew = true;
   }
 
-  const type  = data.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
+  const type = data.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN';
   const txRes = await callApi(`/people/${person.id}/transactions`, {
     method: 'POST',
     body: JSON.stringify({
@@ -368,23 +368,23 @@ self.addEventListener('notificationclick', (event) => {
   if (event.action === 'save') {
     event.waitUntil(
       (async () => {
-        const icon  = new URL('/logo-192.png', self.location.origin).href;
-        const badge = new URL('/badge.svg',    self.location.origin).href;
+        const icon = new URL('/logo-192.png', self.location.origin).href;
+        const badge = new URL('/badge.svg', self.location.origin).href;
 
         if (data.suggested_flow === 'transfer' && data.transfer_person) {
           try {
             const { person, type, isNew } = await autoSaveTransfer(data);
             await removeShareByTs(data.shareTs);
-            navigator.clearAppBadge?.().catch?.(() => {});
-            const isSent  = type === 'GIVEN';
-            const verb    = isSent ? 'Gave' : 'Received';
-            const prep    = isSent ? 'to' : 'from';
-            const method  = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
-            const date    = fmtDate(data.date);
-            const meta    = [method, date].filter(Boolean).join(' · ');
-            const lines   = [];
-            if (isNew)     lines.push('New contact added to your people list');
-            if (meta)      lines.push(meta);
+            navigator.clearAppBadge?.().catch?.(() => { });
+            const isSent = type === 'GIVEN';
+            const verb = isSent ? 'Gave' : 'Received';
+            const prep = isSent ? 'to' : 'from';
+            const method = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
+            const date = fmtDate(data.date);
+            const meta = [method, date].filter(Boolean).join(' · ');
+            const lines = [];
+            if (isNew) lines.push('New contact added to your people list');
+            if (meta) lines.push(meta);
             if (data.note) lines.push(`Note: ${data.note}`);
             await self.registration.showNotification(`Lending saved · ${verb} ₹${fmtAmount(data.amount)} ${prep} ${person.name}`, {
               body: lines.join('\n'),
@@ -407,26 +407,26 @@ self.addEventListener('notificationclick', (event) => {
           const res = await callApi('/expenses', {
             method: 'POST',
             body: JSON.stringify({
-              amount:        parseFloat(data.amount),
-              description:   data.description,
-              date:          data.date,
-              time:          data.time          || undefined,
+              amount: parseFloat(data.amount),
+              description: data.description,
+              date: data.date,
+              time: data.time || undefined,
               paymentMethod: data.paymentMethod || 'upi',
-              categoryId:    data.categoryId    || undefined,
-              note:          data.note          || undefined,
-              cashback:      data.cashback ? parseFloat(data.cashback) : undefined,
+              categoryId: data.categoryId || undefined,
+              note: data.note || undefined,
+              cashback: data.cashback ? parseFloat(data.cashback) : undefined,
             }),
           });
           if (!res.ok) throw new Error('save-failed');
           await removeShareByTs(data.shareTs);
-          navigator.clearAppBadge?.().catch?.(() => {});
-          const method   = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
-          const date     = fmtDate(data.date);
+          navigator.clearAppBadge?.().catch?.(() => { });
+          const method = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
+          const date = fmtDate(data.date);
           const category = data.categoryName || '';
-          const meta     = [category, method, date].filter(Boolean).join(' · ');
-          const lines    = [];
+          const meta = [category, method, date].filter(Boolean).join(' · ');
+          const lines = [];
           if (data.description) lines.push(data.description);
-          if (meta)             lines.push(meta);
+          if (meta) lines.push(meta);
           if (data.cashback) {
             const net = parseFloat(data.amount) - parseFloat(data.cashback);
             lines.push(`Cashback ₹${fmtAmount(data.cashback)} → Net ₹${fmtAmount(net)}`);
@@ -455,9 +455,9 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 async function openWindow(path) {
-  const target  = new URL(path, self.location.origin).href;
+  const target = new URL(path, self.location.origin).href;
   const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-  const any     = clients[0];
+  const any = clients[0];
   if (any) { any.navigate(target); any.focus(); return; }
   await self.clients.openWindow(target);
 }
@@ -492,11 +492,11 @@ self.addEventListener('fetch', (event) => {
         try {
           const formData = await request.formData();
           const image = formData.get('image');
-          const text  = (formData.get('text')  || '').trim();
+          const text = (formData.get('text') || '').trim();
           const title = (formData.get('title') || '').trim();
 
           // ── Heartbeat check (shared by text and image paths) ─────────────
-          const APP_HEARTBEAT_TTL = 10_000;
+          const APP_HEARTBEAT_TTL = 120_000;
           const heartbeatAge = await getHeartbeatAge();
           const appWasOpen = heartbeatAge < APP_HEARTBEAT_TTL;
           console.log('[SW] Heartbeat age:', heartbeatAge === Infinity ? '∞' : `${heartbeatAge}ms`, '→ app was', appWasOpen ? 'OPEN' : 'CLOSED');
@@ -594,7 +594,7 @@ async function appendShareQueue(parsed, type, extra = {}) {
   await cache.put('/share-queue', new Response(JSON.stringify(queue), {
     headers: { 'Content-Type': 'application/json' },
   }));
-  navigator.setAppBadge?.(queue.length).catch?.(() => {});
+  navigator.setAppBadge?.(queue.length).catch?.(() => { });
   return item;
 }
 
@@ -644,35 +644,35 @@ async function backgroundTextParseAndNotify(text) {
     const { title, body, actions } = buildNotifContent(parsed, personKnown);
     await self.registration.showNotification(title, {
       body,
-      icon:               new URL('/logo-192.png', self.location.origin).href,
-      badge:              new URL('/badge.svg',    self.location.origin).href,
+      icon: new URL('/logo-192.png', self.location.origin).href,
+      badge: new URL('/badge.svg', self.location.origin).href,
       requireInteraction: true,
       actions,
       data: {
-        amount:             parsed.amount,
-        description:        parsed.description,
-        paymentMethod:      parsed.payment_method,
-        categoryId:         parsed.category_id,
-        categoryName:       parsed.category_name      || null,
-        date:               parsed.date,
-        time:               parsed.time,
-        note:               parsed.note,
-        cashback:           parsed.cashback,
-        transfer_person:    parsed.transfer_person    || null,
-        transfer_phone:     parsed.transfer_phone     || null,
+        amount: parsed.amount,
+        description: parsed.description,
+        paymentMethod: parsed.payment_method,
+        categoryId: parsed.category_id,
+        categoryName: parsed.category_name || null,
+        date: parsed.date,
+        time: parsed.time,
+        note: parsed.note,
+        cashback: parsed.cashback,
+        transfer_person: parsed.transfer_person || null,
+        transfer_phone: parsed.transfer_phone || null,
         transfer_direction: parsed.transfer_direction || null,
-        suggested_flow:     parsed.suggested_flow     || 'expense',
-        shareType:          'text',
-        shareTs:            item.ts,
+        suggested_flow: parsed.suggested_flow || 'expense',
+        shareType: 'text',
+        shareTs: item.ts,
       },
     });
   } catch (err) {
     const isNoAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
     await self.registration.showNotification('Message ready', {
-      body:  isNoAuth ? 'Open Spendly to add this expense' : 'Tap to review and add',
-      icon:  new URL('/logo-192.png', self.location.origin).href,
+      body: isNoAuth ? 'Open Spendly to add this expense' : 'Tap to review and add',
+      icon: new URL('/logo-192.png', self.location.origin).href,
       badge: new URL('/badge.svg', self.location.origin).href,
-      data:  { url: new URL('/expenses/new?shared=text', self.location.origin).href, shareType: 'text' },
+      data: { url: new URL('/expenses/new?shared=text', self.location.origin).href, shareType: 'text' },
     });
   }
 }
@@ -681,7 +681,7 @@ async function backgroundTextParseAndNotify(text) {
 async function backgroundParseAndNotify(buffer, mimeType) {
   console.log('[SW] backgroundParseAndNotify: starting...');
   console.log('[SW] Notification permission:', Notification.permission);
-  
+
   if (Notification.permission !== 'granted') {
     console.warn('[SW] Notification permission not granted. User might not see the background result.');
   }
@@ -714,26 +714,26 @@ async function backgroundParseAndNotify(buffer, mimeType) {
 
     await self.registration.showNotification(title, {
       body,
-      icon:               new URL('/logo-192.png', self.location.origin).href,
-      badge:              new URL('/badge.svg',    self.location.origin).href,
+      icon: new URL('/logo-192.png', self.location.origin).href,
+      badge: new URL('/badge.svg', self.location.origin).href,
       requireInteraction: true,
       actions,
       data: {
-        amount:             parsed.amount,
-        description:        parsed.description,
-        paymentMethod:      parsed.payment_method,
-        categoryId:         parsed.category_id,
-        categoryName:       parsed.category_name      || null,
-        date:               parsed.date,
-        time:               parsed.time,
-        note:               parsed.note,
-        cashback:           parsed.cashback,
-        transfer_person:    parsed.transfer_person    || null,
-        transfer_phone:     parsed.transfer_phone     || null,
+        amount: parsed.amount,
+        description: parsed.description,
+        paymentMethod: parsed.payment_method,
+        categoryId: parsed.category_id,
+        categoryName: parsed.category_name || null,
+        date: parsed.date,
+        time: parsed.time,
+        note: parsed.note,
+        cashback: parsed.cashback,
+        transfer_person: parsed.transfer_person || null,
+        transfer_phone: parsed.transfer_phone || null,
         transfer_direction: parsed.transfer_direction || null,
-        suggested_flow:     parsed.suggested_flow     || 'expense',
-        shareType:          'image',
-        shareTs:            item.ts,
+        suggested_flow: parsed.suggested_flow || 'expense',
+        shareType: 'image',
+        shareTs: item.ts,
       },
     });
     console.log('[SW] backgroundParseAndNotify: notification shown');
@@ -742,10 +742,10 @@ async function backgroundParseAndNotify(buffer, mimeType) {
     // Auth missing or parse failed — show a simple tap-to-add notification
     const isNoAuth = err?.message === 'no-auth' || err?.message === 'auth-expired';
     await self.registration.showNotification('Receipt ready', {
-      body:  isNoAuth ? 'Open Spendly to add this expense' : 'Tap to review and add',
-      icon:  new URL('/logo-192.png', self.location.origin).href,
+      body: isNoAuth ? 'Open Spendly to add this expense' : 'Tap to review and add',
+      icon: new URL('/logo-192.png', self.location.origin).href,
       badge: new URL('/badge.svg', self.location.origin).href,
-      data:  { url: new URL('/expenses/new?shared=image', self.location.origin).href },
+      data: { url: new URL('/expenses/new?shared=image', self.location.origin).href },
     });
   }
 }
