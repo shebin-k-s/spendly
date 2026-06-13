@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Trash2, Loader2 } from 'lucide-react';
-import { useCategoriesQuery, useUpdateCategory, useDeleteCategory } from '../hooks/useCategories';
+import { useCategoryById, useUpdateCategory, useDeleteCategory, useCategoriesQuery } from '../hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
@@ -9,16 +9,18 @@ const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡'
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialCategory = location.state?.category;
+
+  const { data: category, isLoading } = useCategoryById(id!);
   const { data: categories = [] } = useCategoriesQuery();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const category = categories.find((c) => c.id === id);
-
-  const [name, setName] = useState('');
-  const [icon, setIcon] = useState('📦');
-  const [color, setColor] = useState('#f97316');
+  const [name, setName] = useState(initialCategory?.name || '');
+  const [icon, setIcon] = useState(initialCategory?.icon || '📦');
+  const [color, setColor] = useState(initialCategory?.color || '#f97316');
 
   const getSavedIcons = () => {
     try {
@@ -163,7 +165,7 @@ export default function EditCategoryPage() {
         <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
           {updateCategory.isPending ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               Saving...
             </>
           ) : 'Save Changes'}

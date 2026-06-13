@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Trash2, Loader2, Check } from 'lucide-react';
 import { usePerson, useUpdatePerson, useDeletePerson } from '../hooks/usePeople';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -7,12 +7,15 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 export default function EditPersonPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialPerson = location.state?.person;
+
   const { data: person, isLoading } = usePerson(id!);
   const updatePerson = useUpdatePerson();
   const deletePerson = useDeletePerson();
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(initialPerson?.name || '');
+  const [phone, setPhone] = useState(initialPerson?.phoneNumber || '');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
@@ -113,7 +116,7 @@ export default function EditPersonPage() {
         <button onClick={handleSave} disabled={!canSubmit} className="btn-primary">
           {updatePerson.isPending ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               Saving...
             </>
           ) : 'Save Changes'}

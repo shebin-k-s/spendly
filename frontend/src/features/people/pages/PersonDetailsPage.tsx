@@ -113,7 +113,7 @@ export default function PersonDetailsPage() {
           </div>
         </div>
         <button
-          onClick={() => navigate(`/people/${id}/edit`)}
+          onClick={() => navigate(`/people/${id}/edit`, { state: { person } })}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity shrink-0"
         >
           <Pencil className="w-4 h-4" />

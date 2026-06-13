@@ -14,6 +14,15 @@ export function useCategoriesQuery() {
   });
 }
 
+export function useCategoryById(id: string) {
+  return useQuery({
+    queryKey: [...CATEGORIES_KEY, id],
+    queryFn: () => categoriesApi.getById(id),
+    staleTime: 60_000,
+    enabled: !!id,
+  });
+}
+
 export function useCreateCategory() {
   const qc = useQueryClient();
   return useMutation({

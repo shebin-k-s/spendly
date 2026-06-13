@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Check, Trash2, Loader2 } from 'lucide-react';
 import { useExpenseById, useUpdateExpense, useDeleteExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -14,20 +14,22 @@ const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer'
 export default function EditExpensePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialExpense = location.state?.expense;
 
   const { data: expense, isLoading } = useExpenseById(id!);
   const { data: categories = [] } = useCategoriesQuery();
   const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
 
-  const [amount, setAmount] = useState('');
-  const [cashback, setCashback] = useState('');
-  const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState<string | null>(null);
-  const [categoryId, setCategoryId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('upi');
-  const [note, setNote] = useState('');
+  const [amount, setAmount] = useState(initialExpense ? String(initialExpense.amount) : '');
+  const [cashback, setCashback] = useState(initialExpense?.cashback ? String(initialExpense.cashback) : '');
+  const [description, setDescription] = useState(initialExpense?.description || '');
+  const [date, setDate] = useState(initialExpense?.date || '');
+  const [time, setTime] = useState<string | null>(initialExpense?.time ?? null);
+  const [categoryId, setCategoryId] = useState(initialExpense?.category?.id || '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialExpense?.paymentMethod || 'upi');
+  const [note, setNote] = useState(initialExpense?.note || '');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
@@ -233,7 +235,7 @@ export default function EditExpensePage() {
         <button onClick={handleUpdate} disabled={!canSubmit} className="btn-primary">
           {updateExpense.isPending ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               Saving...
             </>
           ) : 'Save Changes'}

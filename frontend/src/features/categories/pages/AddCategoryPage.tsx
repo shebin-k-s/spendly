@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { useCreateCategory, useCategoriesQuery } from '../hooks/useCategories';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
@@ -59,7 +59,18 @@ export default function AddCategoryPage() {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold">New Category</h1>
+        <h1 className="text-xl font-bold flex-1">New Category</h1>
+        <button
+          onClick={handleSubmit}
+          disabled={!canSubmit}
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
+        >
+          {createCategory.isPending ? (
+            <Loader2 className="w-4 h-4 text-primary animate-spin" />
+          ) : (
+            <Check className="w-4 h-4 text-primary" />
+          )}
+        </button>
       </div>
 
       <div className="page-content space-y-6">
@@ -138,7 +149,12 @@ export default function AddCategoryPage() {
         </div>
 
         <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
-          {createCategory.isPending ? 'Creating...' : 'Create Category'}
+          {createCategory.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Creating...
+            </>
+          ) : 'Create Category'}
         </button>
       </div>
     </div>

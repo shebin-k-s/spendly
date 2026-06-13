@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserPlus, ChevronRight, Phone, Search, X } from 'lucide-react';
+import { Users, UserPlus, ChevronRight, Phone, Search, X, Loader2 } from 'lucide-react';
 import { usePeople, useCreatePerson } from '../hooks/usePeople';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -90,7 +90,12 @@ export default function PeoplePage() {
               disabled={!newName.trim() || createPerson.isPending}
               className="btn-primary"
             >
-              {createPerson.isPending ? 'Adding...' : 'Add Person'}
+              {createPerson.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Adding...
+                </>
+              ) : 'Add Person'}
             </button>
           </form>
         )}

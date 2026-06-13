@@ -9,6 +9,11 @@ export const categoriesApi = {
     return data;
   },
 
+  async getById(id: string): Promise<Category> {
+    const { data } = await apiClient.get<Category>(`${URL}/${id}`);
+    return data;
+  },
+
   async create(payload: CreateCategoryPayload): Promise<Category> {
     const { data } = await apiClient.post<Category>(URL, payload);
     return data;

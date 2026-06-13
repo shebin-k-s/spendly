@@ -66,7 +66,7 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
 
   const handleEdit = () => {
     onOpenChange(false);
-    navigate(`/expenses/${expense.id}/edit`);
+    navigate(`/expenses/${expense.id}/edit`, { state: { expense } });
   };
 
   const handleAddAgain = () => {

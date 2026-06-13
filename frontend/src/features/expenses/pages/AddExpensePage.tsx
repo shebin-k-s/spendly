@@ -675,7 +675,11 @@ export default function AddExpensePage() {
           disabled={lendingMode ? (!selectedPersonId || !amount || parseFloat(amount || '0') <= 0 || addTransaction.isPending) : !canSubmit}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
         >
-          <Check className="w-4 h-4 text-primary" />
+          {createExpense.isPending || addTransaction.isPending ? (
+            <Loader2 className="w-4 h-4 text-primary animate-spin" />
+          ) : (
+            <Check className="w-4 h-4 text-primary" />
+          )}
         </button>
       </div>
 
@@ -907,7 +911,12 @@ export default function AddExpensePage() {
             </div>
 
             <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
-              {createExpense.isPending ? 'Saving...' : aiStatus === 'loading' ? 'Analyzing...' : 'Add Expense'}
+              {createExpense.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : aiStatus === 'loading' ? 'Analyzing...' : 'Add Expense'}
             </button>
           </>
         )}
