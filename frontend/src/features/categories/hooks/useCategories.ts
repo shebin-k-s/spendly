@@ -14,12 +14,12 @@ export function useCategoriesQuery() {
   });
 }
 
-export function useCategoryById(id: string) {
+export function useCategoryById(id: string, enabled = true) {
   return useQuery({
     queryKey: [...CATEGORIES_KEY, id],
     queryFn: () => categoriesApi.getById(id),
     staleTime: 60_000,
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
 }
 

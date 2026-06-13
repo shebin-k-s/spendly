@@ -16,11 +16,11 @@ export function useExpensesQuery(year: number, month: number, categoryId?: strin
   });
 }
 
-export function useExpenseById(id: string) {
+export function useExpenseById(id: string, enabled = true) {
   return useQuery({
     queryKey: [...EXPENSES_KEY, id],
     queryFn: () => expensesApi.getById(id),
-    enabled: !!id,
+    enabled: !!id && enabled,
     staleTime: 30_000,
   });
 }

@@ -9,11 +9,11 @@ export const usePeople = () => {
   });
 };
 
-export const usePerson = (id: string) => {
+export const usePerson = (id: string, enabled = true) => {
   return useQuery({
     queryKey: ['people', id],
     queryFn: () => peopleApi.getById(id),
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
 };
 

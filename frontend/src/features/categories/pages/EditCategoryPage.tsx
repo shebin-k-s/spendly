@@ -12,7 +12,7 @@ export default function EditCategoryPage() {
   const location = useLocation();
   const initialCategory = location.state?.category;
 
-  const { data: category, isLoading } = useCategoryById(id!);
+  const { data: category, isLoading } = useCategoryById(id!, !initialCategory);
   const { data: categories = [] } = useCategoriesQuery();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
@@ -66,6 +66,26 @@ export default function EditCategoryPage() {
       { onSuccess: () => navigate(-1) },
     );
   };
+
+  if (isLoading && !initialCategory) {
+    return (
+      <div className="animate-fade-in">
+        <div className="page-header">
+          <div className="w-10 h-10 rounded-2xl bg-muted animate-pulse shrink-0" />
+          <div className="h-6 w-32 bg-muted animate-pulse rounded-lg flex-1" />
+        </div>
+        <div className="page-content space-y-6">
+          <div className="h-24 bg-card border border-border rounded-2xl animate-pulse" />
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+              <div className="h-12 bg-card border border-border rounded-xl animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">

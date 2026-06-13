@@ -17,7 +17,7 @@ export default function EditExpensePage() {
   const location = useLocation();
   const initialExpense = location.state?.expense;
 
-  const { data: expense, isLoading } = useExpenseById(id!);
+  const { data: expense, isLoading } = useExpenseById(id!, !initialExpense);
   const { data: categories = [] } = useCategoriesQuery();
   const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
@@ -92,7 +92,7 @@ export default function EditExpensePage() {
   const handleDelete = () => setShowDeleteModal(true);
   const executeDelete = () => deleteExpense.mutate(id!, { onSuccess: () => navigate(-1) });
 
-  if (isLoading) {
+  if (isLoading && !initialExpense) {
     return (
       <div>
         <div className="page-header">

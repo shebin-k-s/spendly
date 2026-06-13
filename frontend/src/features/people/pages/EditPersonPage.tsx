@@ -10,7 +10,7 @@ export default function EditPersonPage() {
   const location = useLocation();
   const initialPerson = location.state?.person;
 
-  const { data: person, isLoading } = usePerson(id!);
+  const { data: person, isLoading } = usePerson(id!, !initialPerson);
   const updatePerson = useUpdatePerson();
   const deletePerson = useDeletePerson();
 
@@ -40,7 +40,7 @@ export default function EditPersonPage() {
     );
   };
 
-  if (isLoading) {
+  if (isLoading && !initialPerson) {
     return (
       <div className="animate-fade-in">
         <div className="page-header">
@@ -59,7 +59,7 @@ export default function EditPersonPage() {
     );
   }
 
-  if (!person) return null;
+  if (!person && !initialPerson) return null;
 
   return (
     <div className="animate-fade-in">
