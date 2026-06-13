@@ -644,7 +644,7 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); } navigator.clearAppBadge?.(); navigate('/expenses', { replace: true }); } },
+      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); } navigator.clearAppBadge?.(); navigate(-1); } },
     );
   };
 

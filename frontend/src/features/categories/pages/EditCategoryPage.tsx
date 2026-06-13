@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import { useCategoriesQuery, useUpdateCategory, useDeleteCategory } from '../hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
@@ -31,7 +31,7 @@ export default function EditCategoryPage() {
   const savedCustomIcons = getSavedIcons();
   const categoryCustomIcons = categories.map((c) => c.icon).filter((i) => !DEFAULT_ICONS.includes(i));
   const customIcons = Array.from(new Set([...savedCustomIcons, ...categoryCustomIcons]));
-  
+
   const PRESET_ICONS = [...DEFAULT_ICONS, ...customIcons];
 
   useEffect(() => {
@@ -42,20 +42,26 @@ export default function EditCategoryPage() {
     }
   }, [category]);
 
-  const canSubmit = name.trim().length > 0 && !updateCategory.isPending;
+  const isChanged = category ? (
+    name.trim() !== (category.name?.trim() || '') ||
+    icon !== category.icon ||
+    color !== category.color
+  ) : false;
+
+  const canSubmit = name.trim().length > 0 && isChanged && !updateCategory.isPending;
 
   const handleSubmit = () => {
     if (!canSubmit || !id) return;
-    
+
     // Save to lifelong custom icons if it's not a default icon
     if (icon && !DEFAULT_ICONS.includes(icon)) {
       const updated = Array.from(new Set([...savedCustomIcons, icon]));
       localStorage.setItem('spendly_custom_icons', JSON.stringify(updated));
     }
-    
+
     updateCategory.mutate(
       { id, name: name.trim(), icon, color },
-      { onSuccess: () => navigate('/categories') },
+      { onSuccess: () => navigate(-1) },
     );
   };
 
@@ -136,7 +142,7 @@ export default function EditCategoryPage() {
         <div>
           <label className="form-label">Color</label>
           <div className="flex items-center gap-4 mt-2">
-            <div 
+            <div
               className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-border/50 ring-2 ring-primary/20 shadow-sm transition-all"
               style={{ backgroundColor: color }}
             >
@@ -155,7 +161,12 @@ export default function EditCategoryPage() {
         </div>
 
         <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
-          {updateCategory.isPending ? 'Saving...' : 'Save Changes'}
+          {updateCategory.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Saving...
+            </>
+          ) : 'Save Changes'}
         </button>
 
         <ConfirmModal
@@ -164,7 +175,7 @@ export default function EditCategoryPage() {
           title="Delete Category"
           description={`Delete "${category?.name}"? Expenses using it won't be deleted.`}
           onConfirm={() =>
-            deleteCategory.mutate(id!, { onSuccess: () => navigate('/categories') })
+            deleteCategory.mutate(id!, { onSuccess: () => navigate(-1) })
           }
         />
       </div>

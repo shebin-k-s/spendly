@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Trash2, Loader2, Check } from 'lucide-react';
 import { usePerson, useUpdatePerson, useDeletePerson } from '../hooks/usePeople';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
@@ -22,13 +22,18 @@ export default function EditPersonPage() {
     }
   }, [person]);
 
-  const canSubmit = name.trim().length > 0 && !updatePerson.isPending;
+  const isChanged = person ? (
+    name.trim() !== (person.name?.trim() || '') ||
+    phone.trim() !== (person.phoneNumber?.trim() || '')
+  ) : false;
+
+  const canSubmit = name.trim().length > 0 && isChanged && !updatePerson.isPending;
 
   const handleSave = () => {
     if (!canSubmit || !id) return;
     updatePerson.mutate(
       { id, payload: { name: name.trim(), phoneNumber: phone.trim() || undefined } },
-      { onSuccess: () => navigate(`/people/${id}`) },
+      { onSuccess: () => navigate(-1) },
     );
   };
 
@@ -64,6 +69,17 @@ export default function EditPersonPage() {
         </button>
         <h1 className="text-xl font-bold flex-1">Edit Person</h1>
         <button
+          onClick={handleSave}
+          disabled={!canSubmit}
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
+        >
+          {updatePerson.isPending ? (
+            <Loader2 className="w-4 h-4 text-primary animate-spin" />
+          ) : (
+            <Check className="w-4 h-4 text-primary" />
+          )}
+        </button>
+        <button
           onClick={() => setShowDeleteModal(true)}
           disabled={deletePerson.isPending}
           className="w-9 h-9 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive active:opacity-60 transition-opacity"
@@ -95,7 +111,12 @@ export default function EditPersonPage() {
         </div>
 
         <button onClick={handleSave} disabled={!canSubmit} className="btn-primary">
-          {updatePerson.isPending ? 'Saving...' : 'Save Changes'}
+          {updatePerson.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Saving...
+            </>
+          ) : 'Save Changes'}
         </button>
       </div>
 
@@ -105,7 +126,7 @@ export default function EditPersonPage() {
         title="Delete Person"
         description={`Delete ${person.name} and all their transaction history? This cannot be undone.`}
         onConfirm={() =>
-          deletePerson.mutate(id!, { onSuccess: () => navigate('/people') })
+          deletePerson.mutate(id!, { onSuccess: () => navigate(-1) })
         }
       />
     </div>

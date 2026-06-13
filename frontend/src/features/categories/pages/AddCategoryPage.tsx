@@ -46,7 +46,7 @@ export default function AddCategoryPage() {
     
     createCategory.mutate(
       { name: name.trim(), icon, color },
-      { onSuccess: () => navigate('/categories') },
+      { onSuccess: () => navigate(-1) },
     );
   };
 

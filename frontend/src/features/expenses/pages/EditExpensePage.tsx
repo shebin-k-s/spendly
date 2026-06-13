@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Trash2, Loader2 } from 'lucide-react';
 import { useExpenseById, useUpdateExpense, useDeleteExpense } from '../hooks/useExpenses';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -50,7 +50,24 @@ export default function EditExpensePage() {
     }
   }, [expense]);
 
-  const canSubmit = amount.trim() && description.trim() && !updateExpense.isPending;
+  const isChanged = useMemo(() => {
+    if (!expense) return false;
+
+    const changes = {
+      amount: Number(amount) !== Number(expense.amount),
+      cashback: Number(cashback || 0) !== Number(expense.cashback || 0),
+      description: description.trim() !== (expense.description?.trim() || ''),
+      date: date !== expense.date,
+      time: (time || null) !== (expense.time || null),
+      category: (categoryId || '') !== (expense.category?.id || ''),
+      paymentMethod: paymentMethod !== expense.paymentMethod,
+      note: (note?.trim() || '') !== (expense.note?.trim() || ''),
+    };
+
+    return Object.values(changes).some(Boolean);
+  }, [expense, amount, cashback, description, date, time, categoryId, paymentMethod, note]);
+
+  const canSubmit = amount.trim() && description.trim() && isChanged && !updateExpense.isPending;
 
   const handleUpdate = () => {
     if (!canSubmit) return;
@@ -66,12 +83,12 @@ export default function EditExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: () => navigate('/expenses') },
+      { onSuccess: () => navigate(-1) },
     );
   };
 
   const handleDelete = () => setShowDeleteModal(true);
-  const executeDelete = () => deleteExpense.mutate(id!, { onSuccess: () => navigate('/expenses') });
+  const executeDelete = () => deleteExpense.mutate(id!, { onSuccess: () => navigate(-1) });
 
   if (isLoading) {
     return (
@@ -106,7 +123,11 @@ export default function EditExpensePage() {
           disabled={!canSubmit}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center disabled:opacity-40"
         >
-          <Check className="w-4 h-4 text-primary" />
+          {updateExpense.isPending ? (
+            <Loader2 className="w-4 h-4 text-primary animate-spin" />
+          ) : (
+            <Check className="w-4 h-4 text-primary" />
+          )}
         </button>
         <button
           onClick={handleDelete}
@@ -210,7 +231,12 @@ export default function EditExpensePage() {
         </div>
 
         <button onClick={handleUpdate} disabled={!canSubmit} className="btn-primary">
-          {updateExpense.isPending ? 'Saving...' : 'Save Changes'}
+          {updateExpense.isPending ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              Saving...
+            </>
+          ) : 'Save Changes'}
         </button>
       </div>
 
