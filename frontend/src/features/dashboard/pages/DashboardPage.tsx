@@ -39,16 +39,14 @@ export default function DashboardPage() {
   const onPlannerPressStart = () => {
     if (plannerTimerRef.current) return;
     plannerTimerRef.current = setTimeout(() => {
-      let isNowOn = false;
-      setShowPlanner(prev => {
-        isNowOn = !prev;
-        return isNowOn;
-      });
+      const nextState = !showPlanner;
+      setShowPlanner(nextState);
       navigator.vibrate?.(40);
-      toast(isNowOn ? 'Savings planner on' : 'Savings planner off', { duration: 1500 });
+      toast(nextState ? 'Savings planner on' : 'Savings planner off', { duration: 1500 });
       plannerTimerRef.current = null;
     }, 600);
   };
+
 
   const onPlannerPressEnd = () => {
     if (plannerTimerRef.current) {

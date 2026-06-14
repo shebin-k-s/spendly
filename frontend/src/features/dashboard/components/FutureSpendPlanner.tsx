@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, TrendingDown, Target, Info, RefreshCw } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus, Minus, TrendingDown, Target, RefreshCw } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -67,15 +66,17 @@ export default function FutureSpendPlanner({
     if (plannedSpends.length <= 1) return;
     const newSpends = [plannedSpends[0], ...Array(plannedSpends.length - 1).fill(value)];
     setPlannedSpends(newSpends);
-    toast.success(`Applied ₹${Math.round(value)} to all upcoming days`);
   };
 
+
   const addDay = () => {
-    if (plannedSpends.length < remainingDays) {
+    // Can simulate up to (remaining days + today)
+    if (plannedSpends.length < remainingDays + 1) {
       const lastValue = plannedSpends[plannedSpends.length - 1];
       setPlannedSpends([...plannedSpends, lastValue]);
     }
   };
+
 
   const removeDay = () => {
     if (plannedSpends.length > 1) {
@@ -119,10 +120,11 @@ export default function FutureSpendPlanner({
             <Minus className="w-3.5 h-3.5" />
           </button>
           <span className="text-[10px] font-bold min-w-[3ch] text-center">{simulatedDays}d</span>
-          <button onClick={addDay} className="p-0.5 hover:text-primary transition-colors disabled:opacity-30" disabled={simulatedDays >= remainingDays}>
+          <button onClick={addDay} className="p-0.5 hover:text-primary transition-colors disabled:opacity-30" disabled={simulatedDays >= remainingDays + 1}>
             <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
+
       </div>
 
       <div className="space-y-3">
@@ -130,20 +132,26 @@ export default function FutureSpendPlanner({
         <div className="flex flex-wrap gap-3">
           {plannedSpends.map((spend, i) => (
             <div key={i} className="flex-1 min-w-[80px] space-y-1">
-              <p className="text-[10px] text-muted-foreground italic">
-                {i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `Day ${i + 1}`}
+              <p className="text-[10px] text-muted-foreground italic truncate">
+                {i === 0 
+                  ? `Today (${new Date(Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` 
+                  : i === 1 
+                    ? `Tomorrow (${new Date(Date.now() + 86400000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` 
+                    : new Date(Date.now() + i * 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
               </p>
               <div className="relative">
+
+
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
                 <input
                   type="number"
-                  value={spend}
+                  value={spend.toString()}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => {
                     let val = e.target.value;
-                    // Remove leading zeros if there's more than one digit
+                    // Remove leading zeros robustly
                     if (val.length > 1 && val.startsWith('0') && !val.includes('.')) {
                       val = val.replace(/^0+/, '');
-                      if (val === '') val = '0';
                     }
                     handleUpdateSpend(i, val);
                   }}
@@ -153,6 +161,7 @@ export default function FutureSpendPlanner({
                     i === 0 && spend < safeTodayActual && spend > 0 ? "border-destructive focus:ring-destructive text-destructive" : "border-border focus:ring-primary"
                   )}
                 />
+
 
               </div>
               {i === 0 && spend < safeTodayActual && spend > 0 && (
@@ -178,8 +187,9 @@ export default function FutureSpendPlanner({
       <div className="pt-2 border-t border-border flex items-center justify-between gap-4">
         <div className="space-y-1">
           <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-            New Projected Total <Info className="w-3 h-3" />
+            New Projected Total
           </p>
+
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold">{formatINR(Math.round(safeNewProjectedTotal))}</span>
             {Math.round(savingsAmount) !== 0 && !isNaN(savingsAmount) && (
