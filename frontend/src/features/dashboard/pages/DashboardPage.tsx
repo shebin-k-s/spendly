@@ -28,7 +28,9 @@ async function checkPendingShare(): Promise<{ type: 'image' | 'text'; count: num
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [pendingShare, setPendingShare] = useState<{ type: 'image' | 'text'; count: number } | null>(null);
-  const [showPlanner, setShowPlanner] = useState(false);
+  const [showPlanner, setShowPlanner] = useState(() => {
+    return localStorage.getItem('spendly_showPlanner') === 'true';
+  });
 
   const plannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -41,6 +43,7 @@ export default function DashboardPage() {
     plannerTimerRef.current = setTimeout(() => {
       const nextState = !showPlanner;
       setShowPlanner(nextState);
+      localStorage.setItem('spendly_showPlanner', String(nextState));
       navigator.vibrate?.(40);
       toast(nextState ? 'Savings planner on' : 'Savings planner off', { duration: 1500 });
       plannerTimerRef.current = null;

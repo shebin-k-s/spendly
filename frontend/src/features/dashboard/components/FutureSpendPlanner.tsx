@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Minus, TrendingDown, Target, RefreshCw } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -20,27 +20,97 @@ export default function FutureSpendPlanner({
   currentAvg,
   currentDay,
 }: FutureSpendPlannerProps) {
-  const [plannedSpends, setPlannedSpends] = useState<number[]>([]);
-  const [hasHydrated, setHasHydrated] = useState(false);
+  const TODAY_STR = new Date().toLocaleDateString('en-CA');
+  const STORAGE_KEY = 'spendly_future_planner';
+
+  const [plannedSpends, setPlannedSpends] = useState<number[]>(() => {
+    try {
+      // Clean up the old bad key format if they exist
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('spendly_planner_')) {
+          localStorage.removeItem(key);
+        }
+      }
+
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return [];
+
+      const parsed = JSON.parse(saved);
+      if (!parsed.date || !Array.isArray(parsed.spends)) return [];
+
+      // Calculate days elapsed between saved data and today
+      const savedDate = new Date(parsed.date);
+      const todayDate = new Date(TODAY_STR);
+      
+      // Use UTC to avoid daylight saving time skips
+      const diffTime = Date.UTC(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()) - 
+                       Date.UTC(savedDate.getFullYear(), savedDate.getMonth(), savedDate.getDate());
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays > 0) {
+        // Shift the array left by the number of days elapsed
+        return parsed.spends.slice(diffDays);
+      } else if (diffDays < 0) {
+        return []; // Future date? Just clear it.
+      }
+      
+      return parsed.spends;
+    } catch {
+      return [];
+    }
+  });
+
+  const [hasHydrated, setHasHydrated] = useState(() => {
+    // If we successfully pulled an array from the new storage logic and it's not empty, we are hydrated.
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return false;
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed.date === TODAY_STR && Array.isArray(parsed.spends) && parsed.spends.length > 0) {
+        return true; 
+      }
+      // If dates shifted, we still let the useEffect below push actual today's spend into index 0 if needed, but we already shifted it. 
+      // Actually, if we shifted the array and it still has data, that data is purely user-defined from yesterday.
+      // But we should let the effect overwrite the [0] with reality if it hasn't hydrated today. Let's force hydration.
+      return false;
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
-    // Only hydrate if we haven't yet and have some valid data
+    if (hasHydrated && plannedSpends.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        date: TODAY_STR,
+        spends: plannedSpends
+      }));
+    }
+  }, [plannedSpends, hasHydrated, TODAY_STR]);
+
+  useEffect(() => {
     const today = Number(todayActual);
     const avg = Number(currentAvg);
-    
     const isValidData = !isNaN(today) && !isNaN(avg) && (today !== 0 || avg !== 0);
 
     if (!hasHydrated && isValidData) {
-      setPlannedSpends([
-        Math.round(today)
-      ]);
+      const shiftedSpends = plannedSpends.length > 0 ? [...plannedSpends] : [];
+      // Only set to today's actual if no prior plan exists. NEVER aggressively overwrite to allow the red warning to function.
+      shiftedSpends[0] = shiftedSpends[0] !== undefined ? shiftedSpends[0] : Math.round(today);
+      
+      setPlannedSpends(shiftedSpends);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        date: TODAY_STR,
+        spends: shiftedSpends
+      }));
       setHasHydrated(true);
     }
 
-  }, [todayActual, currentAvg, hasHydrated]);
+  }, [todayActual, currentAvg, hasHydrated, plannedSpends, TODAY_STR]);
 
   // Fallback for genuinely 0 spend
   useEffect(() => {
+
     const timer = setTimeout(() => {
       if (!hasHydrated) {
         setPlannedSpends([0]);
@@ -146,7 +216,7 @@ export default function FutureSpendPlanner({
                 <input
                   type="number"
                   value={spend.toString()}
-                  onFocus={(e) => e.target.select()}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   onChange={(e) => {
                     let val = e.target.value;
                     // Remove leading zeros robustly
@@ -155,16 +225,18 @@ export default function FutureSpendPlanner({
                     }
                     handleUpdateSpend(i, val);
                   }}
+
+
                   placeholder="0"
                   className={cn(
                     "w-full bg-background border rounded-xl pl-6 pr-3 py-2 text-sm font-bold focus:outline-none focus:ring-1",
-                    i === 0 && spend < safeTodayActual && spend > 0 ? "border-destructive focus:ring-destructive text-destructive" : "border-border focus:ring-primary"
+                    i === 0 && spend < safeTodayActual ? "border-destructive focus:ring-destructive text-destructive" : "border-border focus:ring-primary"
                   )}
                 />
 
 
               </div>
-              {i === 0 && spend < safeTodayActual && spend > 0 && (
+              {i === 0 && spend < safeTodayActual && (
                 <p className="text-[9px] text-destructive italic font-medium leading-tight">
                   Goal is lower than ₹{Math.round(safeTodayActual)} already spent.
                 </p>
