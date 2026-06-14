@@ -1,4 +1,6 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { Provider } from 'react-redux';
@@ -28,14 +30,22 @@ import ShareToPeoplePage from '@/features/people/pages/ShareToPeoplePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
+    queries: { 
+      retry: 1, 
+      staleTime: 30_000,
+      gcTime: 1000 * 60 * 60 * 24 * 7 // Keep cache for 7 days
+    },
   },
+});
+
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
 });
 
 export default function App() {
   return (
     <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
         <SwipeGestureProvider>
         <Toaster
           theme="dark"
@@ -81,7 +91,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </SwipeGestureProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
     </Provider>
   );
 }
