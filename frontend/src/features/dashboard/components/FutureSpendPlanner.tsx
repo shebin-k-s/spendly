@@ -197,6 +197,30 @@ export default function FutureSpendPlanner({
 
       </div>
 
+      <div className="pb-2 border-b border-border flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+            New Projected Total
+          </p>
+
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold">{formatINR(Math.round(safeNewProjectedTotal))}</span>
+            {Math.round(savingsAmount) !== 0 && !isNaN(savingsAmount) && (
+              <span className={cn(
+                "text-xs font-medium px-1.5 py-0.5 rounded-md",
+                savingsAmount > 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              )}>
+                {savingsAmount > 0 ? 'Saved ' : 'Over '}{formatINR(Math.abs(Math.round(savingsAmount)))}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="text-right space-y-1">
+          <p className="text-[10px] text-muted-foreground uppercase">New Daily Avg</p>
+          <p className="text-lg font-bold text-primary">{formatINR(Math.round(newDailyAvg))}</p>
+        </div>
+      </div>
+
       <div className="space-y-3">
         <label className="text-[10px] font-semibold text-muted-foreground uppercase">Target Spend (Including Today)</label>
         <div className="flex flex-wrap gap-3">
@@ -253,30 +277,6 @@ export default function FutureSpendPlanner({
             </div>
           ))}
 
-        </div>
-      </div>
-
-      <div className="pt-2 border-t border-border flex items-center justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-            New Projected Total
-          </p>
-
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-bold">{formatINR(Math.round(safeNewProjectedTotal))}</span>
-            {Math.round(savingsAmount) !== 0 && !isNaN(savingsAmount) && (
-              <span className={cn(
-                "text-xs font-medium px-1.5 py-0.5 rounded-md",
-                savingsAmount > 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-              )}>
-                {savingsAmount > 0 ? 'Saved ' : 'Over '}{formatINR(Math.abs(Math.round(savingsAmount)))}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="text-right space-y-1">
-          <p className="text-[10px] text-muted-foreground uppercase">New Daily Avg</p>
-          <p className="text-lg font-bold text-primary">{formatINR(Math.round(newDailyAvg))}</p>
         </div>
       </div>
 
