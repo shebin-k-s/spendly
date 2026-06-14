@@ -18,6 +18,7 @@ interface DateTimePickerProps {
   date: string;
   time: string | null;
   onChange: (date: string, time: string | null) => void;
+  disabled?: boolean;
 }
 
 function fmtDisplayDate(dateStr: string): string {
@@ -111,7 +112,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
   );
 }
 
-export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
+export function DateTimePicker({ date, time, onChange, disabled }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
@@ -264,7 +265,8 @@ export function DateTimePicker({ date, time, onChange }: DateTimePickerProps) {
         <button
           type="button"
           onClick={handleOpen}
-          className="form-input flex items-center justify-between text-left gap-2"
+          disabled={disabled}
+          className="form-input flex items-center justify-between text-left gap-2 disabled:opacity-50"
         >
           <span>{displayLabel}</span>
           <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />

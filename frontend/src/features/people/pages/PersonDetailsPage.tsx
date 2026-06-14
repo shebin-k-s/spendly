@@ -14,6 +14,9 @@ export default function PersonDetailsPage() {
   const { data: person, isLoading } = usePerson(id!);
   const addTransaction = useAddDebtTransaction(id!);
   const deleteTransaction = useDeleteDebtTransaction(id!);
+  const isPending = addTransaction.isPending || deleteTransaction.isPending;
+  const [deleteTransactionId, setDeleteTransactionId] = useState<string | null>(null);
+  const isBlocking = isPending || !!deleteTransactionId;
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [amount, setAmount] = useState('');
@@ -21,7 +24,6 @@ export default function PersonDetailsPage() {
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [note, setNote] = useState('');
 
-  const [deleteTransactionId, setDeleteTransactionId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -135,14 +137,16 @@ export default function PersonDetailsPage() {
           <div className="flex gap-2 mt-4">
             <button
               onClick={() => { setType('GIVEN'); setShowAddForm(true); }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:opacity-80 transition-opacity"
+              disabled={isBlocking}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:opacity-80 transition-opacity disabled:opacity-50"
             >
               <ArrowUpRight className="w-4 h-4" />
               {btnLabels.given}
             </button>
             <button
               onClick={() => { setType('RETURNED'); setShowAddForm(true); }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-success text-success-foreground font-semibold text-sm active:opacity-80 transition-opacity"
+              disabled={isBlocking}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-success text-success-foreground font-semibold text-sm active:opacity-80 transition-opacity disabled:opacity-50"
             >
               <ArrowDownLeft className="w-4 h-4" />
               {btnLabels.returned}
@@ -174,6 +178,7 @@ export default function PersonDetailsPage() {
                 inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                disabled={isBlocking}
                 onWheel={(e) => e.currentTarget.blur()}
                 placeholder="0.00"
                 className="form-input text-xl font-bold"
@@ -186,6 +191,7 @@ export default function PersonDetailsPage() {
               <DateTimePicker
                 date={date}
                 time={null}
+                disabled={isBlocking}
                 onChange={(d) => setDate(d)}
               />
             </div>
@@ -195,6 +201,7 @@ export default function PersonDetailsPage() {
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
+                disabled={isBlocking}
                 placeholder="What was this for?"
                 className="form-input"
               />
@@ -202,7 +209,7 @@ export default function PersonDetailsPage() {
 
             <button
               type="submit"
-              disabled={!amount || parseFloat(amount) <= 0 || addTransaction.isPending}
+              disabled={!amount || parseFloat(amount) <= 0 || isBlocking}
               className={cn(
                 'w-full py-3 rounded-xl font-semibold text-sm transition-opacity active:opacity-80 disabled:opacity-40',
                 type === 'GIVEN' ? 'bg-primary text-primary-foreground' : 'bg-success text-success-foreground',
@@ -287,7 +294,8 @@ export default function PersonDetailsPage() {
 
                         <button
                           onClick={() => setDeleteTransactionId(t.id)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground/30 active:text-destructive active:bg-destructive/10 transition-colors shrink-0"
+                          disabled={isBlocking}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground/30 active:text-destructive active:bg-destructive/10 transition-colors shrink-0 disabled:opacity-20"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -307,6 +315,7 @@ export default function PersonDetailsPage() {
         title="Delete Transaction"
         description="Remove this transaction? The balance will be recalculated."
         onConfirm={() => { if (deleteTransactionId) deleteTransaction.mutate(deleteTransactionId); }}
+        isLoading={deleteTransaction.isPending}
       />
     </div>
   );

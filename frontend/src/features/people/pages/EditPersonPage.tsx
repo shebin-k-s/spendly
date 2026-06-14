@@ -11,12 +11,15 @@ export default function EditPersonPage() {
   const initialPerson = location.state?.person;
 
   const { data: person, isLoading } = usePerson(id!, !initialPerson);
+  const refPerson = person || initialPerson;
   const updatePerson = useUpdatePerson();
   const deletePerson = useDeletePerson();
+  const isPending = updatePerson.isPending || deletePerson.isPending;
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const isBlocking = isPending || showDeleteModal;
 
   const [name, setName] = useState(initialPerson?.name || '');
   const [phone, setPhone] = useState(initialPerson?.phoneNumber || '');
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (person) {
@@ -25,12 +28,12 @@ export default function EditPersonPage() {
     }
   }, [person]);
 
-  const isChanged = person ? (
-    name.trim() !== (person.name?.trim() || '') ||
-    phone.trim() !== (person.phoneNumber?.trim() || '')
+  const isChanged = refPerson ? (
+    name.trim() !== (refPerson.name?.trim() || '') ||
+    phone.trim() !== (refPerson.phoneNumber?.trim() || '')
   ) : false;
 
-  const canSubmit = name.trim().length > 0 && isChanged && !updatePerson.isPending;
+  const canSubmit = name.trim().length > 0 && isChanged && !isBlocking;
 
   const handleSave = () => {
     if (!canSubmit || !id) return;
@@ -84,10 +87,14 @@ export default function EditPersonPage() {
         </button>
         <button
           onClick={() => setShowDeleteModal(true)}
-          disabled={deletePerson.isPending}
+          disabled={isBlocking}
           className="w-9 h-9 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive active:opacity-60 transition-opacity"
         >
-          <Trash2 className="w-4 h-4" />
+          {deletePerson.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Trash2 className="w-4 h-4" />
+          )}
         </button>
       </div>
 
@@ -97,6 +104,7 @@ export default function EditPersonPage() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={isBlocking}
             placeholder="Name"
             className="form-input"
           />
@@ -107,6 +115,7 @@ export default function EditPersonPage() {
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
+            disabled={isBlocking}
             placeholder="+91 98765 43210"
             inputMode="tel"
             className="form-input"
@@ -131,6 +140,7 @@ export default function EditPersonPage() {
         onConfirm={() =>
           deletePerson.mutate(id!, { onSuccess: () => navigate(-1) })
         }
+        isLoading={deletePerson.isPending}
       />
     </div>
   );

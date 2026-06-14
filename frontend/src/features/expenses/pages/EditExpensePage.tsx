@@ -18,9 +18,11 @@ export default function EditExpensePage() {
   const initialExpense = location.state?.expense;
 
   const { data: expense, isLoading } = useExpenseById(id!, !initialExpense);
+  const refExpense = expense || initialExpense;
   const { data: categories = [] } = useCategoriesQuery();
   const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
+  const isPending = updateExpense.isPending || deleteExpense.isPending;
 
   const [amount, setAmount] = useState(initialExpense ? String(initialExpense.amount) : '');
   const [cashback, setCashback] = useState(initialExpense?.cashback ? String(initialExpense.cashback) : '');
@@ -31,6 +33,7 @@ export default function EditExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialExpense?.paymentMethod || 'upi');
   const [note, setNote] = useState(initialExpense?.note || '');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const isBlocking = isPending || showDeleteModal;
 
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
 
@@ -53,23 +56,24 @@ export default function EditExpensePage() {
   }, [expense]);
 
   const isChanged = useMemo(() => {
-    if (!expense) return false;
+    if (!refExpense) return false;
 
     const changes = {
-      amount: Number(amount) !== Number(expense.amount),
-      cashback: Number(cashback || 0) !== Number(expense.cashback || 0),
-      description: description.trim() !== (expense.description?.trim() || ''),
-      date: date !== expense.date,
-      time: (time || null) !== (expense.time || null),
-      category: (categoryId || '') !== (expense.category?.id || ''),
-      paymentMethod: paymentMethod !== expense.paymentMethod,
-      note: (note?.trim() || '') !== (expense.note?.trim() || ''),
+      amount: Number(amount) !== Number(refExpense.amount),
+      cashback: Number(cashback || 0) !== Number(refExpense.cashback || 0),
+      description: description.trim() !== (refExpense.description?.trim() || ''),
+      date: date !== refExpense.date,
+      time: (time || null) !== (refExpense.time || null),
+      category: (categoryId || '') !== (refExpense.category?.id || ''),
+      paymentMethod: paymentMethod !== refExpense.paymentMethod,
+      note: (note?.trim() || '') !== (refExpense.note?.trim() || ''),
     };
 
     return Object.values(changes).some(Boolean);
-  }, [expense, amount, cashback, description, date, time, categoryId, paymentMethod, note]);
+  }, [refExpense, amount, cashback, description, date, time, categoryId, paymentMethod, note]);
 
-  const canSubmit = amount.trim() && description.trim() && isChanged && !updateExpense.isPending;
+
+  const canSubmit = amount.trim() && description.trim() && isChanged && !isBlocking;
 
   const handleUpdate = () => {
     if (!canSubmit) return;
@@ -133,10 +137,14 @@ export default function EditExpensePage() {
         </button>
         <button
           onClick={handleDelete}
-          disabled={deleteExpense.isPending}
+          disabled={isBlocking}
           className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
         >
-          <Trash2 className="w-4 h-4 text-destructive" />
+          {deleteExpense.isPending ? (
+            <Loader2 className="w-4 h-4 text-destructive animate-spin" />
+          ) : (
+            <Trash2 className="w-4 h-4 text-destructive" />
+          )}
         </button>
       </div>
 
@@ -148,6 +156,7 @@ export default function EditExpensePage() {
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            disabled={isBlocking}
             onWheel={(e) => e.currentTarget.blur()}
             className="form-input text-2xl font-bold"
           />
@@ -155,7 +164,7 @@ export default function EditExpensePage() {
 
         <div>
           <label className="form-label">Description</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} className="form-input" />
+          <input value={description} onChange={(e) => setDescription(e.target.value)} disabled={isBlocking} className="form-input" />
         </div>
 
         <div>
@@ -167,6 +176,7 @@ export default function EditExpensePage() {
             inputMode="decimal"
             value={cashback}
             onChange={(e) => setCashback(e.target.value)}
+            disabled={isBlocking}
             onWheel={(e) => e.currentTarget.blur()}
             placeholder="0.00"
             className="form-input"
@@ -183,6 +193,7 @@ export default function EditExpensePage() {
           <DateTimePicker
             date={date || new Date().toISOString().slice(0, 10)}
             time={time}
+            disabled={isBlocking}
             onChange={(d, t) => { setDate(d); setTime(t); }}
           />
         </div>
@@ -192,6 +203,7 @@ export default function EditExpensePage() {
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setCategoryId('')}
+              disabled={isBlocking}
               className={`py-2.5 rounded-xl text-xs font-medium transition-colors
                 ${!categoryId ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
             >
@@ -201,6 +213,7 @@ export default function EditExpensePage() {
               <button
                 key={cat.id}
                 onClick={() => setCategoryId(cat.id)}
+                disabled={isBlocking}
                 className={`py-2.5 px-2 rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5 justify-center
                   ${categoryId === cat.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
               >
@@ -218,6 +231,7 @@ export default function EditExpensePage() {
               <button
                 key={method}
                 onClick={() => setPaymentMethod(method)}
+                disabled={isBlocking}
                 className={`py-2.5 rounded-xl text-xs font-medium transition-colors
                   ${paymentMethod === method ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
               >
@@ -229,7 +243,7 @@ export default function EditExpensePage() {
 
         <div>
           <label className="form-label">Note (Optional)</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="form-input resize-none" />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={isBlocking} rows={2} className="form-input resize-none" />
         </div>
 
         <button onClick={handleUpdate} disabled={!canSubmit} className="btn-primary">
@@ -248,6 +262,7 @@ export default function EditExpensePage() {
         title="Delete Expense"
         description="Are you sure you want to delete this expense? This action cannot be undone."
         onConfirm={executeDelete}
+        isLoading={deleteExpense.isPending}
       />
     </div>
   );

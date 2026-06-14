@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { Loader2 } from 'lucide-react';
 
 interface ConfirmModalProps {
   open: boolean;
@@ -8,6 +9,7 @@ interface ConfirmModalProps {
   onConfirm: () => void;
   confirmText?: string;
   cancelText?: string;
+  isLoading?: boolean;
 }
 
 export function ConfirmModal({
@@ -18,6 +20,7 @@ export function ConfirmModal({
   onConfirm,
   confirmText = 'Delete',
   cancelText = 'Cancel',
+  isLoading = false,
 }: ConfirmModalProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -35,20 +38,25 @@ export function ConfirmModal({
             <div className="flex gap-3 w-full mt-6">
               <button
                 type="button"
-                className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-secondary text-secondary-foreground hover:bg-muted transition-colors"
+                disabled={isLoading}
+                className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-secondary text-secondary-foreground hover:bg-muted transition-colors disabled:opacity-50"
                 onClick={() => onOpenChange(false)}
               >
                 {cancelText}
               </button>
               <button
                 type="button"
-                className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity"
+                disabled={isLoading}
+                className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-70 flex items-center justify-center gap-2"
                 onClick={() => {
                   onConfirm();
-                  onOpenChange(false);
+                  if (!isLoading) onOpenChange(false);
                 }}
               >
-                {confirmText}
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : null}
+                {isLoading ? 'Deleting...' : confirmText}
               </button>
             </div>
           </div>

@@ -13,10 +13,13 @@ export default function EditCategoryPage() {
   const initialCategory = location.state?.category;
 
   const { data: category, isLoading } = useCategoryById(id!, !initialCategory);
+  const refCategory = category || initialCategory;
   const { data: categories = [] } = useCategoriesQuery();
   const updateCategory = useUpdateCategory();
   const deleteCategory = useDeleteCategory();
+  const isPending = updateCategory.isPending || deleteCategory.isPending;
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const isBlocking = isPending || showDeleteModal;
 
   const [name, setName] = useState(initialCategory?.name || '');
   const [icon, setIcon] = useState(initialCategory?.icon || '📦');
@@ -44,13 +47,13 @@ export default function EditCategoryPage() {
     }
   }, [category]);
 
-  const isChanged = category ? (
-    name.trim() !== (category.name?.trim() || '') ||
-    icon !== category.icon ||
-    color !== category.color
+  const isChanged = refCategory ? (
+    name.trim() !== (refCategory.name?.trim() || '') ||
+    icon !== refCategory.icon ||
+    color !== refCategory.color
   ) : false;
 
-  const canSubmit = name.trim().length > 0 && isChanged && !updateCategory.isPending;
+  const canSubmit = name.trim().length > 0 && isChanged && !isBlocking;
 
   const handleSubmit = () => {
     if (!canSubmit || !id) return;
@@ -99,10 +102,14 @@ export default function EditCategoryPage() {
         <h1 className="text-xl font-bold flex-1">Edit Category</h1>
         <button
           onClick={() => setShowDeleteModal(true)}
-          disabled={deleteCategory.isPending}
+          disabled={isBlocking}
           className="w-9 h-9 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive active:opacity-60 transition-opacity"
         >
-          <Trash2 className="w-4 h-4" />
+          {deleteCategory.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Trash2 className="w-4 h-4" />
+          )}
         </button>
       </div>
 
@@ -128,6 +135,7 @@ export default function EditCategoryPage() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={isBlocking}
             placeholder="e.g. Coffee & Snacks"
             className="form-input"
           />
@@ -141,6 +149,7 @@ export default function EditCategoryPage() {
               <button
                 key={e}
                 onClick={() => setIcon(e)}
+                disabled={isBlocking}
                 className={`h-10 rounded-xl text-xl flex items-center justify-center transition-colors
                   ${icon === e ? 'bg-primary/20 ring-2 ring-primary' : 'bg-secondary'}`}
               >
@@ -151,6 +160,7 @@ export default function EditCategoryPage() {
             <input
               type="text"
               maxLength={2}
+              disabled={isBlocking}
               className={`h-10 rounded-xl text-xl flex items-center justify-center text-center transition-colors focus:outline-none
                 ${!PRESET_ICONS.includes(icon) && icon ? 'bg-primary/20 ring-2 ring-primary' : 'bg-secondary placeholder:text-muted-foreground'}`}
               value={!PRESET_ICONS.includes(icon) ? icon : ''}
@@ -172,6 +182,7 @@ export default function EditCategoryPage() {
                 type="color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
+                disabled={isBlocking}
                 className="absolute inset-[-10px] w-[150%] h-[150%] opacity-0 cursor-pointer"
               />
             </div>
@@ -199,6 +210,7 @@ export default function EditCategoryPage() {
           onConfirm={() =>
             deleteCategory.mutate(id!, { onSuccess: () => navigate(-1) })
           }
+          isLoading={deleteCategory.isPending}
         />
       </div>
     </div>
