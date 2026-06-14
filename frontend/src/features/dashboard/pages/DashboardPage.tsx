@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { format } from 'date-fns';
 import { ImageIcon, MessageSquareText } from 'lucide-react';
 import { monthLabel, prevMonth, formatINR } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
@@ -9,6 +10,8 @@ import { useMonthlySummary, useExpensesQuery } from '@/features/expenses/hooks/u
 import MonthSummaryCard from '../components/MonthSummaryCard';
 import CategoryBreakdown from '../components/CategoryBreakdown';
 import RecentExpenses from '../components/RecentExpenses';
+import FutureSpendPlanner from '../components/FutureSpendPlanner';
+import { toast } from 'sonner';
 
 async function checkPendingShare(): Promise<{ type: 'image' | 'text'; count: number } | null> {
   if (!('caches' in window)) return null;
@@ -25,10 +28,34 @@ async function checkPendingShare(): Promise<{ type: 'image' | 'text'; count: num
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [pendingShare, setPendingShare] = useState<{ type: 'image' | 'text'; count: number } | null>(null);
+  const [showPlanner, setShowPlanner] = useState(false);
+
+  const plannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void checkPendingShare().then(setPendingShare);
   }, []);
+
+  const onPlannerPressStart = () => {
+    if (plannerTimerRef.current) return;
+    plannerTimerRef.current = setTimeout(() => {
+      let isNowOn = false;
+      setShowPlanner(prev => {
+        isNowOn = !prev;
+        return isNowOn;
+      });
+      navigator.vibrate?.(40);
+      toast(isNowOn ? 'Savings planner on' : 'Savings planner off', { duration: 1500 });
+      plannerTimerRef.current = null;
+    }, 600);
+  };
+
+  const onPlannerPressEnd = () => {
+    if (plannerTimerRef.current) {
+      clearTimeout(plannerTimerRef.current);
+      plannerTimerRef.current = null;
+    }
+  };
 
   const { year, month } = useAppSelector((state) => state.date);
   const showGross = useAppSelector((state) => state.prefs.showGross);
@@ -111,34 +138,58 @@ export default function DashboardPage() {
           const spentDays = new Set(expenses.map((e) => e.date)).size;
           const noSpendDays = daysInMonth - spentDays;
 
+          const todayStr = format(now, 'yyyy-MM-dd');
+          const todayActual = expenses
+            .filter((e) => e.date === todayStr)
+            .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+
           return (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-card border border-border rounded-2xl p-4">
-                <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
-                <p className="text-xl font-bold">{formatINR(Math.round(netTotal / dailyDivisor))}</p>
-                {hasCashback && (
-                  <p className="text-xs text-muted-foreground line-through">{formatINR(Math.round(grossTotal / dailyDivisor))}</p>
+            <>
+              <div 
+                className="grid grid-cols-2 gap-3 select-none"
+                onPointerDown={onPlannerPressStart}
+                onPointerUp={onPlannerPressEnd}
+                onPointerLeave={onPlannerPressEnd}
+              >
+                <div className="bg-card border border-border rounded-2xl p-4 active:scale-[0.98] transition-transform">
+                  <p className="text-xs text-muted-foreground mb-1">Daily Average</p>
+                  <p className="text-xl font-bold">{formatINR(Math.round(netTotal / dailyDivisor))}</p>
+                  {hasCashback && (
+                    <p className="text-xs text-muted-foreground line-through">{formatINR(Math.round(grossTotal / dailyDivisor))}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-1">{divisorLabel}</p>
+                </div>
+
+                {isCurrentMonth ? (
+                  <div className="bg-card border border-border rounded-2xl p-4 active:scale-[0.98] transition-transform">
+                    <p className="text-xs text-muted-foreground mb-1">Projected</p>
+                    <p className="text-xl font-bold">{formatINR(projectedTotal)}</p>
+                    {hasCashback && (
+                      <p className="text-xs text-muted-foreground line-through">{formatINR(projectedGross)}</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-1">expected spend this month</p>
+                  </div>
+                ) : (
+                  <div className="bg-card border border-border rounded-2xl p-4">
+                    <p className="text-xs text-muted-foreground mb-1">No-spend Days</p>
+                    <p className="text-xl font-bold">{noSpendDays} <span className="text-sm font-normal text-muted-foreground">/ {daysInMonth}</span></p>
+                    <p className="text-[10px] text-muted-foreground mt-1">days with no expenses</p>
+                  </div>
                 )}
-                <p className="text-[10px] text-muted-foreground mt-1">{divisorLabel}</p>
               </div>
 
-              {isCurrentMonth ? (
-                <div className="bg-card border border-border rounded-2xl p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Projected</p>
-                  <p className="text-xl font-bold">{formatINR(projectedTotal)}</p>
-                  {hasCashback && (
-                    <p className="text-xs text-muted-foreground line-through">{formatINR(projectedGross)}</p>
-                  )}
-                  <p className="text-[10px] text-muted-foreground mt-1">expected spend this month</p>
-                </div>
-              ) : (
-                <div className="bg-card border border-border rounded-2xl p-4">
-                  <p className="text-xs text-muted-foreground mb-1">No-spend Days</p>
-                  <p className="text-xl font-bold">{noSpendDays} <span className="text-sm font-normal text-muted-foreground">/ {daysInMonth}</span></p>
-                  <p className="text-[10px] text-muted-foreground mt-1">days with no expenses</p>
-                </div>
+              {isCurrentMonth && showPlanner && (
+                <FutureSpendPlanner
+                  currentTotal={netTotal}
+                  daysTracked={dailyDivisor}
+                  todayActual={todayActual}
+                  daysInMonth={daysInMonth}
+                  currentAvg={dailyAvg}
+                  currentDay={now.getDate()}
+                />
               )}
-            </div>
+            </>
           );
         })()}
 

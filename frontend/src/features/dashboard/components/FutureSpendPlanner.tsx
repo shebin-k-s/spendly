@@ -1,0 +1,212 @@
+import { useState, useEffect } from 'react';
+import { Plus, Minus, TrendingDown, Target, Info, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import { formatINR } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+
+interface FutureSpendPlannerProps {
+  currentTotal: number;
+  daysTracked: number;
+  todayActual: number;
+  daysInMonth: number;
+  currentAvg: number;
+  currentDay: number;
+}
+
+export default function FutureSpendPlanner({
+  currentTotal,
+  daysTracked,
+  todayActual,
+  daysInMonth,
+  currentAvg,
+  currentDay,
+}: FutureSpendPlannerProps) {
+  const [plannedSpends, setPlannedSpends] = useState<number[]>([]);
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    // Only hydrate if we haven't yet and have some valid data
+    const today = Number(todayActual);
+    const avg = Number(currentAvg);
+    
+    const isValidData = !isNaN(today) && !isNaN(avg) && (today !== 0 || avg !== 0);
+
+    if (!hasHydrated && isValidData) {
+      setPlannedSpends([
+        Math.round(today)
+      ]);
+      setHasHydrated(true);
+    }
+
+  }, [todayActual, currentAvg, hasHydrated]);
+
+  // Fallback for genuinely 0 spend
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!hasHydrated) {
+        setPlannedSpends([0]);
+        setHasHydrated(true);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [hasHydrated]);
+
+
+
+  const remainingDays = daysInMonth - currentDay; // Days after today
+
+  const handleUpdateSpend = (index: number, value: string) => {
+    const newSpends = [...plannedSpends];
+    const val = parseFloat(value);
+    newSpends[index] = isNaN(val) ? 0 : val;
+    setPlannedSpends(newSpends);
+  };
+
+  const applyToAll = (value: number) => {
+    if (plannedSpends.length <= 1) return;
+    const newSpends = [plannedSpends[0], ...Array(plannedSpends.length - 1).fill(value)];
+    setPlannedSpends(newSpends);
+    toast.success(`Applied ₹${Math.round(value)} to all upcoming days`);
+  };
+
+  const addDay = () => {
+    if (plannedSpends.length < remainingDays) {
+      const lastValue = plannedSpends[plannedSpends.length - 1];
+      setPlannedSpends([...plannedSpends, lastValue]);
+    }
+  };
+
+  const removeDay = () => {
+    if (plannedSpends.length > 1) {
+      setPlannedSpends(plannedSpends.slice(0, -1));
+    }
+  };
+
+  // Calculations
+  const simulatedDays = plannedSpends.length;
+  // baseTotal is spend up to yesterday
+  const safeCurrentTotal = Number(currentTotal || 0);
+  const safeTodayActual = Number(todayActual || 0);
+  const safeCurrentAvg = Number(currentAvg || 0);
+  const safeCurrentDay = Number(currentDay || 1);
+
+  const baseTotal = safeCurrentTotal - safeTodayActual;
+  const totalPlannedInSim = plannedSpends.reduce((a, b) => a + (Number(b) || 0), 0);
+  
+  // Days covered by (calendar days excluding today) + simulation
+  const lastSimulatedDay = (safeCurrentDay - 1) + simulatedDays;
+  const remainingAfterSim = Math.max(0, daysInMonth - lastSimulatedDay);
+  
+  const originalProjected = safeCurrentTotal + safeCurrentAvg * (daysInMonth - safeCurrentDay);
+  const newProjectedTotal = baseTotal + totalPlannedInSim + (safeCurrentAvg * remainingAfterSim);
+  
+  const safeOriginalProjected = isNaN(originalProjected) ? 0 : originalProjected;
+  const safeNewProjectedTotal = isNaN(newProjectedTotal) ? 0 : newProjectedTotal;
+  
+  const savingsAmount = safeOriginalProjected - safeNewProjectedTotal;
+  const newDailyAvg = safeNewProjectedTotal / (daysInMonth || 1);
+
+  return (
+    <div className="bg-card border border-border rounded-2xl p-5 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-primary">
+          <Target className="w-4 h-4" />
+          <h3 className="text-sm font-bold uppercase tracking-wider">Spend Planner</h3>
+        </div>
+        <div className="flex items-center gap-1.5 bg-secondary rounded-lg px-2 py-1">
+          <button onClick={removeDay} className="p-0.5 hover:text-primary transition-colors disabled:opacity-30" disabled={plannedSpends.length <= 1}>
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-[10px] font-bold min-w-[3ch] text-center">{simulatedDays}d</span>
+          <button onClick={addDay} className="p-0.5 hover:text-primary transition-colors disabled:opacity-30" disabled={simulatedDays >= remainingDays}>
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-[10px] font-semibold text-muted-foreground uppercase">Target Spend (Including Today)</label>
+        <div className="flex flex-wrap gap-3">
+          {plannedSpends.map((spend, i) => (
+            <div key={i} className="flex-1 min-w-[80px] space-y-1">
+              <p className="text-[10px] text-muted-foreground italic">
+                {i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `Day ${i + 1}`}
+              </p>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                <input
+                  type="number"
+                  value={spend}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    // Remove leading zeros if there's more than one digit
+                    if (val.length > 1 && val.startsWith('0') && !val.includes('.')) {
+                      val = val.replace(/^0+/, '');
+                      if (val === '') val = '0';
+                    }
+                    handleUpdateSpend(i, val);
+                  }}
+                  placeholder="0"
+                  className={cn(
+                    "w-full bg-background border rounded-xl pl-6 pr-3 py-2 text-sm font-bold focus:outline-none focus:ring-1",
+                    i === 0 && spend < safeTodayActual && spend > 0 ? "border-destructive focus:ring-destructive text-destructive" : "border-border focus:ring-primary"
+                  )}
+                />
+
+              </div>
+              {i === 0 && spend < safeTodayActual && spend > 0 && (
+                <p className="text-[9px] text-destructive italic font-medium leading-tight">
+                  Goal is lower than ₹{Math.round(safeTodayActual)} already spent.
+                </p>
+              )}
+              {i === 1 && plannedSpends.length > 2 && (
+                <button 
+                  onClick={() => applyToAll(spend)}
+                  className="flex items-center gap-1 mt-1.5 text-[9px] text-primary hover:text-primary/80 transition-colors font-bold uppercase tracking-tight active:scale-95"
+                >
+                  <RefreshCw className="w-2.5 h-2.5" />
+                  Sync all
+                </button>
+              )}
+            </div>
+          ))}
+
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-border flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+            New Projected Total <Info className="w-3 h-3" />
+          </p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-xl font-bold">{formatINR(Math.round(safeNewProjectedTotal))}</span>
+            {Math.round(savingsAmount) !== 0 && !isNaN(savingsAmount) && (
+              <span className={cn(
+                "text-xs font-medium px-1.5 py-0.5 rounded-md",
+                savingsAmount > 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              )}>
+                {savingsAmount > 0 ? 'Saved ' : 'Over '}{formatINR(Math.abs(Math.round(savingsAmount)))}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="text-right space-y-1">
+          <p className="text-[10px] text-muted-foreground uppercase">New Daily Avg</p>
+          <p className="text-lg font-bold text-primary">{formatINR(Math.round(newDailyAvg))}</p>
+        </div>
+      </div>
+
+      {savingsAmount > 0 && Math.round(savingsAmount) !== 0 && !isNaN(savingsAmount) && (
+        <div className="bg-success/5 border border-success/10 rounded-xl p-3 flex items-start gap-3">
+          <TrendingDown className="w-4 h-4 text-success shrink-0 mt-0.5" />
+          <p className="text-[11px] leading-relaxed text-success-foreground/80">
+            Great plan! Cutting back for the next {simulatedDays} days reduces your monthly projection by <span className="font-bold">{formatINR(Math.round(savingsAmount))}</span> and keeps your average low.
+          </p>
+        </div>
+      )}
+
+    </div>
+  );
+}
