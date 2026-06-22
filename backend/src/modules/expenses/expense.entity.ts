@@ -10,8 +10,6 @@ import {
 } from 'typeorm';
 import { Category } from '../categories/category.entity';
 
-export type PaymentMethod = 'cash' | 'card' | 'upi' | 'bank_transfer' | 'other';
-
 @Entity('expenses')
 export class Expense {
     @PrimaryGeneratedColumn('uuid')
@@ -35,9 +33,6 @@ export class Expense {
 
     @Column({ nullable: true })
     note: string;
-
-    @Column({ default: 'other' })
-    paymentMethod: PaymentMethod;
 
     @Index()
     @ManyToOne(() => Category, (category) => category.expenses, {

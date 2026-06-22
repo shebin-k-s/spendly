@@ -25,7 +25,6 @@ interface ShareState {
   rawText?: string | null;
   shareType?: string | null;
   fromNlParse?: boolean;
-  paymentMethod?: string | null;
   categoryId?: string | null;
   expenseNote?: string | null;
 }
@@ -220,7 +219,6 @@ export default function ShareToPeoplePage() {
               amount: typeof result.amount === 'string' ? result.amount : amount,
               description: typeof result.description === 'string' ? result.description : note,
               date: typeof result.date === 'string' && result.date ? result.date : date,
-              paymentMethod: typeof result.payment_method === 'string' ? result.payment_method : 'upi',
               categoryId: typeof result.category_id === 'string' ? result.category_id : '',
               note: typeof result.note === 'string' ? result.note : '',
             },
@@ -284,7 +282,7 @@ export default function ShareToPeoplePage() {
           <button
             onClick={() => navigate('/expenses/new', {
               state: {
-                prefill: { amount, description: note, date, paymentMethod: state.paymentMethod ?? 'upi', categoryId: state.categoryId ?? '', note: state.expenseNote ?? '' },
+                prefill: { amount, description: note, date, categoryId: state.categoryId ?? '', note: state.expenseNote ?? '' },
                 shareTs: state.shareTs,
                 forceExpense: true,
                 transfer_person: state.transfer_person ?? null,

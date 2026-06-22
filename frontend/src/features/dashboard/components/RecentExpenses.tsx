@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
-import { PAYMENT_METHOD_ICONS, netAmount } from '@/features/expenses/utils/expenseUtils';
+import { netAmount } from '@/features/expenses/utils/expenseUtils';
 import ExpenseDetailSheet from '@/features/expenses/components/ExpenseDetailSheet';
 import type { Expense } from '@/features/expenses/types';
 import { useAppSelector } from '@/store/hooks';
@@ -45,7 +45,7 @@ export default function RecentExpenses({ expenses }: RecentExpensesProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{expense.description}</p>
-                <p className="text-[10px] text-muted-foreground">{PAYMENT_METHOD_ICONS[expense.paymentMethod]} · {expense.date}</p>
+                <p className="text-[10px] text-muted-foreground">{expense.date}</p>
               </div>
               <div className="flex flex-col items-end">
                 <p className="text-sm font-semibold">{formatINR(netAmount(expense))}</p>

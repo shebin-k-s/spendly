@@ -1,7 +1,5 @@
 import type { Category } from '@/features/categories/types';
 
-export type PaymentMethod = 'cash' | 'card' | 'upi' | 'bank_transfer' | 'other';
-
 export interface Expense {
   id: string;
   amount: number;
@@ -10,7 +8,6 @@ export interface Expense {
   date: string;
   time?: string | null;
   note?: string;
-  paymentMethod: PaymentMethod;
   category?: Category;
   createdAt: string;
   updatedAt: string;
@@ -23,7 +20,6 @@ export interface CreateExpensePayload {
   date: string;
   time?: string | null;
   note?: string;
-  paymentMethod: PaymentMethod;
   categoryId?: string;
 }
 

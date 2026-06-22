@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import type { Expense, PaymentMethod } from '../types';
+import type { Expense } from '../types';
 import type { Category } from '@/features/categories/types';
 
 export function dateKey(d: Date): string {
@@ -22,20 +22,4 @@ export function netAmount(expense: Expense): number {
 export function totalAmount(expenses: Expense[]): number {
   return expenses.reduce((sum, e) => sum + netAmount(e), 0);
 }
-
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  card: 'Card',
-  upi: 'UPI',
-  bank_transfer: 'Bank Transfer',
-  other: 'Other',
-};
-
-export const PAYMENT_METHOD_ICONS: Record<PaymentMethod, string> = {
-  cash: '💵',
-  card: '💳',
-  upi: '📲',
-  bank_transfer: '🏦',
-  other: '💰',
-};
 

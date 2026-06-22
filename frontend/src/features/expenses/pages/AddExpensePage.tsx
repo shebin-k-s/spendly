@@ -10,26 +10,21 @@ import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { usePeople } from '@/features/people/hooks/usePeople';
 import { peopleApi } from '@/features/people/api/peopleApi';
 import type { Person } from '@/features/people/types';
-import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
 import { parseShareText } from '../utils/parseShareText';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import apiClient from '@/lib/apiClient';
 import { expensesApi } from '../api/expensesApi';
-import type { PaymentMethod } from '../types';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { cn, formatINR } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BulkParseModal } from '../components/BulkParseModal';
 
 
-const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
-
 type AiStatus = 'idle' | 'loading' | 'done' | 'error';
 
 interface ParsedImage {
   amount: string;
   description: string;
-  payment_method: PaymentMethod;
   date: string | null;
   time: string | null;
   category_id: string | null;
@@ -171,7 +166,7 @@ export default function AddExpensePage() {
   const sharedImage = searchParams.get('shared') === 'image';
   const sharedText = searchParams.get('shared') === 'text';
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
-  const prefill = (location.state as { prefill?: { amount: string; description: string; paymentMethod: PaymentMethod; categoryId: string; note: string } } | null)?.prefill ?? null;
+  const prefill = (location.state as { prefill?: { amount: string; description: string; categoryId: string; note: string } } | null)?.prefill ?? null;
   const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
   const forceExpense = (location.state as { forceExpense?: boolean } | null)?.forceExpense ?? false;
   const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? (searchParams.get('shareTs') ? parseInt(searchParams.get('shareTs')!, 10) : null);
@@ -204,7 +199,6 @@ export default function AddExpensePage() {
               if (p.date) setDate(p.date);
               if (p.time) setTime(p.time);
               setCategoryId(p.category_id || '');
-              setPaymentMethod(p.payment_method || 'upi');
               setNote(p.note || '');
               if (item.thumbnail) setPreviewThumbnail(item.thumbnail);
               if (item.rawText) setPreviewRawText(item.rawText);
@@ -308,7 +302,6 @@ export default function AddExpensePage() {
   const [date, setDate] = useState((ps?.date as string) ?? parsed?.date ?? format(now, 'yyyy-MM-dd'));
   const [time, setTime] = useState<string | null>((ps?.time as string) ?? parsed?.time ?? format(now, 'HH:mm'));
   const [categoryId, setCategoryId] = useState(prefill?.categoryId ?? (ps?.category_id as string) ?? '');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(prefill?.paymentMethod ?? (ps?.payment_method as PaymentMethod) ?? parsed?.paymentMethod ?? 'upi');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
   const stateTransferPerson    = (location.state as { transfer_person?: string | null } | null)?.transfer_person ?? null;
@@ -429,7 +422,6 @@ export default function AddExpensePage() {
       const result = await parseImage(blob);
       if (result.amount) setAmount(result.amount);
       if (result.description) setDescription(result.description);
-      if (result.payment_method) setPaymentMethod(result.payment_method);
       if (result.date) setDate(result.date);
       if (result.time) setTime(result.time);
       if (result.category_id) setCategoryId(result.category_id);
@@ -495,7 +487,6 @@ export default function AddExpensePage() {
         const cachedResult = peeked.result;
         if (cachedResult.amount) setAmount(cachedResult.amount);
         if (cachedResult.description) setDescription(cachedResult.description);
-        if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
         if (cachedResult.date) setDate(cachedResult.date);
         if (cachedResult.time) setTime(cachedResult.time);
         if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
@@ -532,8 +523,7 @@ export default function AddExpensePage() {
           const cachedResult = peeked.result;
           if (cachedResult.amount) setAmount(cachedResult.amount);
           if (cachedResult.description) setDescription(cachedResult.description);
-          if (cachedResult.payment_method) setPaymentMethod(cachedResult.payment_method);
-          if (cachedResult.date) setDate(cachedResult.date);
+            if (cachedResult.date) setDate(cachedResult.date);
           if (cachedResult.time) setTime(cachedResult.time);
           if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
           if (cachedResult.note) setNote(cachedResult.note);
@@ -554,7 +544,6 @@ export default function AddExpensePage() {
         const result = await expensesApi.parseText(text);
         setAmount(typeof result.amount === 'string' ? result.amount : '');
         setDescription(typeof result.description === 'string' ? result.description : '');
-        setPaymentMethod((typeof result.payment_method === 'string' ? result.payment_method : 'upi') as PaymentMethod);
         setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
         setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
         setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
@@ -600,7 +589,6 @@ export default function AddExpensePage() {
       const result = await expensesApi.parseText(nlText.trim());
       setAmount(typeof result.amount === 'string' ? result.amount : '');
       setDescription(typeof result.description === 'string' ? result.description : '');
-      setPaymentMethod((typeof result.payment_method === 'string' ? result.payment_method : 'upi') as PaymentMethod);
       setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
       setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
       setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
@@ -642,7 +630,6 @@ export default function AddExpensePage() {
         description: description.trim(),
         date,
         time: time || undefined,
-        paymentMethod,
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
@@ -899,18 +886,6 @@ export default function AddExpensePage() {
                   <button key={cat.id} onClick={() => setCategoryId(cat.id)} className={`py-2.5 px-2 rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5 justify-center ${categoryId === cat.id ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
                     <span>{cat.icon}</span>
                     <span className="truncate">{cat.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Payment method */}
-            <div>
-              <label className="form-label">Payment Method</label>
-              <div className="grid grid-cols-3 gap-2">
-                {PAYMENT_METHODS.map((method) => (
-                  <button key={method} onClick={() => setPaymentMethod(method)} className={`py-2.5 rounded-xl text-xs font-medium transition-colors ${paymentMethod === method ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}>
-                    {PAYMENT_METHOD_LABELS[method]}
                   </button>
                 ))}
               </div>

@@ -170,11 +170,6 @@ async function serveSpa(request) {
 }
 
 // ── Notification content builder ─────────────────────────────────────────────
-const METHOD_LABEL = {
-  upi: 'UPI', card: 'Card', cash: 'Cash',
-  bank_transfer: 'Bank Transfer', other: 'Other',
-};
-
 function fmtDate(dateStr) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -188,7 +183,6 @@ function fmtAmount(amount) {
 
 function buildNotifContent(parsed, personKnown = null) {
   const amount = fmtAmount(parsed.amount);
-  const method = METHOD_LABEL[parsed.payment_method] || parsed.payment_method || '';
   const date = fmtDate(parsed.date);
   const time = parsed.time || '';
   const isTransfer = parsed.suggested_flow === 'transfer' && parsed.transfer_person;
@@ -202,7 +196,7 @@ function buildNotifContent(parsed, personKnown = null) {
 
     const lines = [];
     if (personKnown === false) lines.push('New Contact');
-    const meta = [method, date, time].filter(Boolean).join(' · ');
+    const meta = [date, time].filter(Boolean).join(' · ');
     if (meta) lines.push(meta);
     if (parsed.note) lines.push(`Note: ${parsed.note}`);
 
@@ -220,7 +214,7 @@ function buildNotifContent(parsed, personKnown = null) {
 
   if (parsed.description) lines.push(parsed.description);
 
-  const meta = [parsed.category_name, method, date, time].filter(Boolean).join(' · ');
+  const meta = [parsed.category_name, date, time].filter(Boolean).join(' · ');
   if (meta) lines.push(meta);
 
   if (parsed.cashback) {
@@ -379,9 +373,8 @@ self.addEventListener('notificationclick', (event) => {
             const isSent = type === 'GIVEN';
             const verb = isSent ? 'Gave' : 'Received';
             const prep = isSent ? 'to' : 'from';
-            const method = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
             const date = fmtDate(data.date);
-            const meta = [method, date].filter(Boolean).join(' · ');
+            const meta = [date].filter(Boolean).join(' · ');
             const lines = [];
             if (isNew) lines.push('New contact added to your people list');
             if (meta) lines.push(meta);
@@ -411,7 +404,6 @@ self.addEventListener('notificationclick', (event) => {
               description: data.description,
               date: data.date,
               time: data.time || undefined,
-              paymentMethod: data.paymentMethod || 'upi',
               categoryId: data.categoryId || undefined,
               note: data.note || undefined,
               cashback: data.cashback ? parseFloat(data.cashback) : undefined,
@@ -420,10 +412,9 @@ self.addEventListener('notificationclick', (event) => {
           if (!res.ok) throw new Error('save-failed');
           await removeShareByTs(data.shareTs);
           navigator.clearAppBadge?.().catch?.(() => { });
-          const method = METHOD_LABEL[data.paymentMethod] || data.paymentMethod || '';
           const date = fmtDate(data.date);
           const category = data.categoryName || '';
-          const meta = [category, method, date].filter(Boolean).join(' · ');
+          const meta = [category, date].filter(Boolean).join(' · ');
           const lines = [];
           if (data.description) lines.push(data.description);
           if (meta) lines.push(meta);
@@ -651,7 +642,6 @@ async function backgroundTextParseAndNotify(text) {
       data: {
         amount: parsed.amount,
         description: parsed.description,
-        paymentMethod: parsed.payment_method,
         categoryId: parsed.category_id,
         categoryName: parsed.category_name || null,
         date: parsed.date,
@@ -721,7 +711,6 @@ async function backgroundParseAndNotify(buffer, mimeType) {
       data: {
         amount: parsed.amount,
         description: parsed.description,
-        paymentMethod: parsed.payment_method,
         categoryId: parsed.category_id,
         categoryName: parsed.category_name || null,
         date: parsed.date,

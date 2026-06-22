@@ -13,7 +13,6 @@ interface QueueItem {
   result: {
     amount: string;
     description: string;
-    payment_method: string;
     date: string | null;
     time: string | null;
     category_id: string | null;
@@ -191,19 +190,12 @@ export default function PendingSharesPage() {
                   </div>
                 </div>
 
-                {/* Category + payment badges */}
-                {(item.result.category_name || item.result.payment_method) && (
+                {/* Category badge */}
+                {item.result.category_name && (
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {item.result.category_name && (
-                      <span className="text-[11px] font-semibold text-muted-foreground bg-secondary px-2.5 py-1 rounded-lg">
-                        {item.result.category_name}
-                      </span>
-                    )}
-                    {item.result.payment_method && (
-                      <span className="text-[11px] font-bold text-muted-foreground/60 bg-secondary px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                        {item.result.payment_method}
-                      </span>
-                    )}
+                    <span className="text-[11px] font-semibold text-muted-foreground bg-secondary px-2.5 py-1 rounded-lg">
+                      {item.result.category_name}
+                    </span>
                   </div>
                 )}
 

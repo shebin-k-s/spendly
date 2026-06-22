@@ -4,7 +4,7 @@ import { RotateCcw } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import * as Dialog from '@radix-ui/react-dialog';
 import { formatINR } from '@/lib/utils';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS, netAmount } from '../utils/expenseUtils';
+import { netAmount } from '../utils/expenseUtils';
 import { useAppSelector } from '@/store/hooks';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import type { Expense } from '../types';
@@ -76,7 +76,6 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
         prefill: {
           amount: String(expense.amount),
           description: expense.description,
-          paymentMethod: expense.paymentMethod,
           categoryId: expense.category?.id ?? '',
           note: expense.note ?? '',
         },
@@ -138,13 +137,6 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
                     {expense.time && (
                       <span className="text-muted-foreground font-normal"> · {fmtTime(expense.time)}</span>
                     )}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-                  <span className="text-sm text-muted-foreground">Payment</span>
-                  <span className="text-sm font-medium">
-                    {PAYMENT_METHOD_ICONS[expense.paymentMethod]} {PAYMENT_METHOD_LABELS[expense.paymentMethod]}
                   </span>
                 </div>
 

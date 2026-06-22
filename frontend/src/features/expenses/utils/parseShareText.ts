@@ -3,7 +3,6 @@ import { parse, isValid, format } from 'date-fns';
 interface ParsedShare {
   amount: string;
   description: string;
-  paymentMethod: 'upi' | 'card' | 'cash' | 'bank_transfer' | 'other';
   date: string | null;   // yyyy-MM-dd or null if not found
   time: string | null;   // HH:mm or null if not found
 }
@@ -71,17 +70,6 @@ export function parseShareText(raw: string): ParsedShare {
     }
   }
 
-  // --- Payment method ---
-  let paymentMethod: ParsedShare['paymentMethod'] = 'upi';
-  const lower = text.toLowerCase();
-  if (/\b(upi|gpay|google pay|phonepe|paytm|bhim|razorpay|neft|imps|rtgs|bank transfer)\b/.test(lower)) {
-    paymentMethod = 'upi';
-  } else if (/\b(credit card|debit card|card)\b/.test(lower)) {
-    paymentMethod = 'card';
-  } else if (/\bcash\b/.test(lower)) {
-    paymentMethod = 'cash';
-  }
-
   // --- Date ---
   // Match patterns like: "19-05-2025", "19/05/25", "19 May 2025", "May 19, 2025"
   let date: string | null = null;
@@ -109,5 +97,5 @@ export function parseShareText(raw: string): ParsedShare {
     time = tryParseTime(timeMatch[1]);
   }
 
-  return { amount, description, paymentMethod, date, time };
+  return { amount, description, date, time };
 }

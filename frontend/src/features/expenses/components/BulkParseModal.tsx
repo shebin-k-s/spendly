@@ -4,14 +4,12 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
-import { PAYMENT_METHOD_LABELS, PAYMENT_METHOD_ICONS } from '../utils/expenseUtils';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { usePeople } from '@/features/people/hooks/usePeople';
 import { peopleApi } from '@/features/people/api/peopleApi';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import { cn, formatINR } from '@/lib/utils';
-import type { PaymentMethod } from '../types';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
 
@@ -20,7 +18,6 @@ import { CategoryPicker } from '@/features/categories/components/CategoryPicker'
 interface ParsedItem {
   amount: string;
   description: string;
-  payment_method: PaymentMethod;
   date: string | null;
   time: string | null;
   category_id: string | null;
@@ -41,8 +38,6 @@ interface Props {
   onClose: () => void;
   onAllSaved?: () => void;
 }
-
-const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,8 +103,6 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
       const parsed: ParsedItem[] = res.items.map((raw) => ({
         amount: typeof raw.amount === 'string' ? raw.amount : '',
         description: typeof raw.description === 'string' ? raw.description : '',
-        payment_method: (['upi', 'card', 'cash', 'bank_transfer', 'other'].includes(raw.payment_method as string)
-          ? raw.payment_method as PaymentMethod : 'upi'),
         date: typeof raw.date === 'string' ? raw.date : today(),
         time: typeof raw.time === 'string' ? raw.time : null,
         category_id: typeof raw.category_id === 'string' ? raw.category_id : null,
@@ -177,7 +170,6 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
           description: item.description.trim(),
           date: item.date || today(),
           time: item.time || undefined,
-          paymentMethod: item.payment_method,
           note: item.note?.trim() || undefined,
           categoryId: item.category_id || undefined,
           cashback: item.cashback ? parseFloat(item.cashback) : undefined,
@@ -556,19 +548,6 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
 
                         {item.suggested_flow !== 'transfer' && (
                           <>
-                            {/* Payment Method Toggle (cycles through options on click) */}
-                            <button
-                              onClick={() => {
-                                const currentIdx = PAYMENT_METHODS.indexOf(item.payment_method);
-                                const nextIdx = (currentIdx + 1) % PAYMENT_METHODS.length;
-                                updateItem(idx, { payment_method: PAYMENT_METHODS[nextIdx] });
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary text-[11px] font-semibold active:scale-95 transition-all animate-in fade-in duration-300"
-                            >
-                              <span>{PAYMENT_METHOD_ICONS[item.payment_method]}</span>
-                              <span>{PAYMENT_METHOD_LABELS[item.payment_method]}</span>
-                            </button>
-
                             {/* Category Modal Trigger */}
                             <button
                               onClick={() => {

@@ -5,7 +5,6 @@ import { getISTParts } from '../../common/utils/date.utils';
 export interface CategoryOption { id: string; name: string; icon: string; }
 
 export class ExpenseAiService {
-    private readonly validPaymentMethods = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
     private readonly timeoutMs = 25_000;
     private readonly modelFallbacks = [
         // CURRENT BEST FREE-TIER PRIMARY
@@ -62,7 +61,6 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 {
   "amount": "<number as string, e.g. \\"1299.00\\">",
   "description": "<merchant name or summary of purchase (e.g. 'Swiggy Order', 'Reliance Groceries', 'Movie Tickets'), max 40 chars>",
-  "payment_method": "<upi | card | cash | bank_transfer | other>",
   "date": "<yyyy-MM-dd or null if not visible>",
   "time": "<HH:mm 24h or null if not visible>",
   "category_id": "<exact id string from the list below, or null>",
@@ -77,7 +75,6 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 Rules:
 - amount: debit/paid amount only, not balance
 - description: Use the merchant name if visible (e.g., 'Swiggy', 'Zomato', 'Amazon', 'Reliance Smart'). Otherwise, summarize the item. Be concise. CRITICAL: Never include cashback or reward details here.
-- payment_method: GPay/PhonePe/Paytm/UPI → upi, debit/credit card → card
 - date/time: only from what is clearly visible
 - category_id: Smartly categorize the transaction. CRITICAL: If you see a highly specific category matching the item exactly (like 'Drinks' for a sarbhath/drink purchase) DO NOT put it in a generic bucket (like 'Food & Dining'). ONLY fallback to generic variants (like 'Grocery' instead of 'Chanthavila Grocery') if there's no distinguishing clue whatsoever (like an address or store name).
 - note: For receipts/images, provide a detailed line-by-line breakdown of items and their individual prices in the form 'Item ₹Price' (e.g. "Burger ₹150, Coke ₹50") — the ₹ symbol makes it clear it's a price, not a quantity. If it's a single item or no breakdown is visible, provide any other useful context that helps the user remember the purchase. CRITICAL: Never mention cashback or reward amounts in this field.
@@ -105,7 +102,6 @@ Return ONLY a JSON array (no markdown, no explanation) where each element has:
 {
   "amount": "<number as string e.g. \\"350.00\\", or null if not mentioned>",
   "description": "<merchant name or what was bought, max 40 chars>",
-  "payment_method": "<upi | card | cash | bank_transfer | other>",
   "date": "<yyyy-MM-dd or null>",
   "time": "<HH:mm 24h or null>",
   "cashback": "<cashback amount as string e.g. \\"100.00\\", or null if not mentioned>",
@@ -137,7 +133,6 @@ Examples:
 Field rules (per expense):
   - amount: the amount spent (before cashback). CRITICAL: The number the user states is ALWAYS the total amount paid — never multiply it. Accept plain ("350"), with ₹, or with "rs"/"INR".
   - description: infer a contextual label from what the items actually are — do NOT list item names. Classify the items: idli/dosa/puttu/rice/chapati/roti/appam/meals = meal items; vada/bajji/bonda/samosa/chips/biscuit/candy/murukku = snacks; tea/coffee/juice/drinks/chaya = beverages; vegetables/milk/eggs/bread = groceries. Then combine with time/meal context: e.g. "idli vada kattan chaya at 11am" → "Morning Food", "rice curry at 1pm" → "Lunch", "beer chips at 9pm" → "Evening Snacks", "milk eggs bread" → "Grocery Run". If only beverages are bought → "Morning Tea" / "Evening Tea" etc. For services/bills use a concise label (e.g. "Auto Fare", "Electricity Bill"). If a well-known merchant is named with no items, use the merchant name (e.g. "Zomato", "Reliance Smart"). Max 40 chars. CRITICAL: Never call meal items (idli, dosa, rice etc.) "Snacks". Never include cashback details here.
-  - payment_method: GPay/PhonePe/Paytm/UPI → upi; debit/credit card → card; cash → cash; NEFT/IMPS/bank transfer → bank_transfer. Default to upi if unclear.
   - date: if mentioned (including relative terms like "today", "yesterday"), resolve using today's date. If not mentioned at all, default to ${today}.
   - time: if explicitly mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned but a meal is referenced, infer a typical time: breakfast → "08:30", morning tea/coffee → "09:00", lunch → "13:00", evening tea/snack → "16:30", dinner → "20:00". Only fall back to ${currentTime} if no time or meal context exists.
   - cashback: extract any cashback or reward amount.
@@ -166,7 +161,6 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 {
   "amount": "<number as string e.g. \\"350.00\\", or null if not mentioned>",
   "description": "<merchant name or what was bought, max 40 chars>",
-  "payment_method": "<upi | card | cash | bank_transfer | other>",
   "date": "<yyyy-MM-dd or null>",
   "time": "<HH:mm 24h or null>",
   "cashback": "<cashback amount as string e.g. \\"100.00\\", or null if not mentioned>",
@@ -181,7 +175,6 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
 Rules:
 - amount: the amount spent (before cashback). CRITICAL: The number the user states is ALWAYS the total amount paid — never multiply it by a quantity. e.g. "egg 20rs for 2" → amount is "20.00" (total), NOT 40. Accept plain ("350"), with ₹, or with "rs"/"INR". Return as string with up to 2 decimals
 - description: infer a contextual label from what the items actually are — do NOT list item names. Classify the items: idli/dosa/puttu/rice/chapati/roti/appam/meals = meal items; vada/bajji/bonda/samosa/chips/biscuit/candy/murukku = snacks; tea/coffee/juice/drinks/chaya = beverages; vegetables/milk/eggs/bread = groceries. Then combine with time/meal context: e.g. "idli vada kattan chaya at 11am" → "Morning Food", "rice curry at 1pm" → "Lunch", "beer chips at 9pm" → "Evening Snacks", "milk eggs bread" → "Grocery Run". If only beverages are bought → "Morning Tea" / "Evening Tea" etc. For services/bills use a concise label (e.g. "Auto Fare", "Electricity Bill"). If a well-known merchant is named with no items, use the merchant name (e.g. "Zomato", "Reliance Smart"). Max 40 chars. CRITICAL: Never call meal items (idli, dosa, rice etc.) "Snacks". Never include cashback details here.
-- payment_method: GPay/PhonePe/Paytm/UPI → upi; debit/credit card → card; cash → cash; NEFT/IMPS/bank transfer → bank_transfer. Default to upi if unclear
 - date: if mentioned (including relative terms like "today", "yesterday"), resolve using today's date above. If not mentioned at all, default to ${today}
 - time: if explicitly mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned but a meal is referenced, infer a typical time: breakfast → "08:30", morning tea/coffee → "09:00", lunch → "13:00", evening tea/snack → "16:30", dinner → "20:00". Only fall back to ${currentTime} if no time or meal context exists
 - cashback: extract any cashback or reward amount. Return as string or null.
@@ -259,8 +252,6 @@ ${categoryBlock}`;
             ? raw.amount.trim() : '';
         const description = typeof raw.description === 'string'
             ? raw.description.slice(0, 50).trim() : '';
-        const payment_method = this.validPaymentMethods.includes(raw.payment_method as string)
-            ? (raw.payment_method as string) : 'upi';
         const date = typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)
             ? raw.date : null;
         const time = typeof raw.time === 'string' && /^\d{2}:\d{2}$/.test(raw.time)
@@ -278,7 +269,7 @@ ${categoryBlock}`;
         const transfer_direction = (raw.transfer_direction === 'sent' || raw.transfer_direction === 'received')
             ? raw.transfer_direction as 'sent' | 'received' : null;
         const suggested_flow = raw.suggested_flow === 'transfer' ? 'transfer' : 'expense';
-        return { amount, description, payment_method, date, time, cashback, category_id, category_name, note, transfer_person, transfer_phone, transfer_direction, suggested_flow };
+        return { amount, description, date, time, cashback, category_id, category_name, note, transfer_person, transfer_phone, transfer_direction, suggested_flow };
     }
 
     async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], debug = false) {

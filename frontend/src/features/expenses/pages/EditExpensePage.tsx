@@ -5,11 +5,7 @@ import { useExpenseById, useUpdateExpense, useDeleteExpense } from '../hooks/use
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DateTimePicker } from '@/components/DateTimePicker';
-import { PAYMENT_METHOD_LABELS } from '../utils/expenseUtils';
-import type { PaymentMethod } from '../types';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
-
-const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
 
 export default function EditExpensePage() {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +26,6 @@ export default function EditExpensePage() {
   const [date, setDate] = useState(initialExpense?.date || '');
   const [time, setTime] = useState<string | null>(initialExpense?.time ?? null);
   const [categoryId, setCategoryId] = useState(initialExpense?.category?.id || '');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialExpense?.paymentMethod || 'upi');
   const [note, setNote] = useState(initialExpense?.note || '');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const isBlocking = isPending || showDeleteModal;
@@ -50,7 +45,6 @@ export default function EditExpensePage() {
       setDate(expense.date);
       setTime(expense.time ?? null);
       setCategoryId(expense.category?.id || '');
-      setPaymentMethod(expense.paymentMethod);
       setNote(expense.note || '');
     }
   }, [expense]);
@@ -65,12 +59,11 @@ export default function EditExpensePage() {
       date: date !== refExpense.date,
       time: (time || null) !== (refExpense.time || null),
       category: (categoryId || '') !== (refExpense.category?.id || ''),
-      paymentMethod: paymentMethod !== refExpense.paymentMethod,
       note: (note?.trim() || '') !== (refExpense.note?.trim() || ''),
     };
 
     return Object.values(changes).some(Boolean);
-  }, [refExpense, amount, cashback, description, date, time, categoryId, paymentMethod, note]);
+  }, [refExpense, amount, cashback, description, date, time, categoryId, note]);
 
 
   const canSubmit = amount.trim() && description.trim() && isChanged && !isBlocking;
@@ -85,7 +78,6 @@ export default function EditExpensePage() {
         description: description.trim(),
         date,
         time: time || undefined,
-        paymentMethod,
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
@@ -219,23 +211,6 @@ export default function EditExpensePage() {
               >
                 <span>{cat.icon}</span>
                 <span className="truncate">{cat.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="form-label">Payment Method</label>
-          <div className="grid grid-cols-3 gap-2">
-            {PAYMENT_METHODS.map((method) => (
-              <button
-                key={method}
-                onClick={() => setPaymentMethod(method)}
-                disabled={isBlocking}
-                className={`py-2.5 rounded-xl text-xs font-medium transition-colors
-                  ${paymentMethod === method ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
-              >
-                {PAYMENT_METHOD_LABELS[method]}
               </button>
             ))}
           </div>

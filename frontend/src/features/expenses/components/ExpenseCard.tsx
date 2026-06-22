@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { formatINR } from '@/lib/utils';
-import { PAYMENT_METHOD_ICONS, netAmount } from '../utils/expenseUtils';
+import { netAmount } from '../utils/expenseUtils';
 import { useAppSelector } from '@/store/hooks';
 import ExpenseDetailSheet from './ExpenseDetailSheet';
 import type { Expense } from '../types';
@@ -37,8 +37,6 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
           <p className="font-medium text-sm truncate">{expense.description}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-[10px] text-muted-foreground">{expense.category?.name || 'Uncategorized'}</span>
-            <span className="text-[10px] text-muted-foreground">·</span>
-            <span className="text-[10px] text-muted-foreground">{PAYMENT_METHOD_ICONS[expense.paymentMethod]}</span>
             {expense.time && (
               <>
                 <span className="text-[10px] text-muted-foreground">·</span>
