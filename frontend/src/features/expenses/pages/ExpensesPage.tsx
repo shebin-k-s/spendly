@@ -20,7 +20,7 @@ export default function ExpensesPage() {
   const { year, month } = useAppSelector((state) => state.date);
   const dispatch = useAppDispatch();
 
-  const { data: expenses = [], isLoading } = useExpensesQuery(year, month);
+  const { data: expenses = [], isLoading, isFetching } = useExpensesQuery(year, month);
   const { data: categories = [] } = useCategoriesQuery();
   const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
   const showGross = useAppSelector((state) => state.prefs.showGross);
@@ -243,7 +243,7 @@ export default function ExpensesPage() {
 
       {/* Content */}
       <div className="page-content">
-        {isLoading ? (
+        {isLoading || isFetching ? (
           <ExpenseListSkeleton />
         ) : filteredExpenses.length === 0 ? (
           <EmptyState
