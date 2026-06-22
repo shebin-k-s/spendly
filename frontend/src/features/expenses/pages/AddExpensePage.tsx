@@ -19,6 +19,7 @@ import type { PaymentMethod } from '../types';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { cn, formatINR } from '@/lib/utils';
 import { toast } from 'sonner';
+import { BulkParseModal } from '../components/BulkParseModal';
 
 
 const PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'cash', 'bank_transfer', 'other'];
@@ -319,6 +320,7 @@ export default function AddExpensePage() {
   const [nlText, setNlText] = useState(stateFromNlParse && stateRawText ? stateRawText : '');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [showQuickParse, setShowQuickParse] = useState(stateFromNlParse && !!stateRawText);
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   // Lending mode (inline — no navigation)
   const queryClient = useQueryClient();
@@ -768,13 +770,23 @@ export default function AddExpensePage() {
 
         {/* Natural language input — toggleable */}
         {!isFromShare && !prefill && !showQuickParse && (
-          <button
-            onClick={() => setShowQuickParse(true)}
-            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all"
-          >
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span className="text-sm font-semibold">Use AI Quick Parse</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowQuickParse(true)}
+              className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all"
+            >
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span className="text-sm font-semibold">AI Quick Parse</span>
+            </button>
+            <button
+              onClick={() => setShowBulkModal(true)}
+              className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all shrink-0"
+              title="Add multiple expenses at once"
+            >
+              <Sparkles className="w-4 h-4 shrink-0" />
+              <span className="text-sm font-semibold">Bulk Add</span>
+            </button>
+          </div>
         )}
         {!isFromShare && !prefill && showQuickParse && (
           <div className="p-3.5 rounded-3xl bg-primary/5 border border-primary/10 space-y-3">
@@ -1133,6 +1145,12 @@ export default function AddExpensePage() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <BulkParseModal
+        open={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        onAllSaved={() => { setShowBulkModal(false); navigate(-1); }}
+      />
     </div>
   );
 }

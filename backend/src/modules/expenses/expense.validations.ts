@@ -22,6 +22,10 @@ export const parseTextSchema = Joi.object({
     text: Joi.string().min(1).max(500).required(),
 });
 
+export const parseBulkTextSchema = Joi.object({
+    text: Joi.string().min(1).max(2000).required(),
+});
+
 
 
 export const updateExpenseSchema = Joi.object({

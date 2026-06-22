@@ -71,6 +71,24 @@ export class ExpenseController {
     };
 
 
+    parseBulkText = async (req: Request, res: Response) => {
+        const { text } = req.body as { text: string };
+        if (!process.env.GEMINI_API_KEY) {
+            log.error('gemini: GEMINI_API_KEY not configured');
+            res.status(503).json({ message: 'AI parsing not configured' });
+            return;
+        }
+        let categories: { id: string; name: string; icon: string }[] = [];
+        try {
+            categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
+        } catch (err) {
+            log.error('parseBulkText: failed to fetch categories', { error: String(err) });
+        }
+        const debug = req.query.debug === 'true';
+        res.json(await aiService.parseBulkText(text, categories, debug));
+    };
+
+
     parseImage = async (req: Request, res: Response) => {
         const file = (req as Request & { file?: Express.Multer.File }).file;
         if (!file) {

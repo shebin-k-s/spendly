@@ -46,9 +46,7 @@ export function useCreateExpense() {
   return useMutation({
     mutationFn: (payload: CreateExpensePayload) => expensesApi.create(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: EXPENSES_KEY });
-      qc.invalidateQueries({ queryKey: SUMMARY_KEY });
-      qc.invalidateQueries({ queryKey: ANALYTICS_KEY });
+      qc.invalidateQueries({ queryKey: EXPENSES_KEY, refetchType: 'all' });
       toast.success('Expense added');
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -60,9 +58,7 @@ export function useUpdateExpense() {
   return useMutation({
     mutationFn: (payload: UpdateExpensePayload) => expensesApi.update(payload),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: EXPENSES_KEY });
-      qc.invalidateQueries({ queryKey: SUMMARY_KEY });
-      qc.invalidateQueries({ queryKey: ANALYTICS_KEY });
+      qc.invalidateQueries({ queryKey: EXPENSES_KEY, refetchType: 'all' });
       toast.success('Expense updated');
     },
     onError: (error) => toast.error(getErrorMessage(error)),
@@ -74,9 +70,7 @@ export function useDeleteExpense() {
   return useMutation({
     mutationFn: (id: string) => expensesApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: EXPENSES_KEY });
-      qc.invalidateQueries({ queryKey: SUMMARY_KEY });
-      qc.invalidateQueries({ queryKey: ANALYTICS_KEY });
+      qc.invalidateQueries({ queryKey: EXPENSES_KEY, refetchType: 'all' });
       toast.success('Expense deleted');
     },
     onError: (error) => toast.error(getErrorMessage(error)),

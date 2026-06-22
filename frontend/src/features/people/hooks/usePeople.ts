@@ -22,7 +22,7 @@ export const useCreatePerson = () => {
   return useMutation({
     mutationFn: peopleApi.createPerson,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'] });
+      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
       toast.success('Person added successfully');
     },
     onError: () => {
@@ -36,9 +36,8 @@ export const useUpdatePerson = () => {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: any }) => 
       peopleApi.updatePerson(id, payload),
-    onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['people'] });
-      queryClient.invalidateQueries({ queryKey: ['people', id] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
       toast.success('Person updated successfully');
     },
   });
@@ -49,7 +48,7 @@ export const useDeletePerson = () => {
   return useMutation({
     mutationFn: peopleApi.deletePerson,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'] });
+      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
       toast.success('Person deleted successfully');
     },
   });
@@ -60,8 +59,7 @@ export const useAddDebtTransaction = (personId: string) => {
   return useMutation({
     mutationFn: (payload: any) => peopleApi.addTransaction(personId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'] });
-      queryClient.invalidateQueries({ queryKey: ['people', personId] });
+      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
       toast.success('Transaction added successfully');
     },
     onError: () => {
@@ -75,8 +73,7 @@ export const useDeleteDebtTransaction = (personId: string) => {
   return useMutation({
     mutationFn: peopleApi.deleteTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'] });
-      queryClient.invalidateQueries({ queryKey: ['people', personId] });
+      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
       toast.success('Transaction deleted');
     },
   });

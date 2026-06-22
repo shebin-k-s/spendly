@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, X, Check, ChevronsUpDown } from 'lucide-react';
+import { Search, X, Check, ChevronsUpDown, Tag } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
+import { cn } from '@/lib/utils';
 
 interface ExpenseFilterProps {
   isOpen: boolean;
@@ -191,88 +193,16 @@ export default function ExpenseFilter({
         </div>
       </div>
 
-      {/* Category picker bottom sheet */}
-      <Dialog.Root open={sheetOpen} onOpenChange={setSheetOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-500 ease-in-out" />
-          <Dialog.Content
-            ref={modalRef}
-            data-filter-panel
-            className="fixed bottom-0 inset-x-0 w-full sm:max-w-md sm:mx-auto z-50 bg-card border-t border-border rounded-t-3xl max-h-[80vh] flex flex-col duration-500 ease-in-out data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom sheet-exit"
-          >
-            {/* Drag handle */}
-            <div
-              onPointerDown={onHandlePointerDown}
-              onPointerMove={onHandlePointerMove}
-              onPointerUp={onHandlePointerUp}
-              onPointerCancel={onHandlePointerUp}
-              className="pt-2 pb-3 w-full flex justify-center cursor-grab active:cursor-grabbing touch-none select-none flex-shrink-0"
-            >
-              <div className="w-10 h-1 bg-border rounded-full pointer-events-none" />
-            </div>
-
-            <div className="px-4 pt-2 pb-3 border-b border-border flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <span className="text-base font-semibold">Select Categories</span>
-                {selectedCategoryIds.length > 0 && (
-                  <button
-                    onClick={onClearCategories}
-                    className="text-xs text-muted-foreground px-2 py-1"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto overscroll-contain disable-scrollbars px-4 pt-3 pb-4">
-              {/* All option — full width */}
-              <button
-                onClick={() => selectedCategoryIds.length > 0 && onClearCategories()}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mb-3
-                  ${selectedCategoryIds.length === 0
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-secondary text-foreground active:opacity-70'}`}
-              >
-                <span>All categories</span>
-                {selectedCategoryIds.length === 0 && <Check className="w-4 h-4" />}
-              </button>
-
-              {/* 2-column icon grid */}
-              <div className="grid grid-cols-2 gap-2">
-                {categories.map((cat) => {
-                  const active = selectedCategoryIds.includes(cat.id);
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => onCategoryToggle(cat.id)}
-                      className={`relative flex flex-col items-center gap-2 p-4 rounded-2xl border transition-colors
-                        ${active
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border bg-secondary/50 active:opacity-70'}`}
-                    >
-                      {active && (
-                        <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                          <Check className="w-2.5 h-2.5 text-primary-foreground" />
-                        </span>
-                      )}
-                      <span
-                        className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                        style={{ backgroundColor: cat.color }}
-                      >
-                        {cat.icon}
-                      </span>
-                      <span className={`text-xs font-medium text-center leading-tight ${active ? 'text-primary' : 'text-foreground'}`}>
-                        {cat.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      {/* Unified Category Picker Modal */}
+      <CategoryPicker
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        selectedIds={selectedCategoryIds}
+        multiSelect={true}
+        onSelect={(id) => onCategoryToggle(id)}
+        onClear={onClearCategories}
+        title="Filter by Category"
+      />
     </>
   );
 }

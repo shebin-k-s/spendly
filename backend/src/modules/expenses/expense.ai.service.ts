@@ -92,6 +92,67 @@ ${merchantHintBlock}
 ${categoryBlock}`;
     }
 
+    private buildBulkTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
+        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
+
+        return `You are an expense parsing assistant. A user typed multiple expenses in one go. Split them into individual expenses and return a JSON ARRAY.
+
+Today's date is ${today} and current time is ${currentTime}.
+
+Input: "${text}"
+
+Return ONLY a JSON array (no markdown, no explanation) where each element has:
+{
+  "amount": "<number as string e.g. \\"350.00\\", or null if not mentioned>",
+  "description": "<merchant name or what was bought, max 40 chars>",
+  "payment_method": "<upi | card | cash | bank_transfer | other>",
+  "date": "<yyyy-MM-dd or null>",
+  "time": "<HH:mm 24h or null>",
+  "cashback": "<cashback amount as string e.g. \\"100.00\\", or null if not mentioned>",
+  "category_id": "<exact id from the list below, or null>",
+  "note": "<detailed breakdown of items and prices, max 500 chars, or null>",
+  "transfer_person": "<display name of the individual only — ONLY for personal transfers. null for merchant payments>",
+  "transfer_phone": "<10-digit mobile number if mentioned, digits only, or null>",
+  "transfer_direction": "<sent | received | null>",
+  "suggested_flow": "<expense | transfer>"
+}
+
+Rules for splitting — read carefully:
+CRITICAL: Each NEW LINE or SEMICOLON MUST be treated as a SEPARATE transaction.
+IGNORE leading numbers (like "1. ", "2. ", "10. ") at the start of a line — they are formatting cues from the UI, not part of the amount or description.
+
+Rule of thumb: One line = One transaction.
+  - "500rs for tea, snacks and juice" on ONE line → ONE expense (amount=500, note="Tea, Snacks, Juice")
+  - "tea 20\nsnacks 30\njuice 15" on THREE lines → THREE distinct expenses.
+
+Within a single line:
+  - If a single amount covers multiple items (e.g., "400 for lunch and tea"), keep it as ONE transaction.
+  - ONLY split a single line into two if it contains two totally unrelated transactions with separate amounts (e.g. "Lunch 200, Auto 50"), but encourage the user to use new lines for this.
+
+Examples:
+  "1. 500 for tea, snacks, juice" → ONE (ignore "1.")
+  "2. lunch 150\n3. tea 20" → TWO (each line is its own)
+  "4. Zomato 350; auto 60" → TWO (semicolon separator)
+
+Field rules (per expense):
+  - amount: the amount spent (before cashback). CRITICAL: The number the user states is ALWAYS the total amount paid — never multiply it. Accept plain ("350"), with ₹, or with "rs"/"INR".
+  - description: infer a contextual label from what the items actually are — do NOT list item names. Classify the items: idli/dosa/puttu/rice/chapati/roti/appam/meals = meal items; vada/bajji/bonda/samosa/chips/biscuit/candy/murukku = snacks; tea/coffee/juice/drinks/chaya = beverages; vegetables/milk/eggs/bread = groceries. Then combine with time/meal context: e.g. "idli vada kattan chaya at 11am" → "Morning Food", "rice curry at 1pm" → "Lunch", "beer chips at 9pm" → "Evening Snacks", "milk eggs bread" → "Grocery Run". If only beverages are bought → "Morning Tea" / "Evening Tea" etc. For services/bills use a concise label (e.g. "Auto Fare", "Electricity Bill"). If a well-known merchant is named with no items, use the merchant name (e.g. "Zomato", "Reliance Smart"). Max 40 chars. CRITICAL: Never call meal items (idli, dosa, rice etc.) "Snacks". Never include cashback details here.
+  - payment_method: GPay/PhonePe/Paytm/UPI → upi; debit/credit card → card; cash → cash; NEFT/IMPS/bank transfer → bank_transfer. Default to upi if unclear.
+  - date: if mentioned (including relative terms like "today", "yesterday"), resolve using today's date. If not mentioned at all, default to ${today}.
+  - time: if explicitly mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned but a meal is referenced, infer a typical time: breakfast → "08:30", morning tea/coffee → "09:00", lunch → "13:00", evening tea/snack → "16:30", dinner → "20:00". Only fall back to ${currentTime} if no time or meal context exists.
+  - cashback: extract any cashback or reward amount.
+  - note: list EVERY item mentioned in the input — do NOT skip any item. Format per item: "[qty] Item ₹Price" — include only the parts known for that item. If the user says "each" (e.g. "2 idli each 20rs"), append "each" after the price: "2 Idli ₹20 each". CRITICAL: include every food/item word. Do NOT multiply or recalculate prices. Never mention cashback amounts here.
+  - category_id: pick the best matching category id.
+  - transfer_person: extract ONLY when the text names an individual. Return ONLY the display name (e.g. "Rahul"). If the input contains a UPI ID (e.g. "rahul@okaxis"), use just the prefix capitalized. Never include @domain. Never returns the user themselves.
+  - transfer_phone: Look for a 10-digit number. Digits only.
+  - transfer_direction: sent = user paid/sent money out. received = user got/received money. CRITICAL: "got", "received", "collected", "took" always mean received (e.g. "got 500 to shee" → received).
+  - suggested_flow: 'transfer' for person-to-person (e.g. "Sent 500 to Rahul"). 'expense' if it's for a specific item, service, or bill.
+
+${merchantHintBlock}
+
+${categoryBlock}`;
+    }
+
     private buildTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
         const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
 
@@ -237,6 +298,30 @@ ${categoryBlock}`;
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
         if (debug) payload._debug = { prompt, rawText };
         return payload;
+    }
+
+    async parseBulkText(text: string, categories: CategoryOption[], debug = false) {
+        const { dateString, timeString } = getISTParts();
+        const prompt = this.buildBulkTextPrompt(text, categories, dateString, timeString);
+        const rawText = await this.runModel([prompt]);
+
+        // Extract JSON array from the model output
+        let jsonStr = rawText.trim();
+        const firstBracket = jsonStr.indexOf('[');
+        const lastBracket = jsonStr.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket >= firstBracket) {
+            jsonStr = jsonStr.substring(firstBracket, lastBracket + 1);
+        }
+        let rawArray: Record<string, unknown>[];
+        try {
+            rawArray = JSON.parse(jsonStr);
+            if (!Array.isArray(rawArray)) rawArray = [rawArray];
+        } catch {
+            throw new ApiError('AI returned an unreadable response', 422);
+        }
+        const items = rawArray.map(raw => this.parseAiResponse(raw, categories));
+        if (debug) return { items, _debug: { prompt, rawText } };
+        return { items };
     }
 
 

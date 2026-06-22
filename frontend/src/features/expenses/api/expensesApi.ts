@@ -49,5 +49,10 @@ export const expensesApi = {
     return data;
   },
 
+  async parseBulkText(text: string): Promise<{ items: Record<string, unknown>[] }> {
+    const { data } = await apiClient.post(`${URL}/parse-bulk-text`, { text });
+    return data;
+  },
+
 };
 
