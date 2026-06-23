@@ -633,7 +633,7 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); } navigator.clearAppBadge?.(); navigate(-1); } },
+      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); } navigator.clearAppBadge?.(); navigate('/expenses', { replace: true }); } },
     );
   };
 
@@ -1124,7 +1124,7 @@ export default function AddExpensePage() {
       <BulkParseModal
         open={showBulkModal}
         onClose={() => setShowBulkModal(false)}
-        onAllSaved={() => { setShowBulkModal(false); navigate(-1); }}
+        onAllSaved={() => navigate('/expenses', { replace: true })}
       />
     </div>
   );
