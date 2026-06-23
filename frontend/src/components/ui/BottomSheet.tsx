@@ -63,6 +63,7 @@ export function BottomSheet({
         <Dialog.Content
           ref={modalRef}
           data-no-swipe
+          onOpenAutoFocus={(e) => e.preventDefault()}
           onPointerEnter={disableGlobalSwipe}
           onPointerLeave={enableGlobalSwipe}
           className={cn(

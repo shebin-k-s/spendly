@@ -66,6 +66,7 @@ export function CategoryPicker({
             placeholder="Search categories..."
             className="w-full bg-secondary border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
             value={search}
+            enterKeyHint="search"
             onChange={(e) => setSearch(e.target.value)}
           />
           {search && (
