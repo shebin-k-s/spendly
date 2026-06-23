@@ -312,7 +312,6 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
                 placeholder={'Each line is a new transaction. AI will ignore labels like 1., 2.\n\n1. Coffee 20\n2. Lunch 200, tea 10\n3. Dinner 500'}
                 rows={8}
                 className="form-input resize-none text-sm leading-relaxed"
-                autoFocus
               />
               {status === 'error' && (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-destructive/10 border border-destructive/20">
