@@ -60,8 +60,15 @@ export function CategoryPicker({
       )}
     >
       <div className="px-4 pb-10 space-y-4 min-h-[60vh] flex flex-col">
-        <div className="relative mt-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            (e.currentTarget.querySelector('input') as HTMLInputElement)?.blur();
+          }}
+          className="relative mt-2"
+        >
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
           <input
             placeholder="Search categories..."
             className="w-full bg-secondary border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
@@ -69,15 +76,17 @@ export function CategoryPicker({
             enterKeyHint="search"
             onChange={(e) => setSearch(e.target.value)}
           />
+
           {search && (
             <button
+              type="button"
               onClick={() => setSearch('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-        </div>
+        </form>
 
         <div className="flex-1 overflow-y-auto disable-scrollbars pb-6">
           {filtered.length === 0 ? (
