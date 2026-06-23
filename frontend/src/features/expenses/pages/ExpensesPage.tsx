@@ -10,6 +10,9 @@ import { setDate } from '@/store/dateSlice';
 import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import ExpenseCard from '../components/ExpenseCard';
 import ExpenseFilter from '../components/ExpenseFilter';
 import ExpenseListSkeleton from '../components/ExpenseListSkeleton';
@@ -20,7 +23,10 @@ export default function ExpensesPage() {
   const { year, month } = useAppSelector((state) => state.date);
   const dispatch = useAppDispatch();
 
-  const { data: expenses = [], isLoading, isSuccess } = useExpensesQuery(year, month);
+  const expensesQuery = useExpensesQuery(year, month);
+  const { data: expenses = [], isLoading, isSuccess } = expensesQuery;
+  const freshness = useQueryFreshness(expensesQuery);
+  useRefetchOnFocus(expensesQuery);
   const { data: categories = [] } = useCategoriesQuery();
   const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
   const showGross = useAppSelector((state) => state.prefs.showGross);
@@ -121,7 +127,13 @@ export default function ExpensesPage() {
         <div className="px-4 pt-4 pb-3 flex items-center justify-between w-full">
           <div>
             <p className="text-xs text-muted-foreground">Monthly</p>
-            <h1 className="text-xl font-bold">Expenses</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold">Expenses</h1>
+              <DataFreshnessIndicator
+                status={freshness.status}
+                isFetching={freshness.isFetching}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button

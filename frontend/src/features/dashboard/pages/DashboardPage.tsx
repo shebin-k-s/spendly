@@ -5,6 +5,9 @@ import { ImageIcon, MessageSquareText } from 'lucide-react';
 import { monthLabel, prevMonth, formatINR } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import MonthNavigator from '@/features/expenses/components/MonthNavigator';
 import { useMonthlySummary, useExpensesQuery } from '@/features/expenses/hooks/useExpenses';
 import MonthSummaryCard from '../components/MonthSummaryCard';
@@ -63,7 +66,10 @@ export default function DashboardPage() {
   const dispatch = useAppDispatch();
   const prev = prevMonth(year, month);
 
-  const { data: summary, isLoading: summaryLoading } = useMonthlySummary(year, month);
+  const summaryQuery = useMonthlySummary(year, month);
+  const { data: summary, isLoading: summaryLoading } = summaryQuery;
+  const summaryFreshness = useQueryFreshness(summaryQuery);
+  useRefetchOnFocus(summaryQuery);
   const { data: prevSummary } = useMonthlySummary(prev.year, prev.month);
   const { data: expenses = [] } = useExpensesQuery(year, month);
   const now = new Date();
@@ -85,7 +91,13 @@ export default function DashboardPage() {
       <div className="page-header">
         <div className="flex-1">
           <p className="text-xs text-muted-foreground">Overview</p>
-          <h1 className="text-xl font-bold">{monthLabel(year, month)}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">{monthLabel(year, month)}</h1>
+            <DataFreshnessIndicator
+              status={summaryFreshness.status}
+              isFetching={summaryFreshness.isFetching}
+            />
+          </div>
         </div>
         <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
       </div>
@@ -116,12 +128,12 @@ export default function DashboardPage() {
 
         {/* Total spend */}
         <MonthSummaryCard
-          total={(summary?.total ?? 0) - (summary?.cashbackTotal ?? 0)}
-          cashbackTotal={summary?.cashbackTotal}
-          count={summary?.count ?? 0}
-          prevTotal={prevSummary ? prevSummary.total - (prevSummary.cashbackTotal ?? 0) : undefined}
-          isLoading={summaryLoading}
-        />
+            total={(summary?.total ?? 0) - (summary?.cashbackTotal ?? 0)}
+            cashbackTotal={summary?.cashbackTotal}
+            count={summary?.count ?? 0}
+            prevTotal={prevSummary ? prevSummary.total - (prevSummary.cashbackTotal ?? 0) : undefined}
+            isLoading={summaryLoading}
+          />
 
         {/* Quick stats */}
         {summary && summary.count > 0 && (() => {

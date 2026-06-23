@@ -2,13 +2,19 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, UserPlus, ChevronRight, Phone, Search, X, Loader2 } from 'lucide-react';
 import { usePeople, useCreatePerson } from '../hooks/usePeople';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import EmptyState from '@/components/EmptyState';
 
 export default function PeoplePage() {
   const navigate = useNavigate();
-  const { data: people = [], isLoading } = usePeople();
+  const peopleQuery = usePeople();
+  const { data: people = [], isLoading } = peopleQuery;
+  const freshness = useQueryFreshness(peopleQuery);
+  useRefetchOnFocus(peopleQuery);
   const createPerson = useCreatePerson();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +53,13 @@ export default function PeoplePage() {
       <div className="page-header justify-between">
         <div>
           <p className="text-xs text-muted-foreground">Lend & Borrow</p>
-          <h1 className="text-xl font-bold">People</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">People</h1>
+            <DataFreshnessIndicator
+              status={freshness.status}
+              isFetching={freshness.isFetching}
+            />
+          </div>
         </div>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
@@ -102,16 +114,18 @@ export default function PeoplePage() {
 
         {/* Summary — only when there are non-zero balances */}
         {!isLoading && people.length > 0 && (totalOwedToMe > 0 || totalIOwe > 0) && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-card border border-border rounded-2xl px-4 py-3">
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">They owe you</p>
-              <p className="text-base font-bold text-primary mt-0.5">{formatINR(totalOwedToMe)}</p>
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">They owe you</p>
+                <p className="text-base font-bold text-primary mt-0.5">{formatINR(totalOwedToMe)}</p>
+              </div>
+              <div className="bg-card border border-border rounded-2xl px-4 py-3">
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">You owe them</p>
+                <p className="text-base font-bold text-destructive mt-0.5">{formatINR(totalIOwe)}</p>
+              </div>
             </div>
-            <div className="bg-card border border-border rounded-2xl px-4 py-3">
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">You owe them</p>
-              <p className="text-base font-bold text-destructive mt-0.5">{formatINR(totalIOwe)}</p>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Search — only when there are people */}

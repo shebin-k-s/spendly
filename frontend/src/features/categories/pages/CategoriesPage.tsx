@@ -2,11 +2,17 @@ import { useState } from 'react';
 import { Plus, Search, Tag, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCategoriesQuery, useSeedCategories } from '../hooks/useCategories';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import CategoryCard from '../components/CategoryCard';
 import EmptyState from '@/components/EmptyState';
 
 export default function CategoriesPage() {
-  const { data: raw = [], isLoading } = useCategoriesQuery();
+  const categoriesQuery = useCategoriesQuery();
+  const { data: raw = [], isLoading } = categoriesQuery;
+  const freshness = useQueryFreshness(categoriesQuery);
+  useRefetchOnFocus(categoriesQuery);
   const seed = useSeedCategories();
   const [query, setQuery] = useState('');
 
@@ -19,7 +25,13 @@ export default function CategoriesPage() {
     <div className="animate-fade-in">
       <div className="page-header">
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Categories</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">Categories</h1>
+            <DataFreshnessIndicator
+              status={freshness.status}
+              isFetching={freshness.isFetching}
+            />
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {isLoading ? 'Loading...' : `${categories.length} categories`}
           </p>

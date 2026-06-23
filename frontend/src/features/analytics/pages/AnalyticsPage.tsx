@@ -1,5 +1,8 @@
 import { currentYearMonth, monthLabel } from '@/lib/utils';
 import { useAnalytics, useMonthlySummary } from '@/features/expenses/hooks/useExpenses';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import MonthlyTrendChart from '../components/MonthlyTrendChart';
 import CategoryPieChart from '../components/CategoryPieChart';
 import MonthNavigator from '@/features/expenses/components/MonthNavigator';
@@ -12,14 +15,27 @@ export default function AnalyticsPage() {
   const dispatch = useAppDispatch();
 
   // Load 12 months for horizontal scrolling comparison
-  const { data: analytics = [], isLoading: analyticsLoading } = useAnalytics(12);
-  const { data: summary, isLoading: summaryLoading } = useMonthlySummary(year, month);
+  const analyticsQuery = useAnalytics(12);
+  const { data: analytics = [], isLoading: analyticsLoading } = analyticsQuery;
+  const analyticsFreshness = useQueryFreshness(analyticsQuery);
+  useRefetchOnFocus(analyticsQuery);
+
+  const summaryQuery = useMonthlySummary(year, month);
+  const { data: summary, isLoading: summaryLoading } = summaryQuery;
+  const summaryFreshness = useQueryFreshness(summaryQuery);
+  useRefetchOnFocus(summaryQuery);
 
   return (
     <div className="animate-fade-in">
       <div className="page-header">
         <div className="flex-1">
-          <h1 className="text-xl font-bold">Analytics</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">Analytics</h1>
+            <DataFreshnessIndicator
+              status={analyticsFreshness.status}
+              isFetching={analyticsFreshness.isFetching}
+            />
+          </div>
         </div>
       </div>
 
