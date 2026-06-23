@@ -6,6 +6,7 @@ import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { stripTrailingZeros } from '@/lib/utils';
 
 export default function EditExpensePage() {
   const { id } = useParams<{ id: string }>();
@@ -20,8 +21,8 @@ export default function EditExpensePage() {
   const deleteExpense = useDeleteExpense();
   const isPending = updateExpense.isPending || deleteExpense.isPending;
 
-  const [amount, setAmount] = useState(initialExpense ? String(initialExpense.amount) : '');
-  const [cashback, setCashback] = useState(initialExpense?.cashback ? String(initialExpense.cashback) : '');
+  const [amount, setAmount] = useState(initialExpense ? stripTrailingZeros(initialExpense.amount) : '');
+  const [cashback, setCashback] = useState(initialExpense?.cashback ? stripTrailingZeros(initialExpense.cashback) : '');
   const [description, setDescription] = useState(initialExpense?.description || '');
   const [date, setDate] = useState(initialExpense?.date || '');
   const [time, setTime] = useState<string | null>(initialExpense?.time ?? null);
@@ -39,8 +40,8 @@ export default function EditExpensePage() {
 
   useEffect(() => {
     if (expense) {
-      setAmount(String(expense.amount));
-      setCashback(expense.cashback ? String(expense.cashback) : '');
+      setAmount(stripTrailingZeros(expense.amount));
+      setCashback(expense.cashback ? stripTrailingZeros(expense.cashback) : '');
       setDescription(expense.description);
       setDate(expense.date);
       setTime(expense.time ?? null);

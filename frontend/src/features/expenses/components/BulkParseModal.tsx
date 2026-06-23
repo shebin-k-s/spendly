@@ -9,7 +9,7 @@ import { usePeople } from '@/features/people/hooks/usePeople';
 import { peopleApi } from '@/features/people/api/peopleApi';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
-import { cn, formatINR } from '@/lib/utils';
+import { cn, formatINR, stripTrailingZeros } from '@/lib/utils';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
 
@@ -101,14 +101,14 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
     try {
       const res = await expensesApi.parseBulkText(text.trim());
       const parsed: ParsedItem[] = res.items.map((raw) => ({
-        amount: typeof raw.amount === 'string' ? raw.amount : '',
+        amount: typeof raw.amount === 'string' ? stripTrailingZeros(raw.amount) : '',
         description: typeof raw.description === 'string' ? raw.description : '',
         date: typeof raw.date === 'string' ? raw.date : today(),
         time: typeof raw.time === 'string' ? raw.time : null,
         category_id: typeof raw.category_id === 'string' ? raw.category_id : null,
         category_name: typeof raw.category_name === 'string' ? raw.category_name : null,
         note: typeof raw.note === 'string' ? raw.note : null,
-        cashback: typeof raw.cashback === 'string' ? raw.cashback : null,
+        cashback: typeof raw.cashback === 'string' ? stripTrailingZeros(raw.cashback) : null,
         suggested_flow: raw.suggested_flow === 'transfer' ? 'transfer' : 'expense',
         transfer_person: typeof raw.transfer_person === 'string' ? raw.transfer_person : null,
         transfer_phone: typeof raw.transfer_phone === 'string' ? raw.transfer_phone : null,

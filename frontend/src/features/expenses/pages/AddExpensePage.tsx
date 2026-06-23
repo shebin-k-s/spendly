@@ -15,7 +15,7 @@ import { DateTimePicker } from '@/components/DateTimePicker';
 import apiClient from '@/lib/apiClient';
 import { expensesApi } from '../api/expensesApi';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
-import { cn, formatINR } from '@/lib/utils';
+import { cn, formatINR, stripTrailingZeros } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BulkParseModal } from '../components/BulkParseModal';
 
@@ -193,8 +193,8 @@ export default function AddExpensePage() {
             if (item) {
               // Populate form states
               const p = item.result;
-              setAmount(p.amount || '');
-              setCashback(String(p.cashback || ''));
+              setAmount(stripTrailingZeros(p.amount || ''));
+              setCashback(stripTrailingZeros(String(p.cashback || '')));
               setDescription(p.description || '');
               if (p.date) setDate(p.date);
               if (p.time) setTime(p.time);
@@ -296,8 +296,8 @@ export default function AddExpensePage() {
 
   const ps = parsedShare;
   const now = new Date();
-  const [amount, setAmount] = useState(prefill?.amount ?? (ps?.amount as string) ?? parsed?.amount ?? '');
-  const [cashback, setCashback] = useState((ps?.cashback as string) ?? '');
+  const [amount, setAmount] = useState(stripTrailingZeros(prefill?.amount ?? (ps?.amount as string) ?? parsed?.amount ?? ''));
+  const [cashback, setCashback] = useState(stripTrailingZeros((ps?.cashback as string) ?? ''));
   const [description, setDescription] = useState(prefill?.description ?? (ps?.description as string) ?? parsed?.description ?? '');
   const [date, setDate] = useState((ps?.date as string) ?? parsed?.date ?? format(now, 'yyyy-MM-dd'));
   const [time, setTime] = useState<string | null>((ps?.time as string) ?? parsed?.time ?? format(now, 'HH:mm'));
@@ -420,13 +420,13 @@ export default function AddExpensePage() {
     setAiStatus('loading');
     try {
       const result = await parseImage(blob);
-      if (result.amount) setAmount(result.amount);
+      if (result.amount) setAmount(stripTrailingZeros(result.amount));
       if (result.description) setDescription(result.description);
       if (result.date) setDate(result.date);
       if (result.time) setTime(result.time);
       if (result.category_id) setCategoryId(result.category_id);
       if (result.note) setNote(result.note);
-      if (result.cashback) setCashback(String(result.cashback));
+      if (result.cashback) setCashback(stripTrailingZeros(String(result.cashback)));
       const thumbUrl = URL.createObjectURL(blob);
       setPreviewThumbnail(thumbUrl);
       setPreviewShareType('image');
@@ -485,13 +485,13 @@ export default function AddExpensePage() {
       const peeked = await peekShareResult();
       if (peeked) {
         const cachedResult = peeked.result;
-        if (cachedResult.amount) setAmount(cachedResult.amount);
+        if (cachedResult.amount) setAmount(stripTrailingZeros(cachedResult.amount));
         if (cachedResult.description) setDescription(cachedResult.description);
         if (cachedResult.date) setDate(cachedResult.date);
         if (cachedResult.time) setTime(cachedResult.time);
         if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
         if (cachedResult.note) setNote(cachedResult.note);
-        if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
+        if (cachedResult.cashback) setCashback(stripTrailingZeros(String(cachedResult.cashback)));
         setResolvedShareTs(peeked.ts);
         setPreviewThumbnail(peeked.thumbnail ?? null);
         setPreviewRawText(peeked.rawText ?? null);
@@ -521,13 +521,13 @@ export default function AddExpensePage() {
         const peeked = await peekShareResult();
         if (peeked) {
           const cachedResult = peeked.result;
-          if (cachedResult.amount) setAmount(cachedResult.amount);
+          if (cachedResult.amount) setAmount(stripTrailingZeros(cachedResult.amount));
           if (cachedResult.description) setDescription(cachedResult.description);
             if (cachedResult.date) setDate(cachedResult.date);
           if (cachedResult.time) setTime(cachedResult.time);
           if (cachedResult.category_id) setCategoryId(cachedResult.category_id);
           if (cachedResult.note) setNote(cachedResult.note);
-          if (cachedResult.cashback) setCashback(String(cachedResult.cashback));
+          if (cachedResult.cashback) setCashback(stripTrailingZeros(String(cachedResult.cashback)));
           setResolvedShareTs(peeked.ts);
           setPreviewThumbnail(peeked.thumbnail ?? null);
           setPreviewRawText(peeked.rawText ?? null);
@@ -542,13 +542,13 @@ export default function AddExpensePage() {
       setAiStatus('loading');
       try {
         const result = await expensesApi.parseText(text);
-        setAmount(typeof result.amount === 'string' ? result.amount : '');
+        setAmount(stripTrailingZeros(typeof result.amount === 'string' ? result.amount : ''));
         setDescription(typeof result.description === 'string' ? result.description : '');
         setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
         setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
         setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
         setNote(typeof result.note === 'string' ? result.note : '');
-        setCashback(typeof result.cashback === 'string' ? result.cashback : '');
+        setCashback(stripTrailingZeros(typeof result.cashback === 'string' ? result.cashback : ''));
         setPreviewRawText(text);
         setPreviewShareType('text');
         setAiStatus('done');
@@ -587,13 +587,13 @@ export default function AddExpensePage() {
     setNlStatus('loading');
     try {
       const result = await expensesApi.parseText(nlText.trim());
-      setAmount(typeof result.amount === 'string' ? result.amount : '');
+      setAmount(stripTrailingZeros(typeof result.amount === 'string' ? result.amount : ''));
       setDescription(typeof result.description === 'string' ? result.description : '');
       setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
       setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
       setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
       setNote(typeof result.note === 'string' ? result.note : '');
-      setCashback(typeof result.cashback === 'string' ? result.cashback : '');
+      setCashback(stripTrailingZeros(typeof result.cashback === 'string' ? result.cashback : ''));
       // Update lending direction regardless of whether a person name was detected
       if (result.transfer_direction === 'received') setLendingType('RETURNED');
       else if (result.transfer_direction === 'sent') setLendingType('GIVEN');

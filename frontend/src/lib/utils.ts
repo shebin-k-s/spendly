@@ -9,6 +9,12 @@ export function formatINR(amount: number): string {
   return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
+export function stripTrailingZeros(amount: string | number): string {
+  if (amount === undefined || amount === null || amount === '') return '';
+  const num = Number(amount);
+  return isNaN(num) ? String(amount) : String(num);
+}
+
 export function currentYearMonth(): { year: number; month: number } {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
