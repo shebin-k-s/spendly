@@ -313,7 +313,7 @@ export default function AddExpensePage() {
   const [nlText, setNlText] = useState(stateFromNlParse && stateRawText ? stateRawText : '');
   const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [showQuickParse, setShowQuickParse] = useState(stateFromNlParse && !!stateRawText);
-  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(searchParams.get('bulk') === 'true');
 
   // Lending mode (inline — no navigation)
   const queryClient = useQueryClient();

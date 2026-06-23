@@ -51,6 +51,22 @@ export default defineConfig({
             files: [{ name: 'image', accept: ['image/*'] }],
           },
         },
+        shortcuts: [
+          {
+            name: 'Add Expense',
+            short_name: 'Add',
+            description: 'Directly add a new expense',
+            url: '/expenses/new',
+            icons: [{ src: 'logo-192.png', sizes: '192x192' }]
+          },
+          {
+            name: 'Bulk Add',
+            short_name: 'Bulk',
+            description: 'Add multiple expenses at once',
+            url: '/expenses/new?bulk=true',
+            icons: [{ src: 'logo-192.png', sizes: '192x192' }]
+          }
+        ],
       },
     }),
   ],
