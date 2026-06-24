@@ -32,16 +32,23 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
 
   const longPressProps = useLongPress({
     onLongPress: () => setShowShortcuts(true),
-    onClick: () => setOpen(true),
+    onClick: () => {
+      // Direct guard: don't open detail sheet if shortcut menu is open/active
+      if (!showShortcuts) {
+        setOpen(true);
+      }
+    },
   });
 
   const handleEdit = () => {
     setShowShortcuts(false);
+    setOpen(false); // Ensure detail sheet is closed
     navigate(`/expenses/${expense.id}/edit`, { state: { expense } });
   };
 
   const handleAddAgain = () => {
     setShowShortcuts(false);
+    setOpen(false); // Ensure detail sheet is closed
     navigate('/expenses/new', {
       state: {
         prefill: {
@@ -76,7 +83,8 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
       */}
       <div
         {...longPressProps}
-        className={`touch-card px-4 py-3 flex items-center gap-3 transition-colors relative ${showShortcuts ? 'bg-secondary/60 ring-1 ring-inset ring-primary/30' : 'active:bg-secondary/50'}`}
+        onContextMenu={(e) => e.preventDefault()}
+        className={`touch-card px-4 py-3 flex items-center gap-3 transition-colors relative select-none ${showShortcuts ? 'bg-secondary/60 ring-1 ring-inset ring-primary/30' : 'active:bg-secondary/50'}`}
       >
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
@@ -116,7 +124,7 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
               side="bottom"
               align="center"
               sideOffset={4}
-              className="z-[200] min-w-[200px] bg-card border border-border rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 relative group data-[side=bottom]:origin-top data-[side=top]:origin-bottom"
+              className="z-[200] min-w-[200px] bg-card border border-border rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 relative group data-[side=bottom]:origin-top data-[side=top]:origin-bottom select-none"
             >
               {/* Arrow pointing UP — visible when popup is BELOW the card (default) */}
               <div className="absolute -top-[8.5px] left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-card border-l border-t border-border group-data-[side=top]:hidden" />
