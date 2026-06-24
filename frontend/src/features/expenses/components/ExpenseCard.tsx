@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatINR } from '@/lib/utils';
 import { netAmount } from '../utils/expenseUtils';
 import { useAppSelector } from '@/store/hooks';
@@ -29,6 +29,14 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const deleteExpense = useDeleteExpense();
+
+  // Close the shortcut menu automatically when the user scrolls
+  useEffect(() => {
+    if (!showShortcuts) return;
+    const close = () => setShowShortcuts(false);
+    window.addEventListener('scroll', close, { capture: true, passive: true });
+    return () => window.removeEventListener('scroll', close, { capture: true });
+  }, [showShortcuts]);
 
   const longPressProps = useLongPress({
     onLongPress: () => setShowShortcuts(true),
@@ -114,7 +122,7 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
         </div>
 
         {/* Zero-size anchor for the popup — no pointer events, purely for positioning */}
-        <DropdownMenu.Root open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DropdownMenu.Root open={showShortcuts} onOpenChange={setShowShortcuts} modal={false}>
           <DropdownMenu.Trigger
             aria-hidden
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0 pointer-events-none"
