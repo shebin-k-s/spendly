@@ -109,7 +109,7 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
             <div className="flex-1 overflow-y-auto overscroll-contain">
 
               {/* Header */}
-              <div className="flex items-center gap-3 px-5 pb-5">
+              <div className="flex items-start gap-3 px-5 pb-5">
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
                   style={{ backgroundColor: expense.category?.color ?? '#475569' }}
@@ -117,7 +117,7 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
                   {expense.category?.icon ?? '📦'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-base truncate">{expense.description}</p>
+                  <p className="font-semibold text-base break-words">{expense.description}</p>
                   <p className="text-sm text-muted-foreground">{expense.category?.name ?? 'Uncategorized'}</p>
                 </div>
                 <div className="flex flex-col items-end flex-shrink-0">
