@@ -11,6 +11,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Clock, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { useBackToClose } from '@/hooks/useBackToClose';
 
 const WEEK_DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
@@ -115,6 +116,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
 export function DateTimePicker({ date, time, onChange, disabled }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+  useBackToClose(open, () => setOpen(false));
 
   useEffect(() => {
     if (open) disableGlobalSwipe();

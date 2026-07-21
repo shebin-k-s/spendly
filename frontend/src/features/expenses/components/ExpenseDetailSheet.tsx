@@ -7,6 +7,7 @@ import { formatINR } from '@/lib/utils';
 import { netAmount } from '../utils/expenseUtils';
 import { useAppSelector } from '@/store/hooks';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { useBackToClose } from '@/hooks/useBackToClose';
 import type { Expense } from '../types';
 
 interface Props {
@@ -26,6 +27,7 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
   const navigate = useNavigate();
   const showGross = useAppSelector((state) => state.prefs.showGross);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+  useBackToClose(open, () => onOpenChange(false));
 
   const modalRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);

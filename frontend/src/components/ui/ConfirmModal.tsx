@@ -1,5 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Loader2 } from 'lucide-react';
+import { useBackToClose } from '@/hooks/useBackToClose';
 
 interface ConfirmModalProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function ConfirmModal({
   cancelText = 'Cancel',
   isLoading = false,
 }: ConfirmModalProps) {
+  useBackToClose(open, () => onOpenChange(false));
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>

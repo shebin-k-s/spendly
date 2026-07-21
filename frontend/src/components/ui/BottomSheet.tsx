@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { useBackToClose } from '@/hooks/useBackToClose';
 
 interface BottomSheetProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function BottomSheet({
   maxHeight = '85vh',
 }: BottomSheetProps) {
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+  useBackToClose(open, () => onOpenChange(false));
   const modalRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);
   const handleCurrentY = useRef<number>(0);

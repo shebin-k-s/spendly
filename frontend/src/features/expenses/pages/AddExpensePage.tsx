@@ -18,6 +18,7 @@ import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { cn, formatINR, stripTrailingZeros } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BulkParseModal } from '../components/BulkParseModal';
+import { useBackToClose } from '@/hooks/useBackToClose';
 
 
 type AiStatus = 'idle' | 'loading' | 'done' | 'error';
@@ -238,6 +239,7 @@ export default function AddExpensePage() {
     }
   }, [shareTs, parsedShare]);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  useBackToClose(showReceiptModal, () => setShowReceiptModal(false));
   // Swipe-to-dismiss logic (Standardized)
   const sheetRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);
