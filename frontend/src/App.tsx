@@ -28,12 +28,14 @@ import PersonDetailsPage from '@/features/people/pages/PersonDetailsPage';
 import EditPersonPage from '@/features/people/pages/EditPersonPage';
 import ShareToPeoplePage from '@/features/people/pages/ShareToPeoplePage';
 
+const CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // Keep cache for 7 days
+
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { 
-      retry: 1, 
+    queries: {
+      retry: 1,
       staleTime: 60_000,
-      gcTime: 1000 * 60 * 60 * 24 * 7 // Keep cache for 7 days
+      gcTime: CACHE_MAX_AGE
     },
   },
 });
@@ -45,7 +47,7 @@ const persister = createSyncStoragePersister({
 export default function App() {
   return (
     <Provider store={store}>
-      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: CACHE_MAX_AGE }}>
         <SwipeGestureProvider>
         <Toaster
           theme="dark"
