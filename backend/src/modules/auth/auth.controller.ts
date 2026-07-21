@@ -14,6 +14,15 @@ function signRefresh() {
     return jwt.sign({ app: 'spendly' }, process.env.REFRESH_SECRET!, { expiresIn: REFRESH_EXPIRY });
 }
 
+function setRefreshCookie(res: Response, token: string) {
+    res.cookie('refreshToken', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+}
+
 export class AuthController {
     unlock = (req: Request, res: Response) => {
         const { key } = req.body;
@@ -23,14 +32,7 @@ export class AuthController {
         }
 
         const accessToken = signAccess();
-        const refreshToken = signRefresh();
-
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'none',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
+        setRefreshCookie(res, signRefresh());
 
         res.json({ accessToken });
     };
@@ -44,6 +46,9 @@ export class AuthController {
 
         try {
             jwt.verify(token, process.env.REFRESH_SECRET!);
+            // Sliding expiry: reissue the refresh cookie so an actively-using user
+            // is never logged out — only 7 days of inactivity expires them.
+            setRefreshCookie(res, signRefresh());
             res.json({ accessToken: signAccess() });
         } catch {
             throw new ApiError('Invalid or expired refresh token', 401);
