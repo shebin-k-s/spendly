@@ -22,6 +22,8 @@ import { BulkParseModal } from '../components/BulkParseModal';
 
 type AiStatus = 'idle' | 'loading' | 'done' | 'error';
 
+const DRAFT_KEY = 'spendly:add-expense-draft';
+
 interface ParsedImage {
   amount: string;
   description: string;
@@ -296,6 +298,14 @@ export default function AddExpensePage() {
 
   const ps = parsedShare;
   const now = new Date();
+
+  // A draft is only auto-saved/restored for a plain manual entry — never when the
+  // form is opened with AI/share/prefill data (that content has its own source).
+  const hasIncomingSource = !!(
+    shareRaw || parsed || prefill || parsedShare || shareTs ||
+    sharedImage || sharedText || stateFromNlParse || stateRawText
+  );
+
   const [amount, setAmount] = useState(stripTrailingZeros(prefill?.amount ?? (ps?.amount as string) ?? parsed?.amount ?? ''));
   const [cashback, setCashback] = useState(stripTrailingZeros((ps?.cashback as string) ?? ''));
   const [description, setDescription] = useState(prefill?.description ?? (ps?.description as string) ?? parsed?.description ?? '');
@@ -304,6 +314,52 @@ export default function AddExpensePage() {
   const [categoryId, setCategoryId] = useState(prefill?.categoryId ?? (ps?.category_id as string) ?? '');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');
+
+  // Restore an unsaved manual entry once, if the form was opened fresh (no incoming source).
+  const draftHandledRef = useRef(false);
+  useEffect(() => {
+    if (draftHandledRef.current) return;
+    draftHandledRef.current = true;
+    if (hasIncomingSource) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Partial<Record<'amount' | 'cashback' | 'description' | 'date' | 'time' | 'categoryId' | 'note', string | null>>;
+      if (!(d.amount || d.description || d.note)) return; // nothing meaningful
+      if (d.amount != null) setAmount(d.amount);
+      if (d.cashback != null) setCashback(d.cashback);
+      if (d.description != null) setDescription(d.description);
+      if (d.date) setDate(d.date);
+      if (d.time !== undefined) setTime(d.time);
+      if (d.categoryId != null) setCategoryId(d.categoryId);
+      if (d.note != null) setNote(d.note);
+      toast('Restored your unsaved entry', {
+        action: {
+          label: 'Discard',
+          onClick: () => {
+            localStorage.removeItem(DRAFT_KEY);
+            setAmount(''); setCashback(''); setDescription('');
+            setDate(format(new Date(), 'yyyy-MM-dd')); setTime(format(new Date(), 'HH:mm'));
+            setCategoryId(''); setNote('');
+          },
+        },
+      });
+    } catch { /* ignore malformed draft */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save the manual entry as it changes, so an app switch / reload doesn't lose it.
+  useEffect(() => {
+    if (hasIncomingSource) return;
+    try {
+      const hasContent = amount.trim() || description.trim() || note.trim() || cashback.trim();
+      if (hasContent) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ amount, cashback, description, date, time, categoryId, note }));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch { /* ignore quota errors */ }
+  }, [amount, cashback, description, date, time, categoryId, note, hasIncomingSource]);
   const stateTransferPerson    = (location.state as { transfer_person?: string | null } | null)?.transfer_person ?? null;
   const stateTransferDirection = (location.state as { transfer_direction?: 'sent' | 'received' | null } | null)?.transfer_direction ?? null;
   const stateTransferPhone     = (location.state as { transfer_phone?: string | null } | null)?.transfer_phone ?? null;
@@ -633,7 +689,7 @@ export default function AddExpensePage() {
         note: note.trim() || undefined,
         categoryId: categoryId || undefined,
       },
-      { onSuccess: async () => { if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); } navigator.clearAppBadge?.(); navigate('/expenses', { replace: true }); } },
+      { onSuccess: async () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } if (resolvedShareTs) { await removeShareByTs(resolvedShareTs); } navigator.clearAppBadge?.(); navigate('/expenses', { replace: true }); } },
     );
   };
 

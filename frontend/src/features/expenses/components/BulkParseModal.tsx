@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Sparkles, Loader2, Trash2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Search, UserPlus, LogOut, Check, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -45,14 +45,47 @@ function today() {
   return format(new Date(), 'yyyy-MM-dd');
 }
 
+const BULK_DRAFT_KEY = 'spendly:bulk-add-draft';
+
+interface BulkDraft {
+  text: string;
+  status: 'idle' | 'done';
+  items: ParsedItem[];
+}
+
+function readBulkDraft(): BulkDraft | null {
+  try {
+    const raw = localStorage.getItem(BULK_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return {
+      text: typeof d.text === 'string' ? d.text : '',
+      status: d.status === 'done' ? 'done' : 'idle',
+      // Never restore transient in-flight flags — a save that was interrupted must be retryable.
+      items: Array.isArray(d.items) ? d.items.map((it: ParsedItem) => ({ ...it, _saving: false })) : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearBulkDraft() {
+  try { localStorage.removeItem(BULK_DRAFT_KEY); } catch { /* ignore */ }
+}
+
 export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
-  const [text, setText] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [items, setItems] = useState<ParsedItem[]>([]);
+  const [text, setText] = useState(() => readBulkDraft()?.text ?? '');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() => readBulkDraft()?.status ?? 'idle');
+  const [items, setItems] = useState<ParsedItem[]>(() => readBulkDraft()?.items ?? []);
   const [searchingPersonIdx, setSearchingPersonIdx] = useState<number | null>(null);
   const [personSearch, setPersonSearch] = useState('');
   const [searchingCategoryIdx, setSearchingCategoryIdx] = useState<number | null>(null);
   const [categorySearch, setCategorySearch] = useState('');
+  // Tracks open→close transitions so the restore toast can re-fire on every open.
+  const prevOpenRef = useRef(false);
+  // Keyboard overlap (px). Lifts the sheet above the keyboard even in the
+  // resume-with-keyboard-already-open case where the viewport resize doesn't re-fire.
+  const [kbInset, setKbInset] = useState(0);
   const queryClient = useQueryClient();
   const { data: people = [] } = usePeople();
   const categoriesQuery = useCategoriesQuery();
@@ -61,6 +94,51 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const handleY = useRef<number | null>(null);
   const dragY = useRef(0);
+
+  // Persist the bulk draft as it changes, so an accidental dismiss / app switch / reload
+  // doesn't lose what was typed or the parsed rows being reviewed. Skip the transient
+  // 'loading'/'error' parse states — only the stable idle/done content is worth keeping.
+  useEffect(() => {
+    if (status === 'loading' || status === 'error') return;
+    try {
+      if (text.trim() || items.length) {
+        localStorage.setItem(BULK_DRAFT_KEY, JSON.stringify({ text, status: status === 'done' ? 'done' : 'idle', items }));
+      } else {
+        localStorage.removeItem(BULK_DRAFT_KEY);
+      }
+    } catch { /* ignore quota errors */ }
+  }, [text, status, items]);
+
+  // Keep the sheet above the on-screen keyboard. `interactive-widget=resizes-content`
+  // handles the normal open, but when the app is backgrounded with the keyboard up and
+  // then resumed, the viewport resize doesn't re-fire — leaving the sheet under the
+  // keyboard. Measuring the VisualViewport (and remeasuring on resume) covers that gap.
+  useEffect(() => {
+    if (!open) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      const overlap = window.innerHeight - vv.height - vv.offsetTop;
+      setKbInset(overlap > 40 ? overlap : 0); // ignore tiny (browser-chrome) diffs
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        // Give the OS a beat to report the resumed viewport, then remeasure.
+        setTimeout(apply, 60);
+        setTimeout(apply, 300);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      document.removeEventListener('visibilitychange', onVisible);
+      setKbInset(0);
+    };
+  }, [open]);
 
   // Swipe-to-dismiss
   const onDragStart = (e: React.PointerEvent) => {
@@ -88,12 +166,33 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
     dragY.current = 0;
   };
 
+  // Dismiss WITHOUT discarding — the typed text / parsed rows are kept (in state and the
+  // persisted draft) so reopening restores them. Only a successful save clears the draft.
   const handleClose = () => {
+    onClose();
+  };
+
+  // Explicit discard — wipes the typed text, parsed rows, and the persisted draft.
+  const discardAll = () => {
+    clearBulkDraft();
     setText('');
     setStatus('idle');
     setItems([]);
-    onClose();
   };
+
+  // Each time the modal opens with existing draft content, offer a Discard action
+  // (same pattern as the single Add Expense page).
+  useEffect(() => {
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened) return;
+    if (text.trim() || items.length) {
+      toast('Restored your unsaved entry', {
+        action: { label: 'Discard', onClick: discardAll },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleParse = async () => {
     if (!text.trim() || status === 'loading') return;
@@ -209,7 +308,12 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
 
     toast.success(`${savedNow} item${savedNow !== 1 ? 's' : ''} saved!`);
     onAllSaved?.();
-    handleClose();
+    // Everything saved — safe to discard the draft and reset for next time.
+    clearBulkDraft();
+    setText('');
+    setStatus('idle');
+    setItems([]);
+    onClose();
   };
 
   const savedCount = items.filter(it => it._saved).length;
@@ -219,7 +323,10 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end"
+      style={kbInset ? { paddingBottom: kbInset } : undefined}
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
