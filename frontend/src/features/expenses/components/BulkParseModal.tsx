@@ -140,6 +140,25 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
     };
   }, [open]);
 
+  // Make the hardware/browser Back button close the modal instead of navigating
+  // the page. We push a throwaway history entry on open and intercept its popstate.
+  useEffect(() => {
+    if (!open) return;
+    if (window.history.state?.spendlyModal !== 'bulk') {
+      window.history.pushState({ ...window.history.state, spendlyModal: 'bulk' }, '');
+    }
+    let closedByBack = false;
+    const onPop = () => { closedByBack = true; onClose(); };
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      // Closed via UI (not the back button) → remove the entry we added.
+      if (!closedByBack && window.history.state?.spendlyModal === 'bulk') {
+        window.history.back();
+      }
+    };
+  }, [open]);
+
   // Swipe-to-dismiss
   const onDragStart = (e: React.PointerEvent) => {
     handleY.current = e.clientY;
