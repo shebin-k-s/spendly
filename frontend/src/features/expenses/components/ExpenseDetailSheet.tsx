@@ -66,13 +66,14 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
   const net = netAmount(expense);
   const hasCashback = Number(expense.cashback) > 0;
 
+  // Navigate FIRST, then close: the URL change lets useBackToClose's cleanup see a
+  // different page and skip its history.back(), so the navigation isn't cancelled.
   const handleEdit = () => {
-    onOpenChange(false);
     navigate(`/expenses/${expense.id}/edit`, { state: { expense } });
+    onOpenChange(false);
   };
 
   const handleAddAgain = () => {
-    onOpenChange(false);
     navigate('/expenses/new', {
       state: {
         prefill: {
@@ -83,6 +84,7 @@ export default function ExpenseDetailSheet({ expense, open, onOpenChange }: Prop
         },
       },
     });
+    onOpenChange(false);
   };
 
   return (

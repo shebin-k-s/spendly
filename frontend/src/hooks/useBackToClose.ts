@@ -36,13 +36,17 @@ export function useBackToClose(open: boolean, onClose: () => void) {
     if (!open) return;
     ensureListener();
     const id = ++seq;
+    const hrefAtOpen = window.location.href;
     stack.push({ id, onClose });
     window.history.pushState({ ...window.history.state, __overlay: id }, '');
     return () => {
       const idx = stack.findIndex((e) => e.id === id);
       if (idx === -1) return; // already removed by a Back press — nothing to undo
       stack.splice(idx, 1);
-      // Remove our pushed entry, flagged so the listener doesn't close anything.
+      // If the app navigated away (URL changed), that navigation already replaced/
+      // consumed our entry — calling back() here would undo the navigation.
+      if (window.location.href !== hrefAtOpen) return;
+      // Same page → remove our pushed entry, flagged so the listener closes nothing.
       ignoreNextPop = true;
       window.history.back();
     };
