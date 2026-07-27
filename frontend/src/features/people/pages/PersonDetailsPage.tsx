@@ -7,11 +7,17 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 
 export default function PersonDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: person, isLoading } = usePerson(id!);
+  const personQuery = usePerson(id!);
+  const { data: person, isLoading } = personQuery;
+  const freshness = useQueryFreshness(personQuery);
+  useRefetchOnFocus(personQuery);
   const addTransaction = useAddDebtTransaction(id!);
   const deleteTransaction = useDeleteDebtTransaction(id!);
   const isPending = addTransaction.isPending || deleteTransaction.isPending;
@@ -105,7 +111,13 @@ export default function PersonDetailsPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl font-bold truncate">{person.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-bold truncate">{person.name}</h1>
+              <DataFreshnessIndicator
+                status={freshness.status}
+                isFetching={freshness.isFetching}
+              />
+            </div>
             {person.phoneNumber && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
                 <Phone className="w-3 h-3 shrink-0" />
