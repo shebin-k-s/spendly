@@ -2,18 +2,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { peopleApi } from '../api/peopleApi';
 import { toast } from 'sonner';
 
+const PEOPLE_KEY = ['people'] as const;
+
 export const usePeople = () => {
   return useQuery({
-    queryKey: ['people'],
+    queryKey: PEOPLE_KEY,
     queryFn: peopleApi.getAll,
+    staleTime: 30_000,
   });
 };
 
 export const usePerson = (id: string, enabled = true) => {
   return useQuery({
-    queryKey: ['people', id],
+    queryKey: [...PEOPLE_KEY, id],
     queryFn: () => peopleApi.getById(id),
     enabled: !!id && enabled,
+    staleTime: 30_000,
   });
 };
 
@@ -22,7 +26,7 @@ export const useCreatePerson = () => {
   return useMutation({
     mutationFn: peopleApi.createPerson,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: PEOPLE_KEY });
       toast.success('Person added successfully');
     },
     onError: () => {
@@ -37,7 +41,7 @@ export const useUpdatePerson = () => {
     mutationFn: ({ id, payload }: { id: string; payload: any }) => 
       peopleApi.updatePerson(id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: PEOPLE_KEY });
       toast.success('Person updated successfully');
     },
   });
@@ -48,7 +52,7 @@ export const useDeletePerson = () => {
   return useMutation({
     mutationFn: peopleApi.deletePerson,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: PEOPLE_KEY });
       toast.success('Person deleted successfully');
     },
   });
@@ -59,7 +63,7 @@ export const useAddDebtTransaction = (personId: string) => {
   return useMutation({
     mutationFn: (payload: any) => peopleApi.addTransaction(personId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: PEOPLE_KEY });
       toast.success('Transaction added successfully');
     },
     onError: () => {
@@ -73,7 +77,7 @@ export const useDeleteDebtTransaction = (personId: string) => {
   return useMutation({
     mutationFn: peopleApi.deleteTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: PEOPLE_KEY });
       toast.success('Transaction deleted');
     },
   });
