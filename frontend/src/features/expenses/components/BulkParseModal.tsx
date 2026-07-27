@@ -95,6 +95,7 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const handleY = useRef<number | null>(null);
   const dragY = useRef(0);
+  const lastTextTapRef = useRef(0);
 
   // Persist the bulk draft as it changes, so an accidental dismiss / app switch / reload
   // doesn't lose what was typed or the parsed rows being reviewed. Skip the transient
@@ -419,6 +420,24 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
                     e.preventDefault();
                     void handleParse();
                   }
+                }}
+                // Double-tap to select-a-word is handled natively by the OS on mobile,
+                // which was occasionally getting misread as a page-swipe gesture.
+                // Intercept it ourselves: a second tap within 300ms selects everything
+                // instead, so the native gesture never gets a chance to fire.
+                onTouchEnd={e => {
+                  const now = Date.now();
+                  if (now - lastTextTapRef.current < 300) {
+                    e.preventDefault();
+                    e.currentTarget.select();
+                    lastTextTapRef.current = 0;
+                  } else {
+                    lastTextTapRef.current = now;
+                  }
+                }}
+                onDoubleClick={e => {
+                  e.preventDefault();
+                  e.currentTarget.select();
                 }}
                 placeholder={'Each line is a new transaction. AI will ignore labels like 1., 2.\n\n1. Coffee 20\n2. Lunch 200, tea 10\n3. Dinner 500'}
                 rows={8}
