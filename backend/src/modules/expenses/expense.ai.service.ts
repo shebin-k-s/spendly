@@ -30,6 +30,10 @@ export class ExpenseAiService {
     private readonly merchantCategoryHints = [
         { merchant: 'Ayaans Mart', category: 'Chanthavila Grocery' },
     ];
+
+    private readonly itemCategoryHints = [
+        { items: 'Hot malt/health drinks (Horlicks, Boost, Bournvita, Complan) and Coffee — but NOT cold/iced versions or shakes/milkshakes (e.g. "Boost Shake", "cold coffee" stay a drink, not this)', category: 'Tea' },
+    ];
     private genAI: GoogleGenerativeAI | null = null;
 
     private getGenAI(): GoogleGenerativeAI {
@@ -49,11 +53,13 @@ export class ExpenseAiService {
 
         const merchantHintBlock = `Merchant → preferred category hints (use these if a matching category exists in the list below; otherwise choose the best fit yourself):\n${this.merchantCategoryHints.map(h => `- "${h.merchant}" → prefer category: "${h.category}"`).join('\n')}`;
 
-        return { categoryBlock, merchantHintBlock };
+        const itemHintBlock = `Item → preferred category hints (use these if a matching category exists in the list below; otherwise choose the best fit yourself):\n${this.itemCategoryHints.map(h => `- ${h.items} → prefer category: "${h.category}"`).join('\n')}`;
+
+        return { categoryBlock, merchantHintBlock, itemHintBlock };
     }
 
     private buildImagePrompt(categories: CategoryOption[]): string {
-        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
+        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories);
 
         return `You are an expense parsing assistant. Analyze this payment screenshot and extract expense details.
 
@@ -86,6 +92,8 @@ Rules:
 
 ${merchantHintBlock}
 
+${itemHintBlock}
+
 ${categoryBlock}`;
     }
 
@@ -99,7 +107,7 @@ ${categoryBlock}`;
     }
 
     private buildBulkTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
-        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
+        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories);
 
         return `You are an expense parsing assistant. A user typed multiple expenses in one go. Split them into individual expenses and return a JSON ARRAY.
 
@@ -156,11 +164,13 @@ Field rules (per expense):
 
 ${merchantHintBlock}
 
+${itemHintBlock}
+
 ${categoryBlock}`;
     }
 
     private buildTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
-        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
+        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories);
 
         return `You are an expense parsing assistant. A user typed a natural language description of something they spent money on. Extract the expense details.
 
@@ -199,6 +209,8 @@ Rules:
 - suggested_flow: 'transfer' for person-to-person money movements (e.g. "Sent 500 to Rahul", "Rahul gave me 200"). 'expense' if it's for a specific item, service, or bill (e.g. "Paid Rahul for auto fare", "Rent to Priya", "Bought milk"). If an item or service is explicitly mentioned, stay in 'expense'.
 
 ${merchantHintBlock}
+
+${itemHintBlock}
 
 ${categoryBlock}`;
     }
