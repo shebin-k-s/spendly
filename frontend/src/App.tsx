@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
@@ -47,7 +47,20 @@ const persister = createSyncStoragePersister({
 export default function App() {
   return (
     <Provider store={store}>
-      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: CACHE_MAX_AGE }}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: CACHE_MAX_AGE,
+          dehydrateOptions: {
+            // Keep queries that still have data even if the last background
+            // revalidation errored (e.g. offline) — otherwise a failed refetch
+            // wipes that query from localStorage on the next persist save.
+            shouldDehydrateQuery: (query) =>
+              defaultShouldDehydrateQuery(query) || query.state.data !== undefined,
+          },
+        }}
+      >
         <SwipeGestureProvider>
         <Toaster
           theme="dark"

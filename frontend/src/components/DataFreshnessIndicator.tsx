@@ -11,12 +11,14 @@ interface DataFreshnessIndicatorProps {
  * Minimal dot badge showing data loading/fresh status.
  * - 🟢 Green = Fresh/Loaded
  * - ⏳ Amber Spinning = Loading
+ * - 🔴 Red = Last refresh failed (e.g. offline) — showing cached data
  */
 export function DataFreshnessIndicator({
   status,
   isFetching,
 }: DataFreshnessIndicatorProps) {
-  const bgColor = isFetching ? 'bg-amber-500' : 'bg-green-500';
+  const bgColor = isFetching ? 'bg-amber-500' : status === 'error' ? 'bg-red-500' : 'bg-green-500';
+  const label = isFetching ? 'Updating...' : status === 'error' ? "Couldn't refresh — showing cached data" : 'Fresh';
 
   return (
     <div className="group relative inline-block">
@@ -24,7 +26,7 @@ export function DataFreshnessIndicator({
 
       {/* Tooltip on hover */}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-background border border-border rounded-lg text-xs text-muted-foreground whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50">
-        {isFetching ? 'Updating...' : 'Fresh'}
+        {label}
       </div>
     </div>
   );
