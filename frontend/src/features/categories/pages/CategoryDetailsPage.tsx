@@ -1,7 +1,7 @@
 import { useEffect, useState, startTransition } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Tag } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Pencil, Tag } from 'lucide-react';
 import { format, parseISO, startOfMonth } from 'date-fns';
 import { formatINR } from '@/lib/utils';
 import { useCategorySpend, usePrefetchCategorySpend } from '@/features/expenses/hooks/useExpenses';
@@ -28,6 +28,16 @@ export default function CategoryDetailsPage() {
   const [yearPickerOpen, setYearPickerOpen] = useState(false);
   const [rangeStart, setRangeStart] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [rangeEnd, setRangeEnd] = useState(todayStr);
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
+
+  const toggleMonth = (monthKey: string) => {
+    setCollapsedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(monthKey)) next.delete(monthKey);
+      else next.add(monthKey);
+      return next;
+    });
+  };
 
   const isRangeValid = rangeStart <= rangeEnd;
   const range: CategorySpendRange = mode === 'year' ? { year } : { start: rangeStart, end: rangeEnd };
@@ -256,21 +266,37 @@ export default function CategoryDetailsPage() {
                 0,
               );
               const monthLabel = format(parseISO(`${monthKey}-01`), 'MMMM yyyy');
+              const isCollapsed = collapsedMonths.has(monthKey);
               return (
-                <div key={monthKey}>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {monthLabel}
-                    </p>
-                    <p className="text-xs font-semibold text-muted-foreground">
+                <div key={monthKey} className="bg-card border border-border rounded-2xl overflow-hidden">
+                  <button
+                    onClick={() => toggleMonth(monthKey)}
+                    className="w-full flex items-center justify-between px-4 py-3 active:bg-secondary/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronDown
+                        className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
+                      />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {monthLabel}
+                      </span>
+                      {isCollapsed && (
+                        <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">
+                          {monthExpenses.length} transaction{monthExpenses.length === 1 ? '' : 's'}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold text-muted-foreground">
                       {formatINR(monthTotal)}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    {monthExpenses.map((expense) => (
-                      <ExpenseCard key={expense.id} expense={expense} />
-                    ))}
-                  </div>
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="px-3 pb-3 pt-3 space-y-2 border-t border-border animate-in fade-in slide-in-from-top-1 duration-200">
+                      {monthExpenses.map((expense) => (
+                        <ExpenseCard key={expense.id} expense={expense} showDate />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })

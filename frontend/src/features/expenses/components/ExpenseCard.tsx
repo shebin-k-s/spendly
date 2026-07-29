@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { format, parseISO } from 'date-fns';
 import { formatINR } from '@/lib/utils';
 import { netAmount } from '../utils/expenseUtils';
 import { useAppSelector } from '@/store/hooks';
@@ -20,9 +21,13 @@ function fmtTime(t: string): string {
 
 interface ExpenseCardProps {
   expense: Expense;
+  /** Show the expense's date in the meta row — for lists grouped by something
+   * coarser than a single day (e.g. a category's history grouped by month),
+   * where the day isn't otherwise implied by a section heading. */
+  showDate?: boolean;
 }
 
-export default function ExpenseCard({ expense }: ExpenseCardProps) {
+export default function ExpenseCard({ expense, showDate = false }: ExpenseCardProps) {
   const navigate = useNavigate();
   const showGross = useAppSelector((state) => state.prefs.showGross);
   const [open, setOpen] = useState(false);
@@ -105,6 +110,12 @@ export default function ExpenseCard({ expense }: ExpenseCardProps) {
           <p className="font-medium text-sm truncate">{expense.description}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-[10px] text-muted-foreground">{expense.category?.name || 'Uncategorized'}</span>
+            {showDate && (
+              <>
+                <span className="text-[10px] text-muted-foreground">·</span>
+                <span className="text-[10px] text-muted-foreground">{format(parseISO(expense.date), 'd MMM')}</span>
+              </>
+            )}
             {expense.time && (
               <>
                 <span className="text-[10px] text-muted-foreground">·</span>
