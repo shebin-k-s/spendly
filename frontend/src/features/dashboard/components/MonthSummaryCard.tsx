@@ -1,9 +1,9 @@
 import { useRef } from 'react';
 import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
-import { toast } from 'sonner';
 import { formatINR } from '@/lib/utils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { toggleShowGross } from '@/store/prefsSlice';
+import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
 
 interface MonthSummaryCardProps {
   total: number;
@@ -24,10 +24,8 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
 
   const onPressStart = () => {
     timerRef.current = setTimeout(() => {
-      const next = !showGross;
       dispatch(toggleShowGross());
       navigator.vibrate?.(40);
-      toast(next ? 'Cashback view on' : 'Cashback view off', { duration: 1500 });
     }, 600);
   };
 
@@ -53,7 +51,10 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5">
-      <p className="text-xs text-muted-foreground mb-2">Total Spent This Month</p>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-muted-foreground">Total Spent This Month</p>
+        <CashbackVisibilityIcon showGross={showGross} />
+      </div>
 
       <p
         className="text-3xl font-bold text-primary select-none"

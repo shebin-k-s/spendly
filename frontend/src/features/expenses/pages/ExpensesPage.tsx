@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { formatINR } from '@/lib/utils';
+import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
 import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
+import { toggleShowGross } from '@/store/prefsSlice';
 import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
@@ -32,6 +34,22 @@ export default function ExpensesPage() {
   const showGross = useAppSelector((state) => state.prefs.showGross);
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
+
+  // Long-press the total to toggle the shared "show gross/cashback" preference,
+  // same gesture as the dashboard's month summary card.
+  const grossPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onGrossPressStart = () => {
+    grossPressTimer.current = setTimeout(() => {
+      dispatch(toggleShowGross());
+      navigator.vibrate?.(40);
+    }, 600);
+  };
+  const onGrossPressEnd = () => {
+    if (grossPressTimer.current) {
+      clearTimeout(grossPressTimer.current);
+      grossPressTimer.current = null;
+    }
+  };
 
   // Close filter panel on vertical scroll
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -164,10 +182,18 @@ export default function ExpensesPage() {
           <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
           {!isLoading && expenses.length > 0 && (
             <div className="text-right">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-end gap-1">
                 {activeFilterCount > 0 ? 'Filtered' : 'Total'}
+                <CashbackVisibilityIcon showGross={showGross} />
+              </div>
+              <p
+                className="text-base font-bold text-primary select-none"
+                onPointerDown={onGrossPressStart}
+                onPointerUp={onGrossPressEnd}
+                onPointerLeave={onGrossPressEnd}
+              >
+                {formatINR(monthNet)}
               </p>
-              <p className="text-base font-bold text-primary">{formatINR(monthNet)}</p>
               {showGross && monthGross > monthNet && (
                 <p className="text-[10px] text-muted-foreground line-through">{formatINR(monthGross)}</p>
               )}

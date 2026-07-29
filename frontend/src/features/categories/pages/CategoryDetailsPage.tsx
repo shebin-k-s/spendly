@@ -1,4 +1,4 @@
-import { useEffect, useState, startTransition } from 'react';
+import { useEffect, useRef, useState, startTransition } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Pencil, Tag } from 'lucide-react';
@@ -13,7 +13,9 @@ import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { BottomSheet } from '@/components/ui/BottomSheet';
-import { useAppSelector } from '@/store/hooks';
+import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
+import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { toggleShowGross } from '@/store/prefsSlice';
 
 type Mode = 'year' | 'range';
 const YEAR_PICKER_SPAN = 20;
@@ -21,6 +23,7 @@ const YEAR_PICKER_SPAN = 20;
 export default function CategoryDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const showGross = useAppSelector((state) => state.prefs.showGross);
   const currentYear = new Date().getFullYear();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -31,6 +34,22 @@ export default function CategoryDetailsPage() {
   const [rangeStart, setRangeStart] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [rangeEnd, setRangeEnd] = useState(todayStr);
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
+
+  // Long-press the total to toggle the shared "show gross/cashback" preference,
+  // same gesture as the dashboard's month summary card.
+  const grossPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onGrossPressStart = () => {
+    grossPressTimer.current = setTimeout(() => {
+      dispatch(toggleShowGross());
+      navigator.vibrate?.(40);
+    }, 600);
+  };
+  const onGrossPressEnd = () => {
+    if (grossPressTimer.current) {
+      clearTimeout(grossPressTimer.current);
+      grossPressTimer.current = null;
+    }
+  };
 
   const toggleMonth = (monthKey: string) => {
     setCollapsedMonths((prev) => {
@@ -213,13 +232,28 @@ export default function CategoryDetailsPage() {
           )}
 
           <p className="text-xs text-muted-foreground">{rangeLabel}</p>
-          <p className="text-3xl font-bold mt-1 text-primary">{formatINR(totalNet)}</p>
-          {showGross && data.total > totalNet && (
-            <p className="text-xs text-muted-foreground line-through">{formatINR(data.total)}</p>
-          )}
-          <p className="text-xs text-muted-foreground mt-1">
-            {data.count} expense{data.count === 1 ? '' : 's'}
+          <p
+            className="text-3xl font-bold mt-1 text-primary select-none"
+            onPointerDown={onGrossPressStart}
+            onPointerUp={onGrossPressEnd}
+            onPointerLeave={onGrossPressEnd}
+          >
+            {formatINR(totalNet)}
           </p>
+          {showGross && data.cashbackTotal > 0 && (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-muted-foreground line-through">{formatINR(data.total)}</span>
+              <span className="px-2 py-0.5 rounded-full bg-success/15 text-success/90 text-[11px] font-medium">
+                saved {formatINR(data.cashbackTotal)}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-muted-foreground">
+              {data.count} expense{data.count === 1 ? '' : 's'}
+            </p>
+            <CashbackVisibilityIcon showGross={showGross} />
+          </div>
         </div>
 
         {/* Monthly breakdown */}
