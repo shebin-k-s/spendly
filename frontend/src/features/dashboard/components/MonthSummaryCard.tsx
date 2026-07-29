@@ -15,7 +15,7 @@ interface MonthSummaryCardProps {
 
 export default function MonthSummaryCard({ total, cashbackTotal, count, prevTotal, isLoading }: MonthSummaryCardProps) {
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const { toggle: toggleCashback } = useToggleCashback();
+  const { toggle: toggleCashback, verifying } = useToggleCashback();
   const diff = prevTotal !== undefined ? total - prevTotal : undefined;
   const isUp = diff !== undefined && diff > 0;
   const isDown = diff !== undefined && diff < 0;
@@ -53,7 +53,7 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
     <div className="bg-card border border-border rounded-2xl p-5">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs text-muted-foreground">Total Spent This Month</p>
-        <CashbackVisibilityIcon showGross={showGross} />
+        <CashbackVisibilityIcon showGross={showGross} loading={verifying} />
       </div>
 
       <p

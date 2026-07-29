@@ -24,7 +24,7 @@ export default function CategoryDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const { toggle: toggleCashback } = useToggleCashback();
+  const { toggle: toggleCashback, verifying: verifyingCashback } = useToggleCashback();
   const currentYear = new Date().getFullYear();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
@@ -252,7 +252,7 @@ export default function CategoryDetailsPage() {
             <p className="text-xs text-muted-foreground">
               {data.count} expense{data.count === 1 ? '' : 's'}
             </p>
-            <CashbackVisibilityIcon showGross={showGross} />
+            <CashbackVisibilityIcon showGross={showGross} loading={verifyingCashback} />
           </div>
         </div>
 

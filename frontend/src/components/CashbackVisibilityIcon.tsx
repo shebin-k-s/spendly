@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 interface CashbackVisibilityIconProps {
   showGross: boolean;
+  /** Show a spinner instead — while waiting on the biometric prompt/verification. */
+  loading?: boolean;
 }
 
 const TOOLTIP_AUTOHIDE_MS = 1800;
@@ -12,7 +14,7 @@ const TOOLTIP_AUTOHIDE_MS = 1800;
  * Hover shows the tooltip on desktop; tapping the icon shows it briefly on
  * mobile, where there's no hover to rely on.
  */
-export function CashbackVisibilityIcon({ showGross }: CashbackVisibilityIconProps) {
+export function CashbackVisibilityIcon({ showGross, loading = false }: CashbackVisibilityIconProps) {
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -22,7 +24,7 @@ export function CashbackVisibilityIcon({ showGross }: CashbackVisibilityIconProp
     hideTimer.current = setTimeout(() => setTooltipOpen(false), TOOLTIP_AUTOHIDE_MS);
   };
 
-  const label = showGross ? 'Cashback shown' : 'Cashback hidden';
+  const label = loading ? 'Waiting for verification…' : showGross ? 'Cashback shown' : 'Cashback hidden';
 
   return (
     <div
@@ -36,7 +38,9 @@ export function CashbackVisibilityIcon({ showGross }: CashbackVisibilityIconProp
         className="flex items-center justify-center -m-1 p-1"
         aria-label={label}
       >
-        {showGross ? (
+        {loading ? (
+          <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+        ) : showGross ? (
           <Eye className="w-3.5 h-3.5 text-success/70" />
         ) : (
           <EyeOff className="w-3.5 h-3.5 text-muted-foreground/40" />

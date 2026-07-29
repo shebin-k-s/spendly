@@ -32,7 +32,7 @@ export default function ExpensesPage() {
   const { data: categories = [] } = useCategoriesQuery();
   const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const { toggle: toggleCashback } = useToggleCashback();
+  const { toggle: toggleCashback, verifying: verifyingCashback } = useToggleCashback();
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
@@ -185,7 +185,7 @@ export default function ExpensesPage() {
             <div className="text-right">
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-end gap-1">
                 {activeFilterCount > 0 ? 'Filtered' : 'Total'}
-                <CashbackVisibilityIcon showGross={showGross} />
+                <CashbackVisibilityIcon showGross={showGross} loading={verifyingCashback} />
               </div>
               <p
                 className="text-base font-bold text-primary select-none"
