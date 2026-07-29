@@ -17,6 +17,11 @@ export class WebauthnController {
         res.sendStatus(204);
     };
 
+    challenge = async (req: Request, res: Response) => {
+        const { deviceName } = req.body as { deviceName?: string };
+        res.json(await service.generateChallenge(deviceName));
+    };
+
     registerOptions = async (req: Request, res: Response) => {
         const { deviceName } = req.body as { deviceName?: string };
         res.json(await service.generateRegistration(deviceName));

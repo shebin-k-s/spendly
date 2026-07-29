@@ -38,6 +38,17 @@ export class WebauthnService {
         return { registered: count > 0 };
     }
 
+    // Combines the "is a device already registered" check with generating the
+    // matching options into one round trip, so the browser's biometric prompt
+    // appears after a single request instead of two sequential ones.
+    async generateChallenge(deviceName?: string) {
+        const existing = await this.repo.find();
+        if (existing.length === 0) {
+            return { type: 'register' as const, options: await this.buildRegistrationOptions(existing, deviceName) };
+        }
+        return { type: 'authenticate' as const, options: await this.buildAuthenticationOptions(existing) };
+    }
+
     async listDevices() {
         const creds = await this.repo.find({ order: { createdAt: 'DESC' } });
         return creds.map((c) => ({ id: c.id, deviceName: c.deviceName, createdAt: c.createdAt }));
@@ -50,8 +61,10 @@ export class WebauthnService {
     }
 
     async generateRegistration(deviceName?: string) {
-        const existing = await this.repo.find();
+        return this.buildRegistrationOptions(await this.repo.find(), deviceName);
+    }
 
+    private async buildRegistrationOptions(existing: WebauthnCredential[], deviceName?: string) {
         const options = await generateRegistrationOptions({
             rpName: RP_NAME,
             rpID: getRpID(),
@@ -107,7 +120,10 @@ export class WebauthnService {
     async generateAuthentication() {
         const existing = await this.repo.find();
         if (existing.length === 0) throw new ApiError('No device registered', 400);
+        return this.buildAuthenticationOptions(existing);
+    }
 
+    private async buildAuthenticationOptions(existing: WebauthnCredential[]) {
         const options = await generateAuthenticationOptions({
             rpID: getRpID(),
             userVerification: 'required',

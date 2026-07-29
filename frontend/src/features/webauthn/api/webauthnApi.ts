@@ -8,9 +8,20 @@ import apiClient from '@/lib/apiClient';
 
 const URL = '/webauthn';
 
+export type WebauthnChallenge =
+  | { type: 'register'; options: PublicKeyCredentialCreationOptionsJSON }
+  | { type: 'authenticate'; options: PublicKeyCredentialRequestOptionsJSON };
+
 export const webauthnApi = {
   async getStatus(): Promise<{ registered: boolean }> {
     const { data } = await apiClient.get(`${URL}/status`);
+    return data;
+  },
+
+  // Single round trip that returns registration options (no device yet) or
+  // authentication options (device already known) — whichever applies.
+  async getChallenge(deviceName?: string): Promise<WebauthnChallenge> {
+    const { data } = await apiClient.post(`${URL}/challenge`, { deviceName });
     return data;
   },
 
