@@ -24,7 +24,7 @@ export default function CategoryDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const { toggle: toggleCashback, verifying: verifyingCashback } = useToggleCashback();
+  const { toggle: toggleCashback, verifying: verifyingCashback, prefetchChallenge } = useToggleCashback();
   const currentYear = new Date().getFullYear();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
@@ -39,6 +39,7 @@ export default function CategoryDetailsPage() {
   // same gesture as the dashboard's month summary card.
   const grossPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onGrossPressStart = () => {
+    prefetchChallenge(); // kick off before the hold even confirms, overlapping the wait
     grossPressTimer.current = setTimeout(() => {
       navigator.vibrate?.(40);
       toggleCashback();

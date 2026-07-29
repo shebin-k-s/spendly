@@ -15,7 +15,7 @@ interface MonthSummaryCardProps {
 
 export default function MonthSummaryCard({ total, cashbackTotal, count, prevTotal, isLoading }: MonthSummaryCardProps) {
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const { toggle: toggleCashback, verifying } = useToggleCashback();
+  const { toggle: toggleCashback, verifying, prefetchChallenge } = useToggleCashback();
   const diff = prevTotal !== undefined ? total - prevTotal : undefined;
   const isUp = diff !== undefined && diff > 0;
   const isDown = diff !== undefined && diff < 0;
@@ -23,6 +23,7 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onPressStart = () => {
+    prefetchChallenge(); // kick off before the hold even confirms, overlapping the wait
     timerRef.current = setTimeout(() => {
       navigator.vibrate?.(40);
       toggleCashback();

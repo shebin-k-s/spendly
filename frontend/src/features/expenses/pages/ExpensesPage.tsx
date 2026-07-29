@@ -32,7 +32,7 @@ export default function ExpensesPage() {
   const { data: categories = [] } = useCategoriesQuery();
   const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
   const showGross = useAppSelector((state) => state.prefs.showGross);
-  const { toggle: toggleCashback, verifying: verifyingCashback } = useToggleCashback();
+  const { toggle: toggleCashback, verifying: verifyingCashback, prefetchChallenge } = useToggleCashback();
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
@@ -40,6 +40,7 @@ export default function ExpensesPage() {
   // same gesture as the dashboard's month summary card.
   const grossPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onGrossPressStart = () => {
+    prefetchChallenge(); // kick off before the hold even confirms, overlapping the wait
     grossPressTimer.current = setTimeout(() => {
       navigator.vibrate?.(40);
       toggleCashback();
