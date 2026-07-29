@@ -36,6 +36,34 @@ export class ExpenseController {
         res.json(await service.getAnalytics(months));
     };
 
+    getByCategoryYear = async (req: Request, res: Response) => {
+        const categoryId = req.query.categoryId as string | undefined;
+        if (!categoryId) {
+            res.status(400).json({ message: 'categoryId is required' });
+            return;
+        }
+
+        const startParam = req.query.start as string | undefined;
+        const endParam = req.query.end as string | undefined;
+        let start: string;
+        let end: string;
+        if (startParam && endParam) {
+            start = startParam;
+            end = endParam;
+        } else {
+            const { year: istYear } = getISTParts();
+            const year = parseInt(req.query.year as string) || istYear;
+            start = `${year}-01-01`;
+            end = `${year}-12-31`;
+        }
+
+        const [category, data] = await Promise.all([
+            categoryService.getById(categoryId),
+            service.getByCategoryRange(categoryId, start, end),
+        ]);
+        res.json({ category, ...data });
+    };
+
     getById = async (req: Request, res: Response) => {
         res.json(await service.getById(req.params.id as string));
     };

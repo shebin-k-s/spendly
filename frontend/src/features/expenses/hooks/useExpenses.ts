@@ -1,12 +1,13 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
 import { getErrorMessage } from '@/utils/getErrorMessage';
-import type { CreateExpensePayload, UpdateExpensePayload } from '../types';
+import type { CreateExpensePayload, UpdateExpensePayload, CategorySpendRange } from '../types';
 
 const EXPENSES_KEY = ['expenses'] as const;
 const SUMMARY_KEY = ['expenses', 'summary'] as const;
 const ANALYTICS_KEY = ['expenses', 'analytics'] as const;
+const CATEGORY_SPEND_KEY = ['expenses', 'by-category'] as const;
 
 export function useExpensesQuery(year: number, month: number, categoryId?: string) {
   return useQuery({
@@ -39,6 +40,34 @@ export function useAnalytics(months = 6) {
     queryFn: () => expensesApi.getAnalytics(months),
     staleTime: 60_000,
   });
+}
+
+function categorySpendKey(categoryId: string, range: CategorySpendRange) {
+  const rangeKey = 'year' in range ? ['year', range.year] : ['range', range.start, range.end];
+  return [...CATEGORY_SPEND_KEY, categoryId, ...rangeKey] as const;
+}
+
+export function useCategorySpend(categoryId: string, range: CategorySpendRange, enabled = true) {
+  return useQuery({
+    queryKey: categorySpendKey(categoryId, range),
+    queryFn: () => expensesApi.getCategorySpend(categoryId, range),
+    enabled: !!categoryId && enabled,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+// Lets the category-yearly page warm the cache for a year before the user
+// actually navigates to it (e.g. neighbouring years), so switching feels instant.
+export function usePrefetchCategorySpend() {
+  const qc = useQueryClient();
+  return (categoryId: string, range: CategorySpendRange) => {
+    qc.prefetchQuery({
+      queryKey: categorySpendKey(categoryId, range),
+      queryFn: () => expensesApi.getCategorySpend(categoryId, range),
+      staleTime: 30_000,
+    });
+  };
 }
 
 export function useCreateExpense() {

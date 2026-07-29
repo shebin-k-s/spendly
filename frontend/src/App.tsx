@@ -19,6 +19,7 @@ import EditExpensePage from '@/features/expenses/pages/EditExpensePage';
 import CategoriesPage from '@/features/categories/pages/CategoriesPage';
 import AddCategoryPage from '@/features/categories/pages/AddCategoryPage';
 import EditCategoryPage from '@/features/categories/pages/EditCategoryPage';
+import CategoryDetailsPage from '@/features/categories/pages/CategoryDetailsPage';
 import AnalyticsPage from '@/features/analytics/pages/AnalyticsPage';
 import AiTestPage from '@/features/expenses/pages/AiTestPage';
 import ShareProcessingPage from '@/features/expenses/pages/ShareProcessingPage';
@@ -95,6 +96,7 @@ export default function App() {
               <Route path="expenses/:id/edit" element={<EditExpensePage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="categories/new" element={<AddCategoryPage />} />
+              <Route path="categories/:id" element={<CategoryDetailsPage />} />
               <Route path="categories/:id/edit" element={<EditCategoryPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="people" element={<PeoplePage />} />

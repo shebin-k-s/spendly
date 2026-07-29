@@ -132,6 +132,56 @@ export class ExpenseService {
         };
     }
 
+    async getByCategoryRange(categoryId: string, start: string, end: string) {
+        const expenses = await this.repo
+            .createQueryBuilder('expense')
+            .leftJoinAndSelect('expense.category', 'category')
+            .where('category.id = :categoryId', { categoryId })
+            .andWhere('expense.date >= :start AND expense.date <= :end', { start, end })
+            .getMany();
+
+        expenses.sort((a, b) => (a.date > b.date ? -1 : a.date < b.date ? 1 : 0));
+
+        const monthlyMap = new Map<string, { year: number; month: number; total: number; cashbackTotal: number; count: number }>();
+        let total = 0;
+        let cashbackTotal = 0;
+
+        for (const expense of expenses) {
+            const year = Number(expense.date.slice(0, 4));
+            const month = Number(expense.date.slice(5, 7));
+            const key = `${year}-${month}`;
+            if (!monthlyMap.has(key)) {
+                monthlyMap.set(key, { year, month, total: 0, cashbackTotal: 0, count: 0 });
+            }
+            const bucket = monthlyMap.get(key)!;
+            const amount = Number(expense.amount);
+            const cashback = Number(expense.cashback || 0);
+            bucket.total += amount;
+            bucket.cashbackTotal += cashback;
+            bucket.count += 1;
+            total += amount;
+            cashbackTotal += cashback;
+        }
+
+        const monthly = Array.from(monthlyMap.values())
+            .map((m) => ({
+                ...m,
+                total: Math.round(m.total * 100) / 100,
+                cashbackTotal: Math.round(m.cashbackTotal * 100) / 100,
+            }))
+            .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
+
+        return {
+            start,
+            end,
+            total: Math.round(total * 100) / 100,
+            cashbackTotal: Math.round(cashbackTotal * 100) / 100,
+            count: expenses.length,
+            monthly,
+            expenses,
+        };
+    }
+
     async getAnalytics(months: number = 6) {
         const { year: nowYear, month: nowMonth } = getISTParts();
         const promises = [];

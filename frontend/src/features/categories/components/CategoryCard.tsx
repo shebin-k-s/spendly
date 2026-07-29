@@ -8,7 +8,7 @@ interface CategoryCardProps {
 export default function CategoryCard({ category }: CategoryCardProps) {
   return (
     <Link
-      to={`/categories/${category.id}/edit`}
+      to={`/categories/${category.id}`}
       state={{ category }}
       className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl border border-border bg-card active:opacity-60 transition-opacity"
     >

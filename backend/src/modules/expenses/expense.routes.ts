@@ -11,6 +11,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.get('/', controller.getByMonth);
 router.get('/summary', controller.getMonthlySummary);
 router.get('/analytics', controller.getAnalytics);
+router.get('/by-category', controller.getByCategoryYear);
 router.post('/parse-text', validate(parseTextSchema), controller.parseText);
 router.post('/parse-bulk-text', validate(parseBulkTextSchema), controller.parseBulkText);
 router.post('/parse-image', upload.single('image'), controller.parseImage);

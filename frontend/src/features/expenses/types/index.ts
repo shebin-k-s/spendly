@@ -54,3 +54,24 @@ export interface MonthlyAnalytic {
   count: number;
 }
 
+export interface CategoryMonthlyTotal {
+  year: number;
+  month: number;
+  total: number;
+  cashbackTotal: number;
+  count: number;
+}
+
+export interface CategorySpend {
+  category: Category;
+  start: string;
+  end: string;
+  total: number;
+  cashbackTotal: number;
+  count: number;
+  monthly: CategoryMonthlyTotal[];
+  expenses: Expense[];
+}
+
+export type CategorySpendRange = { year: number } | { start: string; end: string };
+

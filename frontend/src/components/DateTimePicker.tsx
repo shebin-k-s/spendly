@@ -14,12 +14,15 @@ import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { useBackToClose } from '@/hooks/useBackToClose';
 
 const WEEK_DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+const YEAR_PICKER_SPAN = 40;
 
 interface DateTimePickerProps {
   date: string;
   time: string | null;
   onChange: (date: string, time: string | null) => void;
   disabled?: boolean;
+  /** Set false to hide the time-of-day picker for date-only pickers (e.g. a date range filter). Defaults to true. */
+  showTime?: boolean;
 }
 
 function fmtDisplayDate(dateStr: string): string {
@@ -113,7 +116,7 @@ function ScrollableNumberColumn({ value, onAdjust, step = 1 }: { value: number; 
   );
 }
 
-export function DateTimePicker({ date, time, onChange, disabled }: DateTimePickerProps) {
+export function DateTimePicker({ date, time, onChange, disabled, showTime = true }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
   useBackToClose(open, () => setOpen(false));
@@ -132,6 +135,7 @@ export function DateTimePicker({ date, time, onChange, disabled }: DateTimePicke
 
   const [viewMonth, setViewMonth] = useState<Date>(parsedInitial);
   const [selectedDate, setSelectedDate] = useState<Date>(parsedInitial);
+  const [pickerView, setPickerView] = useState<'calendar' | 'year' | 'month'>('calendar');
   const [timeEnabled, setTimeEnabled] = useState(!!time);
   const [hour12, setHour12] = useState(12);
   const [minute, setMinute] = useState(0);
@@ -148,6 +152,7 @@ export function DateTimePicker({ date, time, onChange, disabled }: DateTimePicke
   };
 
   const handleCalendarPointerMove = (e: React.PointerEvent) => {
+    if (pickerView !== 'calendar') return;
     if (calendarTouchStartX.current === null || calendarTouchStartY.current === null) return;
 
     const deltaX = calendarTouchStartX.current - e.clientX;
@@ -188,12 +193,36 @@ export function DateTimePicker({ date, time, onChange, disabled }: DateTimePicke
     const valid = isValid(d) ? d : new Date();
     setViewMonth(valid);
     setSelectedDate(valid);
+    setPickerView('calendar');
     const { h12: h, minute: m, period: p } = parseTimeProp(time);
     setTimeEnabled(!!time);
     setHour12(h);
     setMinute(m);
     setPeriod(p);
     setOpen(true);
+  };
+
+  // Keep `selectedDate` (what "Set Date" actually confirms) in sync with year/month
+  // navigation, clamped to a valid day-of-month — otherwise pressing "Set Date" right
+  // after picking a year/month silently confirms whatever stale date was selected
+  // before the picker opened, since only tapping a day in the calendar updated it.
+  const handleYearJump = (year: number) => {
+    setViewMonth((m) => new Date(year, m.getMonth(), 1));
+    setSelectedDate((d) => {
+      const daysInMonth = new Date(year, d.getMonth() + 1, 0).getDate();
+      return new Date(year, d.getMonth(), Math.min(d.getDate(), daysInMonth));
+    });
+    setPickerView('month');
+  };
+
+  const handleMonthJump = (monthIndex: number) => {
+    const year = viewMonth.getFullYear();
+    setViewMonth(new Date(year, monthIndex, 1));
+    setSelectedDate((d) => {
+      const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+      return new Date(year, monthIndex, Math.min(d.getDate(), daysInMonth));
+    });
+    setPickerView('calendar');
   };
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -306,7 +335,7 @@ export function DateTimePicker({ date, time, onChange, disabled }: DateTimePicke
             onPointerMove={handleCalendarPointerMove}
             onPointerUp={handleCalendarPointerUp}
             onWheel={(e) => {
-              if (wheelCooldown.current) return;
+              if (pickerView !== 'calendar' || wheelCooldown.current) return;
               if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 10) {
                 wheelCooldown.current = true;
                 if (e.deltaX > 0) setViewMonth((m) => addMonths(m, 1));
@@ -321,114 +350,168 @@ export function DateTimePicker({ date, time, onChange, disabled }: DateTimePicke
               <button
                 type="button"
                 onClick={() => setViewMonth(subMonths(viewMonth, 1))}
-                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+                disabled={pickerView !== 'calendar'}
+                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity disabled:opacity-0"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="font-semibold text-sm">{format(viewMonth, 'MMMM yyyy')}</span>
+              <button
+                type="button"
+                onClick={() => { if (pickerView !== 'year') setPickerView('year'); }}
+                className="font-semibold text-sm px-3 py-1.5 rounded-lg active:bg-secondary transition-colors"
+              >
+                {pickerView === 'year' ? 'Select Year' : pickerView === 'month' ? String(viewMonth.getFullYear()) : format(viewMonth, 'MMMM yyyy')}
+              </button>
               <button
                 type="button"
                 onClick={() => setViewMonth(addMonths(viewMonth, 1))}
-                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+                disabled={pickerView !== 'calendar'}
+                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity disabled:opacity-0"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Week day headers */}
-            <div className="grid grid-cols-7 mb-1">
-              {WEEK_DAYS.map((d) => (
-                <span key={d} className="text-center text-[10px] font-medium text-muted-foreground py-1">
-                  {d}
-                </span>
-              ))}
-            </div>
-
-            {/* Calendar grid */}
-            <div className="grid grid-cols-7 gap-0.5">
-              {calendarDays.map((day) => {
-                const inMonth = isSameMonth(day, viewMonth);
-                const isSelected = isSameDay(day, selectedDate);
-                const isCurrDay = isToday(day);
-                return (
+            {pickerView === 'year' ? (
+              /* Year grid — jump straight to any year instead of paging month by month */
+              <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto disable-scrollbars py-0.5">
+                {Array.from({ length: YEAR_PICKER_SPAN + 1 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                   <button
-                    key={day.toISOString()}
+                    key={y}
                     type="button"
-                    onClick={() => handleDayClick(day)}
+                    onClick={() => handleYearJump(y)}
                     className={cn(
-                      'h-9 w-full rounded-xl text-sm font-medium transition-colors',
-                      !inMonth && 'opacity-20 pointer-events-none',
-                      isSelected && 'bg-primary text-primary-foreground',
-                      !isSelected && isCurrDay && 'border border-primary text-primary',
-                      !isSelected && !isCurrDay && inMonth && 'active:bg-secondary',
+                      'py-2.5 rounded-xl text-sm font-medium transition-colors',
+                      y === viewMonth.getFullYear()
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground active:opacity-60',
                     )}
                   >
-                    {format(day, 'd')}
+                    {y}
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="border-t border-border my-4" />
-
-          {/* Time picker */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
-                  Time <span className="opacity-60">(optional)</span>
-                </span>
+                ))}
               </div>
-              {!timeEnabled ? (
-                <button
-                  type="button"
-                  onClick={setToNow}
-                  className="text-xs text-primary font-medium px-3 py-1.5 rounded-lg bg-primary/10 active:opacity-60 transition-opacity"
-                >
-                  Set to now
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setTimeEnabled(false)}
-                  className="flex items-center gap-1 text-xs text-muted-foreground px-3 py-1.5 rounded-lg bg-secondary active:opacity-60 transition-opacity"
-                >
-                  <X className="w-3 h-3" /> Clear
-                </button>
-              )}
-            </div>
-
-            {timeEnabled && (
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 w-full animate-fade-in">
-                {/* Left empty container to push center visually */}
-                <div />
-
-                {/* Center layout */}
-                <div className="flex items-center justify-center gap-0">
-                  {/* Hour column */}
-                  <ScrollableNumberColumn value={hour12} onAdjust={adjustHour} step={1} />
-
-                  <span className="text-3xl font-bold text-muted-foreground self-center pb-1 pointer-events-none">:</span>
-
-                  {/* Minute column — steps of 1 */}
-                  <ScrollableNumberColumn value={minute} onAdjust={adjustMinute} step={1} />
-                </div>
-
-                {/* Right side AM/PM toggle */}
-                <div className="flex justify-end pr-1">
+            ) : pickerView === 'month' ? (
+              /* Month grid — second step after picking a year */
+              <div className="grid grid-cols-3 gap-2 py-0.5">
+                {Array.from({ length: 12 }, (_, i) => i).map((monthIndex) => (
                   <button
+                    key={monthIndex}
                     type="button"
-                    onClick={() => setPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
-                    className="px-4 py-4 rounded-xl bg-secondary text-sm font-bold active:opacity-60 transition-opacity"
+                    onClick={() => handleMonthJump(monthIndex)}
+                    className={cn(
+                      'py-2.5 rounded-xl text-sm font-medium transition-colors',
+                      monthIndex === viewMonth.getMonth()
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground active:opacity-60',
+                    )}
                   >
-                    {period}
+                    {format(new Date(viewMonth.getFullYear(), monthIndex, 1), 'MMM')}
                   </button>
-                </div>
+                ))}
               </div>
+            ) : (
+              <>
+                {/* Week day headers */}
+                <div className="grid grid-cols-7 mb-1">
+                  {WEEK_DAYS.map((d) => (
+                    <span key={d} className="text-center text-[10px] font-medium text-muted-foreground py-1">
+                      {d}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-0.5">
+                  {calendarDays.map((day) => {
+                    const inMonth = isSameMonth(day, viewMonth);
+                    const isSelected = isSameDay(day, selectedDate);
+                    const isCurrDay = isToday(day);
+                    return (
+                      <button
+                        key={day.toISOString()}
+                        type="button"
+                        onClick={() => handleDayClick(day)}
+                        className={cn(
+                          'h-9 w-full rounded-xl text-sm font-medium transition-colors',
+                          !inMonth && 'opacity-20 pointer-events-none',
+                          isSelected && 'bg-primary text-primary-foreground',
+                          !isSelected && isCurrDay && 'border border-primary text-primary',
+                          !isSelected && !isCurrDay && inMonth && 'active:bg-secondary',
+                        )}
+                      >
+                        {format(day, 'd')}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
+
+          {showTime && (
+            <>
+              <div className="border-t border-border my-4" />
+
+              {/* Time picker */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      Time <span className="opacity-60">(optional)</span>
+                    </span>
+                  </div>
+                  {!timeEnabled ? (
+                    <button
+                      type="button"
+                      onClick={setToNow}
+                      className="text-xs text-primary font-medium px-3 py-1.5 rounded-lg bg-primary/10 active:opacity-60 transition-opacity"
+                    >
+                      Set to now
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setTimeEnabled(false)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground px-3 py-1.5 rounded-lg bg-secondary active:opacity-60 transition-opacity"
+                    >
+                      <X className="w-3 h-3" /> Clear
+                    </button>
+                  )}
+                </div>
+
+                {timeEnabled && (
+                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 w-full animate-fade-in">
+                    {/* Left empty container to push center visually */}
+                    <div />
+
+                    {/* Center layout */}
+                    <div className="flex items-center justify-center gap-0">
+                      {/* Hour column */}
+                      <ScrollableNumberColumn value={hour12} onAdjust={adjustHour} step={1} />
+
+                      <span className="text-3xl font-bold text-muted-foreground self-center pb-1 pointer-events-none">:</span>
+
+                      {/* Minute column — steps of 1 */}
+                      <ScrollableNumberColumn value={minute} onAdjust={adjustMinute} step={1} />
+                    </div>
+
+                    {/* Right side AM/PM toggle */}
+                    <div className="flex justify-end pr-1">
+                      <button
+                        type="button"
+                        onClick={() => setPeriod((p) => (p === 'AM' ? 'PM' : 'AM'))}
+                        className="px-4 py-4 rounded-xl bg-secondary text-sm font-bold active:opacity-60 transition-opacity"
+                      >
+                        {period}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Action buttons */}
           <div className="flex gap-3 mt-5">
@@ -445,7 +528,7 @@ export function DateTimePicker({ date, time, onChange, disabled }: DateTimePicke
               onClick={handleConfirm}
               className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold active:opacity-80 transition-opacity"
             >
-              Set Date & Time
+              {showTime ? 'Set Date & Time' : 'Set Date'}
             </button>
           </div>
         </Dialog.Content>
