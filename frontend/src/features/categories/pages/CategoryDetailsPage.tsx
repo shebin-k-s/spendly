@@ -14,8 +14,8 @@ import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { toggleShowGross } from '@/store/prefsSlice';
+import { useAppSelector } from '@/store/hooks';
+import { useToggleCashback } from '@/features/webauthn/hooks/useToggleCashback';
 
 type Mode = 'year' | 'range';
 const YEAR_PICKER_SPAN = 20;
@@ -23,8 +23,8 @@ const YEAR_PICKER_SPAN = 20;
 export default function CategoryDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const showGross = useAppSelector((state) => state.prefs.showGross);
+  const { toggle: toggleCashback } = useToggleCashback();
   const currentYear = new Date().getFullYear();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
@@ -40,8 +40,8 @@ export default function CategoryDetailsPage() {
   const grossPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onGrossPressStart = () => {
     grossPressTimer.current = setTimeout(() => {
-      dispatch(toggleShowGross());
       navigator.vibrate?.(40);
+      toggleCashback();
     }, 600);
   };
   const onGrossPressEnd = () => {

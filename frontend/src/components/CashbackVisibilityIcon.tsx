@@ -22,12 +22,7 @@ export function CashbackVisibilityIcon({ showGross }: CashbackVisibilityIconProp
     hideTimer.current = setTimeout(() => setTooltipOpen(false), TOOLTIP_AUTOHIDE_MS);
   };
 
-  // Net (after-cashback) is always the primary figure shown, regardless of this
-  // preference — it only controls whether the original pre-cashback price is
-  // ALSO shown struck-through alongside it.
-  const label = showGross
-    ? 'Cashback breakdown shown — original price struck through above'
-    : 'Cashback breakdown hidden — showing net amount only';
+  const label = showGross ? 'Cashback shown' : 'Cashback hidden';
 
   return (
     <div

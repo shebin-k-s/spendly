@@ -1,9 +1,9 @@
 import { useRef } from 'react';
 import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { toggleShowGross } from '@/store/prefsSlice';
+import { useAppSelector } from '@/store/hooks';
 import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
+import { useToggleCashback } from '@/features/webauthn/hooks/useToggleCashback';
 
 interface MonthSummaryCardProps {
   total: number;
@@ -14,8 +14,8 @@ interface MonthSummaryCardProps {
 }
 
 export default function MonthSummaryCard({ total, cashbackTotal, count, prevTotal, isLoading }: MonthSummaryCardProps) {
-  const dispatch = useAppDispatch();
   const showGross = useAppSelector((state) => state.prefs.showGross);
+  const { toggle: toggleCashback } = useToggleCashback();
   const diff = prevTotal !== undefined ? total - prevTotal : undefined;
   const isUp = diff !== undefined && diff > 0;
   const isDown = diff !== undefined && diff < 0;
@@ -24,8 +24,8 @@ export default function MonthSummaryCard({ total, cashbackTotal, count, prevTota
 
   const onPressStart = () => {
     timerRef.current = setTimeout(() => {
-      dispatch(toggleShowGross());
       navigator.vibrate?.(40);
+      toggleCashback();
     }, 600);
   };
 

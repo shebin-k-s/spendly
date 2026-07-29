@@ -8,9 +8,9 @@ import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
-import { toggleShowGross } from '@/store/prefsSlice';
 import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
+import { useToggleCashback } from '@/features/webauthn/hooks/useToggleCashback';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
@@ -32,6 +32,7 @@ export default function ExpensesPage() {
   const { data: categories = [] } = useCategoriesQuery();
   const { isFilterOpen, searchTerm, selectedCategoryIds } = useAppSelector((state) => state.filters);
   const showGross = useAppSelector((state) => state.prefs.showGross);
+  const { toggle: toggleCashback } = useToggleCashback();
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
@@ -40,8 +41,8 @@ export default function ExpensesPage() {
   const grossPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onGrossPressStart = () => {
     grossPressTimer.current = setTimeout(() => {
-      dispatch(toggleShowGross());
       navigator.vibrate?.(40);
+      toggleCashback();
     }, 600);
   };
   const onGrossPressEnd = () => {
