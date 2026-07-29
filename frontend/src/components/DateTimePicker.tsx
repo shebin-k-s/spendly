@@ -225,6 +225,13 @@ export function DateTimePicker({ date, time, onChange, disabled, showTime = true
     setPickerView('calendar');
   };
 
+  const handleGoToToday = () => {
+    const now = new Date();
+    setViewMonth(now);
+    setSelectedDate(now);
+    setPickerView('calendar');
+  };
+
   const modalRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);
   const handleCurrentY = useRef<number>(0);
@@ -362,14 +369,23 @@ export function DateTimePicker({ date, time, onChange, disabled, showTime = true
               >
                 {pickerView === 'year' ? 'Select Year' : pickerView === 'month' ? String(viewMonth.getFullYear()) : format(viewMonth, 'MMMM yyyy')}
               </button>
-              <button
-                type="button"
-                onClick={() => setViewMonth(addMonths(viewMonth, 1))}
-                disabled={pickerView !== 'calendar'}
-                className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity disabled:opacity-0"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              {pickerView === 'calendar' ? (
+                <button
+                  type="button"
+                  onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+                  className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGoToToday}
+                  className="text-xs text-primary font-medium px-3 py-1.5 rounded-lg bg-primary/10 active:opacity-60 transition-opacity"
+                >
+                  Today
+                </button>
+              )}
             </div>
 
             {pickerView === 'year' ? (

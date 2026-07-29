@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, startTransition } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Tag } from 'lucide-react';
 import { format, parseISO, startOfMonth } from 'date-fns';
 import { formatINR } from '@/lib/utils';
@@ -277,19 +278,37 @@ export default function CategoryDetailsPage() {
         </div>
       </div>
 
-      <BottomSheet open={yearPickerOpen} onOpenChange={setYearPickerOpen} title="Jump to Year">
-        <div className="grid grid-cols-4 gap-2 px-5 pt-2 pb-6">
-          {Array.from({ length: YEAR_PICKER_SPAN + 1 }, (_, i) => currentYear - i).map((y) => (
-            <button
-              key={y}
-              onClick={() => { setYear(y); setYearPickerOpen(false); }}
-              className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                y === year ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground active:opacity-60'
-              }`}
-            >
-              {y}
-            </button>
-          ))}
+      <BottomSheet
+        open={yearPickerOpen}
+        onOpenChange={setYearPickerOpen}
+        header={
+          <div className="flex items-center justify-between">
+            <Dialog.Title className="text-base font-semibold">Jump to Year</Dialog.Title>
+            {year !== currentYear && (
+              <button
+                onClick={() => { setYearPickerOpen(false); startTransition(() => setYear(currentYear)); }}
+                className="text-xs text-primary font-medium px-3 py-1.5 rounded-lg bg-primary/10 active:opacity-60 transition-opacity"
+              >
+                Current Year
+              </button>
+            )}
+          </div>
+        }
+      >
+        <div className="px-5 pt-2 pb-6">
+          <div className="grid grid-cols-4 gap-2">
+            {Array.from({ length: YEAR_PICKER_SPAN + 1 }, (_, i) => currentYear - i).map((y) => (
+              <button
+                key={y}
+                onClick={() => { setYearPickerOpen(false); startTransition(() => setYear(y)); }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  y === year ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground active:opacity-60'
+                }`}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
         </div>
       </BottomSheet>
     </div>
