@@ -13,6 +13,7 @@ import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { useAppSelector } from '@/store/hooks';
 
 type Mode = 'year' | 'range';
 const YEAR_PICKER_SPAN = 20;
@@ -20,6 +21,7 @@ const YEAR_PICKER_SPAN = 20;
 export default function CategoryDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const showGross = useAppSelector((state) => state.prefs.showGross);
   const currentYear = new Date().getFullYear();
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
@@ -67,7 +69,11 @@ export default function CategoryDetailsPage() {
     return acc;
   }, {});
   const sortedMonths = Object.keys(groupedByMonth).sort((a, b) => b.localeCompare(a));
-  const maxMonthTotal = data ? Math.max(...data.monthly.map((m) => m.total)) : 0;
+  // `total`/`monthly[].total` from the API are gross — net out cashback here,
+  // same convention as CategoryBreakdown on the dashboard.
+  const totalNet = data ? data.total - data.cashbackTotal : 0;
+  const monthlyNet = data ? data.monthly.map((m) => ({ ...m, net: m.total - m.cashbackTotal })) : [];
+  const maxMonthNet = Math.max(0, ...monthlyNet.map((m) => m.net));
   const multiYear = data ? new Set(data.monthly.map((m) => m.year)).size > 1 : false;
 
   const rangeLabel = mode === 'year'
@@ -207,23 +213,26 @@ export default function CategoryDetailsPage() {
           )}
 
           <p className="text-xs text-muted-foreground">{rangeLabel}</p>
-          <p className="text-3xl font-bold mt-1 text-primary">{formatINR(data.total)}</p>
+          <p className="text-3xl font-bold mt-1 text-primary">{formatINR(totalNet)}</p>
+          {showGross && data.total > totalNet && (
+            <p className="text-xs text-muted-foreground line-through">{formatINR(data.total)}</p>
+          )}
           <p className="text-xs text-muted-foreground mt-1">
             {data.count} expense{data.count === 1 ? '' : 's'}
           </p>
         </div>
 
         {/* Monthly breakdown */}
-        {data.total > 0 && (
+        {totalNet > 0 && (
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
               Monthly breakdown
             </p>
             <div className="space-y-2.5">
-              {data.monthly
-                .filter((m) => m.total > 0)
+              {monthlyNet
+                .filter((m) => m.net > 0)
                 .map((m) => {
-                  const pct = maxMonthTotal > 0 ? (m.total / maxMonthTotal) * 100 : 0;
+                  const pct = maxMonthNet > 0 ? (m.net / maxMonthNet) * 100 : 0;
                   return (
                     <div key={`${m.year}-${m.month}`} className="flex items-center gap-3">
                       <span className="text-xs text-muted-foreground w-10 shrink-0">
@@ -235,9 +244,14 @@ export default function CategoryDetailsPage() {
                           style={{ width: `${pct}%`, backgroundColor: category.color }}
                         />
                       </div>
-                      <span className="text-xs font-medium w-16 text-right shrink-0">
-                        {formatINR(m.total)}
-                      </span>
+                      <div className="flex flex-col items-end w-16 shrink-0">
+                        <span className="text-xs font-medium">{formatINR(m.net)}</span>
+                        {showGross && m.total > m.net && (
+                          <span className="text-[10px] text-muted-foreground/60 line-through">
+                            {formatINR(m.total)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -265,6 +279,7 @@ export default function CategoryDetailsPage() {
                 (sum, e) => sum + Number(e.amount) - Number(e.cashback || 0),
                 0,
               );
+              const monthGross = monthExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const monthLabel = format(parseISO(`${monthKey}-01`), 'MMMM yyyy');
               const isCollapsed = collapsedMonths.has(monthKey);
               return (
@@ -286,9 +301,16 @@ export default function CategoryDetailsPage() {
                         </span>
                       )}
                     </div>
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {formatINR(monthTotal)}
-                    </span>
+                    <div className="flex flex-col items-end">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {formatINR(monthTotal)}
+                      </span>
+                      {showGross && monthGross > monthTotal && (
+                        <span className="text-[10px] text-muted-foreground/50 line-through">
+                          {formatINR(monthGross)}
+                        </span>
+                      )}
+                    </div>
                   </button>
                   {!isCollapsed && (
                     <div className="px-3 pb-3 pt-3 space-y-2 border-t border-border animate-in fade-in slide-in-from-top-1 duration-200">
