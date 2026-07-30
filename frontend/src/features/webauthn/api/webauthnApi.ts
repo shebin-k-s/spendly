@@ -20,28 +20,24 @@ export const webauthnApi = {
 
   // Single round trip that returns registration options (no device yet) or
   // authentication options (device already known) — whichever applies.
-  async getChallenge(deviceName?: string): Promise<WebauthnChallenge> {
-    const { data } = await apiClient.post(`${URL}/challenge`, { deviceName });
+  // `requestId` lets the backend track this challenge independently of any
+  // other in-flight one (e.g. from a prefetch on another page).
+  async getChallenge(requestId: string, deviceName?: string): Promise<WebauthnChallenge> {
+    const { data } = await apiClient.post(`${URL}/challenge`, { requestId, deviceName });
     return data;
   },
 
-  async getRegisterOptions(deviceName?: string): Promise<PublicKeyCredentialCreationOptionsJSON> {
-    const { data } = await apiClient.post(`${URL}/register-options`, { deviceName });
+  async verifyRegistration(
+    requestId: string,
+    response: RegistrationResponseJSON,
+    deviceName?: string,
+  ): Promise<{ verified: boolean }> {
+    const { data } = await apiClient.post(`${URL}/register-verify`, { requestId, response, deviceName });
     return data;
   },
 
-  async verifyRegistration(response: RegistrationResponseJSON, deviceName?: string): Promise<{ verified: boolean }> {
-    const { data } = await apiClient.post(`${URL}/register-verify`, { response, deviceName });
-    return data;
-  },
-
-  async getAuthOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
-    const { data } = await apiClient.post(`${URL}/auth-options`, {});
-    return data;
-  },
-
-  async verifyAuthentication(response: AuthenticationResponseJSON): Promise<{ verified: boolean }> {
-    const { data } = await apiClient.post(`${URL}/auth-verify`, { response });
+  async verifyAuthentication(requestId: string, response: AuthenticationResponseJSON): Promise<{ verified: boolean }> {
+    const { data } = await apiClient.post(`${URL}/auth-verify`, { requestId, response });
     return data;
   },
 };

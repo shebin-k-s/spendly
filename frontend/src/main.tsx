@@ -3,6 +3,19 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Fire-and-forget: wake the backend up as early as possible. Render's free
+// tier spins the service down after inactivity, and the first real request
+// otherwise eats that cold-start delay — most noticeably as a slow-to-appear
+// biometric prompt. Pinging the instant the app opens gives it a head start
+// while the user is just looking at the dashboard, before they'd actually
+// press anything that needs the API.
+try {
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
+  fetch(`${new URL(apiBase).origin}/health`).catch(() => {});
+} catch {
+  // Ignore — this is a best-effort warm-up, never load-bearing.
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

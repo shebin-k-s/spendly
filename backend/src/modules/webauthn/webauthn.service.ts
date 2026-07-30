@@ -16,6 +16,12 @@ const RP_NAME = 'Spendly';
 // Single-user app — no accounts, so this is a fixed synthetic "owner" identity.
 const OWNER_USER_ID = new Uint8Array(Buffer.from('spendly-owner'));
 
+// How long a prefetched-but-unused challenge stays valid. The frontend can now
+// fetch one as early as page mount (not just right before the biometric
+// prompt), so this needs real headroom — but still short enough that a
+// captured-and-replayed challenge has a tightly bounded window.
+const CHALLENGE_TTL_MS = 2 * 60 * 1000;
+
 function getRpID(): string {
     if (process.env.WEBAUTHN_RP_ID) return process.env.WEBAUTHN_RP_ID;
     const url = process.env.FRONTEND_URL || 'http://localhost:8081';
@@ -29,24 +35,60 @@ function getOrigin(): string {
 export class WebauthnService {
     private repo = AppDataSource.getRepository(WebauthnCredential);
 
-    // Transient challenge storage — single-user app, short-lived value between
-    // generating options and verifying the response, no need for a DB table.
-    private static currentChallenge: string | null = null;
+    // Keyed by a client-generated request ID (not a single shared value) so
+    // that prefetching from multiple pages, or well before the actual press,
+    // doesn't clobber another in-flight challenge.
+    private static pendingChallenges = new Map<string, { challenge: string; createdAt: number }>();
+
+    // Credentials change only on register/delete — caching them shaves a DB
+    // round trip off the hot path (every challenge request), on top of the
+    // unavoidable network round trip to the browser.
+    private static credentialsCache: WebauthnCredential[] | null = null;
+
+    private async getCachedCredentials(): Promise<WebauthnCredential[]> {
+        if (!WebauthnService.credentialsCache) {
+            WebauthnService.credentialsCache = await this.repo.find();
+        }
+        return WebauthnService.credentialsCache;
+    }
+
+    private static pruneExpiredChallenges() {
+        const now = Date.now();
+        for (const [id, entry] of WebauthnService.pendingChallenges) {
+            if (now - entry.createdAt > CHALLENGE_TTL_MS) {
+                WebauthnService.pendingChallenges.delete(id);
+            }
+        }
+    }
+
+    private static storeChallenge(requestId: string, challenge: string) {
+        WebauthnService.pruneExpiredChallenges();
+        WebauthnService.pendingChallenges.set(requestId, { challenge, createdAt: Date.now() });
+    }
+
+    private static consumeChallenge(requestId: string): string {
+        const entry = WebauthnService.pendingChallenges.get(requestId);
+        WebauthnService.pendingChallenges.delete(requestId);
+        if (!entry || Date.now() - entry.createdAt > CHALLENGE_TTL_MS) {
+            throw new ApiError('Challenge expired — try again', 400);
+        }
+        return entry.challenge;
+    }
 
     async getStatus() {
-        const count = await this.repo.count();
-        return { registered: count > 0 };
+        const existing = await this.getCachedCredentials();
+        return { registered: existing.length > 0 };
     }
 
     // Combines the "is a device already registered" check with generating the
     // matching options into one round trip, so the browser's biometric prompt
     // appears after a single request instead of two sequential ones.
-    async generateChallenge(deviceName?: string) {
-        const existing = await this.repo.find();
+    async generateChallenge(requestId: string, deviceName?: string) {
+        const existing = await this.getCachedCredentials();
         if (existing.length === 0) {
-            return { type: 'register' as const, options: await this.buildRegistrationOptions(existing, deviceName) };
+            return { type: 'register' as const, options: await this.buildRegistrationOptions(requestId, existing, deviceName) };
         }
-        return { type: 'authenticate' as const, options: await this.buildAuthenticationOptions(existing) };
+        return { type: 'authenticate' as const, options: await this.buildAuthenticationOptions(requestId, existing) };
     }
 
     async listDevices() {
@@ -58,13 +100,10 @@ export class WebauthnService {
         const cred = await this.repo.findOneBy({ id });
         if (!cred) throw new ApiError('Device not found', 404);
         await this.repo.remove(cred);
+        WebauthnService.credentialsCache = null;
     }
 
-    async generateRegistration(deviceName?: string) {
-        return this.buildRegistrationOptions(await this.repo.find(), deviceName);
-    }
-
-    private async buildRegistrationOptions(existing: WebauthnCredential[], deviceName?: string) {
+    private async buildRegistrationOptions(requestId: string, existing: WebauthnCredential[], deviceName?: string) {
         const options = await generateRegistrationOptions({
             rpName: RP_NAME,
             rpID: getRpID(),
@@ -83,13 +122,12 @@ export class WebauthnService {
             },
         });
 
-        WebauthnService.currentChallenge = options.challenge;
+        WebauthnService.storeChallenge(requestId, options.challenge);
         return options;
     }
 
-    async verifyRegistration(response: RegistrationResponseJSON, deviceName?: string) {
-        const expectedChallenge = WebauthnService.currentChallenge;
-        if (!expectedChallenge) throw new ApiError('No registration in progress', 400);
+    async verifyRegistration(requestId: string, response: RegistrationResponseJSON, deviceName?: string) {
+        const expectedChallenge = WebauthnService.consumeChallenge(requestId);
 
         const verification = await verifyRegistrationResponse({
             response,
@@ -97,8 +135,6 @@ export class WebauthnService {
             expectedOrigin: getOrigin(),
             expectedRPID: getRpID(),
         });
-
-        WebauthnService.currentChallenge = null;
 
         if (!verification.verified || !verification.registrationInfo) {
             throw new ApiError('Registration could not be verified', 400);
@@ -113,17 +149,12 @@ export class WebauthnService {
             deviceName: deviceName || 'This device',
         });
         await this.repo.save(record);
+        WebauthnService.credentialsCache = null;
 
         return { verified: true };
     }
 
-    async generateAuthentication() {
-        const existing = await this.repo.find();
-        if (existing.length === 0) throw new ApiError('No device registered', 400);
-        return this.buildAuthenticationOptions(existing);
-    }
-
-    private async buildAuthenticationOptions(existing: WebauthnCredential[]) {
+    private async buildAuthenticationOptions(requestId: string, existing: WebauthnCredential[]) {
         const options = await generateAuthenticationOptions({
             rpID: getRpID(),
             userVerification: 'required',
@@ -133,13 +164,12 @@ export class WebauthnService {
             })),
         });
 
-        WebauthnService.currentChallenge = options.challenge;
+        WebauthnService.storeChallenge(requestId, options.challenge);
         return options;
     }
 
-    async verifyAuthentication(response: AuthenticationResponseJSON) {
-        const expectedChallenge = WebauthnService.currentChallenge;
-        if (!expectedChallenge) throw new ApiError('No authentication in progress', 400);
+    async verifyAuthentication(requestId: string, response: AuthenticationResponseJSON) {
+        const expectedChallenge = WebauthnService.consumeChallenge(requestId);
 
         const cred = await this.repo.findOneBy({ credentialId: response.id });
         if (!cred) throw new ApiError('Unknown credential', 400);
@@ -156,8 +186,6 @@ export class WebauthnService {
                 transports: cred.transports as any,
             },
         });
-
-        WebauthnService.currentChallenge = null;
 
         if (!verification.verified) {
             throw new ApiError('Verification failed', 401);
