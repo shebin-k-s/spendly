@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import { Provider } from 'react-redux';
 
 import { SwipeGestureProvider } from '@/context/SwipeGestureContext';
+import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { store } from '@/store/store';
 import ProtectedRoute from '@/routes/ProtectedRoute';
 import PublicRoute from '@/routes/PublicRoute';
@@ -47,6 +48,7 @@ const persister = createSyncStoragePersister({
 
 export default function App() {
   return (
+    <ThemeProvider>
     <Provider store={store}>
       <PersistQueryClientProvider
         client={queryClient}
@@ -63,27 +65,7 @@ export default function App() {
         }}
       >
         <SwipeGestureProvider>
-        <Toaster
-          theme="dark"
-          position="bottom-center"
-          gap={8}
-          toastOptions={{
-            style: {
-              background: 'hsl(0 0% 12%)',
-              border: '1px solid hsl(0 0% 18%)',
-              color: 'hsl(0 0% 92%)',
-              borderRadius: '16px',
-              fontSize: '13px',
-              fontWeight: '500',
-              padding: '12px 16px',
-              boxShadow: '0 8px 32px hsl(0 0% 0% / 0.4)',
-            },
-            classNames: {
-              success: 'toast-success',
-              error: 'toast-error',
-            },
-          }}
-        />
+        <AppToaster />
         <BrowserRouter>
           <Routes>
             <Route path="/unlock" element={<PublicRoute><UnlockPage /></PublicRoute>} />
@@ -110,5 +92,34 @@ export default function App() {
       </SwipeGestureProvider>
     </PersistQueryClientProvider>
     </Provider>
+    </ThemeProvider>
+  );
+}
+
+function AppToaster() {
+  const { theme } = useTheme();
+
+  return (
+    <Toaster
+      theme={theme}
+      position="bottom-center"
+      gap={8}
+      toastOptions={{
+        style: {
+          background: 'hsl(var(--card))',
+          border: '1px solid hsl(var(--border))',
+          color: 'hsl(var(--foreground))',
+          borderRadius: '16px',
+          fontSize: '13px',
+          fontWeight: '500',
+          padding: '12px 16px',
+          boxShadow: '0 8px 32px hsl(0 0% 0% / 0.4)',
+        },
+        classNames: {
+          success: 'toast-success',
+          error: 'toast-error',
+        },
+      }}
+    />
   );
 }

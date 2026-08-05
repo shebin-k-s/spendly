@@ -13,7 +13,7 @@ export default function CategoryCard({ category }: CategoryCardProps) {
       className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl border border-border bg-card active:opacity-60 transition-opacity"
     >
       <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-xl shrink-0"
+        className="w-9 h-9 rounded-xl flex items-center justify-center text-xl shrink-0 icon-badge"
         style={{ backgroundColor: category.color }}
       >
         {category.icon}

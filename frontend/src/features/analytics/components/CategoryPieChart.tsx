@@ -43,11 +43,11 @@ export default function CategoryPieChart({ breakdown, total, isLoading }: Catego
     const item = payload[0].payload;
     const hasCashback = (item.cashbackTotal ?? 0) > 0;
     return (
-      <div style={{ background: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 16%)', borderRadius: '8px', fontSize: '12px', color: 'hsl(0 0% 95%)', padding: '8px 12px' }}>
-        <p style={{ color: 'hsl(0 0% 60%)', marginBottom: '4px' }}>{item.icon} {item.name}</p>
+      <div style={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px', color: 'hsl(var(--popover-foreground))', padding: '8px 12px' }}>
+        <p style={{ color: 'hsl(var(--muted-foreground))', marginBottom: '4px' }}>{item.icon} {item.name}</p>
         <p>{formatINR(item.net)}</p>
         {showGross && hasCashback && (
-          <p style={{ color: 'hsl(0 0% 50%)', textDecoration: 'line-through', fontSize: '10px' }}>{formatINR(item.total)}</p>
+          <p style={{ color: 'hsl(var(--muted-foreground))', textDecoration: 'line-through', fontSize: '10px' }}>{formatINR(item.total)}</p>
         )}
       </div>
     );

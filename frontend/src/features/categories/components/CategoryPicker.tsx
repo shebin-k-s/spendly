@@ -132,7 +132,7 @@ export function CategoryPicker({
                       </span>
                     )}
                     <span
-                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl icon-badge"
                       style={{ backgroundColor: cat.color }}
                     >
                       {cat.icon}

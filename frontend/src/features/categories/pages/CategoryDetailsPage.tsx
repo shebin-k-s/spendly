@@ -136,7 +136,7 @@ export default function CategoryDetailsPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 icon-badge"
             style={{ backgroundColor: category.color }}
           >
             {category.icon}

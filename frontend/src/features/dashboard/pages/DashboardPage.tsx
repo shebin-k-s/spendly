@@ -8,6 +8,7 @@ import { setDate } from '@/store/dateSlice';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
+import ThemeToggle from '@/components/ThemeToggle';
 import MonthNavigator from '@/features/expenses/components/MonthNavigator';
 import { useMonthlySummary, useExpensesQuery } from '@/features/expenses/hooks/useExpenses';
 import MonthSummaryCard from '../components/MonthSummaryCard';
@@ -89,17 +90,20 @@ export default function DashboardPage() {
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="text-xs text-muted-foreground">Overview</p>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">{monthLabel(year, month)}</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xl font-bold truncate">{monthLabel(year, month)}</h1>
             <DataFreshnessIndicator
               status={summaryFreshness.status}
               isFetching={summaryFreshness.isFetching}
             />
           </div>
         </div>
-        <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+        </div>
       </div>
 
       <div className="page-content space-y-4">

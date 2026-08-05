@@ -55,11 +55,11 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
     const { net, gross } = payload[0].payload as { net: number; gross: number };
     const hasCashback = gross > net;
     return (
-      <div style={{ background: 'hsl(0 0% 8%)', border: '1px solid hsl(0 0% 16%)', borderRadius: '8px', fontSize: '12px', color: 'hsl(0 0% 95%)', padding: '8px 12px' }}>
-        <p style={{ color: 'hsl(0 0% 60%)', marginBottom: '4px' }}>{label}</p>
+      <div style={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px', color: 'hsl(var(--popover-foreground))', padding: '8px 12px' }}>
+        <p style={{ color: 'hsl(var(--muted-foreground))', marginBottom: '4px' }}>{label}</p>
         <p>₹{net.toLocaleString('en-IN')}</p>
         {showGross && hasCashback && (
-          <p style={{ color: 'hsl(0 0% 50%)', textDecoration: 'line-through', fontSize: '10px' }}>₹{gross.toLocaleString('en-IN')}</p>
+          <p style={{ color: 'hsl(var(--muted-foreground))', textDecoration: 'line-through', fontSize: '10px' }}>₹{gross.toLocaleString('en-IN')}</p>
         )}
       </div>
     );
@@ -98,15 +98,15 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
                 dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: 'hsl(0 0% 50%)' }}
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
               />
               <YAxis hide domain={[0, maxNet * 1.15]} />
-              <Tooltip cursor={{ fill: 'hsl(0 0% 12%)' }} content={<CustomTooltip />} />
+              <Tooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<CustomTooltip />} />
               <Bar dataKey="barHeight" radius={[6, 6, 0, 0]}>
                 {chartData.map((entry, index) => (
                   <Cell
                     key={index}
-                    fill={entry.isCurrent ? 'hsl(263 70% 65%)' : 'hsl(263 70% 65% / 0.35)'}
+                    fill={entry.isCurrent ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.35)'}
                   />
                 ))}
               </Bar>
