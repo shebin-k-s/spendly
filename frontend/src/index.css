@@ -29,43 +29,41 @@ input[type=number] {
   :root {
     --radius: 0.75rem;
 
-    /* A soft, muted light theme rather than stark white-on-white — low
-       saturation with a faint cool/lavender tint (matches the purple
-       primary), foreground stops short of pure black, and cards stay a
-       hair below full white so nothing feels clinical. */
-    --background: 250 12% 93%;
-    --foreground: 250 12% 16%;
+    /* Crisp minimal: pure white, near-black text, no color tint. Depth
+       comes from borders, not a background/card split. */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 7%;
 
-    --card: 250 15% 97%;
-    --card-foreground: 250 12% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
 
-    --popover: 250 15% 97%;
-    --popover-foreground: 250 12% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
 
-    --primary: 263 60% 55%;
+    --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 250 10% 88%;
-    --secondary-foreground: 250 10% 22%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 215 28% 17%;
 
-    --muted: 250 10% 89%;
-    --muted-foreground: 250 6% 46%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
 
-    --accent: 250 10% 86%;
-    --accent-foreground: 250 12% 16%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 0 0% 7%;
 
-    --destructive: 0 65% 50%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 50% 37%;
+    --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 75% 44%;
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 250 10% 83%;
-    --input: 250 10% 86%;
-    --ring: 263 60% 55%;
+    --border: 220 13% 91%;
+    --input: 220 13% 89%;
+    --ring: 262 83% 58%;
   }
 
   .dark {
