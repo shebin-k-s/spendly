@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="hsl(0 0% 4%)" />
 
     <!-- PWA / iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,7 +14,10 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Spendly</title>
     <script>
-      if (localStorage.getItem('spendly_theme') !== 'light') {
+      // Keep these two hsl(...) values in sync with --background in index.css.
+      if (localStorage.getItem('spendly_theme') === 'light') {
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', 'hsl(250 12% 93%)');
+      } else {
         document.documentElement.classList.add('dark');
       }
     </script>
