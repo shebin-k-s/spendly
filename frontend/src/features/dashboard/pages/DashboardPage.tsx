@@ -8,7 +8,7 @@ import { setDate } from '@/store/dateSlice';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
-import ThemeToggle from '@/components/ThemeToggle';
+import HeaderMenu from '@/components/HeaderMenu';
 import MonthNavigator from '@/features/expenses/components/MonthNavigator';
 import { useMonthlySummary, useExpensesQuery } from '@/features/expenses/hooks/useExpenses';
 import MonthSummaryCard from '../components/MonthSummaryCard';
@@ -101,8 +101,8 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+          <HeaderMenu />
         </div>
       </div>
 

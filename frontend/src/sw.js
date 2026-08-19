@@ -142,6 +142,8 @@ async function callApi(path, options = {}) {
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'AUTH_UPDATE') {
     saveAuth(event.data.token, event.data.apiBase).catch(() => { });
+  } else if (event.data?.type === 'AUTH_CLEAR') {
+    caches.open(AUTH_CACHE).then((c) => c.delete('/_auth')).catch(() => { });
   } else if (event.data?.type === 'APP_HEARTBEAT') {
     saveHeartbeat().catch(() => { });
   } else if (event.data?.type === 'APP_TAKEN_OVER_SHARE') {

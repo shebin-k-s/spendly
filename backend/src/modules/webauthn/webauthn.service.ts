@@ -91,6 +91,20 @@ export class WebauthnService {
         return { type: 'authenticate' as const, options: await this.buildAuthenticationOptions(requestId, existing) };
     }
 
+    // Used by the (unauthenticated) login page — unlike generateChallenge(),
+    // this never falls back to a registration ceremony, since that would let
+    // anyone hitting this public endpoint enroll themselves as a trusted device.
+    // A device can only ever be registered while already logged in (via the
+    // cashback-toggle flow), so login-by-fingerprint just authenticates
+    // against whatever's already on file.
+    async generateLoginChallenge(requestId: string) {
+        const existing = await this.getCachedCredentials();
+        if (existing.length === 0) {
+            throw new ApiError('No biometric device registered yet', 400);
+        }
+        return this.buildAuthenticationOptions(requestId, existing);
+    }
+
     async listDevices() {
         const creds = await this.repo.find({ order: { createdAt: 'DESC' } });
         return creds.map((c) => ({ id: c.id, deviceName: c.deviceName, createdAt: c.createdAt }));

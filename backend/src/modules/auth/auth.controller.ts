@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { isKeyValid } from '../../common/utils/keyValid';
 import { ApiError } from '../../common/middlewares/error.middleware';
+import { WebauthnService } from '../webauthn/webauthn.service';
+
+const webauthnService = new WebauthnService();
 
 const ACCESS_EXPIRY = '1d';
 const REFRESH_EXPIRY = '7d';
@@ -35,6 +38,37 @@ export class AuthController {
         setRefreshCookie(res, signRefresh());
 
         res.json({ accessToken });
+    };
+
+    biometricChallenge = async (req: Request, res: Response) => {
+        const { requestId } = req.body as { requestId?: string };
+        if (!requestId) throw new ApiError('requestId is required', 400);
+
+        const options = await webauthnService.generateLoginChallenge(requestId);
+        res.json({ options });
+    };
+
+    biometricLogin = async (req: Request, res: Response) => {
+        const { requestId, response } = req.body as { requestId?: string; response?: any };
+        if (!requestId || !response) throw new ApiError('requestId and response are required', 400);
+
+        await webauthnService.verifyAuthentication(requestId, response);
+
+        const accessToken = signAccess();
+        setRefreshCookie(res, signRefresh());
+        res.json({ accessToken });
+    };
+
+    // Clears the httpOnly refresh cookie server-side — clearing localStorage's
+    // access token alone isn't enough, since the SW/interceptor would just use
+    // the still-valid refresh cookie to silently mint a new one.
+    logout = (req: Request, res: Response) => {
+        res.clearCookie('refreshToken', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'none',
+        });
+        res.sendStatus(204);
     };
 
     refresh = (req: Request, res: Response) => {

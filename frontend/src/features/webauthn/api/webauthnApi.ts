@@ -41,3 +41,20 @@ export const webauthnApi = {
     return data;
   },
 };
+
+// Separate, unauthenticated endpoints for the login page — these only ever
+// authenticate against a device registered earlier (see backend
+// generateLoginChallenge), never register a new one.
+const LOGIN_URL = '/auth/webauthn';
+
+export const webauthnLoginApi = {
+  async getChallenge(requestId: string): Promise<{ options: PublicKeyCredentialRequestOptionsJSON }> {
+    const { data } = await apiClient.post(`${LOGIN_URL}/challenge`, { requestId });
+    return data;
+  },
+
+  async login(requestId: string, response: AuthenticationResponseJSON): Promise<{ accessToken: string }> {
+    const { data } = await apiClient.post(`${LOGIN_URL}/login`, { requestId, response });
+    return data;
+  },
+};

@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Fingerprint, Loader2 } from 'lucide-react';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/utils/getErrorMessage';
+import { useBiometricLogin } from '@/features/webauthn/hooks/useBiometricLogin';
 
 export default function UnlockPage() {
   const navigate = useNavigate();
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const biometric = useBiometricLogin();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +80,30 @@ export default function UnlockPage() {
               {loading ? 'Unlocking…' : 'Unlock'}
             </button>
           </form>
+
+          {biometric.supported && (
+            <>
+              <div className="flex items-center gap-3 my-4">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+
+              <button
+                type="button"
+                onClick={biometric.login}
+                disabled={biometric.verifying}
+                className="w-full h-12 flex items-center justify-center gap-2 rounded-xl border border-border text-sm font-medium disabled:opacity-60"
+              >
+                {biometric.verifying ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Fingerprint className="w-4 h-4" />
+                )}
+                {biometric.verifying ? 'Verifying…' : 'Sign in with fingerprint'}
+              </button>
+            </>
+          )}
         </div>
 
       </div>
