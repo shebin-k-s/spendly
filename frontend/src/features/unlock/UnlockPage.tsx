@@ -60,7 +60,6 @@ export default function UnlockPage() {
               value={key}
               onChange={(e) => { setKey(e.target.value); setError(''); }}
               placeholder="••••••"
-              autoFocus
               autoComplete="current-password"
               onFocus={(e) =>
                 setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)

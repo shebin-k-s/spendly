@@ -30,8 +30,11 @@ export function useBiometricLogin() {
     try {
       const requestId = crypto.randomUUID();
       const { options } = await webauthnLoginApi.getChallenge(requestId);
-      const authResp = await startAuthentication({ optionsJSON: options });
+      // Clear right after the actual network round trip — startAuthentication()
+      // below just waits on the user's fingerprint prompt, which has nothing to
+      // do with the server being slow to wake up.
       clearTimeout(wakeupTimer);
+      const authResp = await startAuthentication({ optionsJSON: options });
 
       const { accessToken } = await webauthnLoginApi.login(requestId, authResp);
       localStorage.setItem('accessToken', accessToken);
