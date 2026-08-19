@@ -1,10 +1,12 @@
 import { AppDataSource } from '../../config/data.source';
 import { Expense } from './expense.entity';
+import { MonthlyAiInsight } from './monthly-ai-insight.entity';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { getISTParts } from '../../common/utils/date.utils';
 
 export class ExpenseService {
     private repo = AppDataSource.getRepository(Expense);
+    private insightRepo = AppDataSource.getRepository(MonthlyAiInsight);
 
     async getByMonth(year: number, month: number, categoryId?: string) {
         // month is 1-indexed
@@ -180,6 +182,29 @@ export class ExpenseService {
             monthly,
             expenses,
         };
+    }
+
+    // Returns the cached points only if they were generated from these exact
+    // numbers — otherwise null, so the caller knows to ask the AI again.
+    // A row surviving from an earlier, differently-shaped cache format could
+    // fail to parse — treat that the same as a miss rather than erroring.
+    async getCachedInsight(year: number, month: number, inputHash: string): Promise<string[] | null> {
+        const row = await this.insightRepo.findOneBy({ year, month });
+        if (!row || row.inputHash !== inputHash) return null;
+        try {
+            const parsed = JSON.parse(row.points);
+            return Array.isArray(parsed) ? parsed : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async saveInsight(year: number, month: number, inputHash: string, points: string[]) {
+        let row = await this.insightRepo.findOneBy({ year, month });
+        if (!row) row = this.insightRepo.create({ year, month });
+        row.inputHash = inputHash;
+        row.points = JSON.stringify(points);
+        await this.insightRepo.save(row);
     }
 
     async getAnalytics(months: number = 6) {

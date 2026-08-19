@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
-import { ExpenseAiService } from './expense.ai.service';
+import { ExpenseAiService, type MonthAnalysisInput } from './expense.ai.service';
 import { getISTParts } from '../../common/utils/date.utils';
 
 const log = {
@@ -34,6 +35,98 @@ export class ExpenseController {
     getAnalytics = async (req: Request, res: Response) => {
         const months = parseInt(req.query.months as string) || 6;
         res.json(await service.getAnalytics(months));
+    };
+
+    analyzeMonth = async (req: Request, res: Response) => {
+        const { year: istYear, month: istMonth } = getISTParts();
+        const year = parseInt(req.query.year as string) || istYear;
+        const month = parseInt(req.query.month as string) || istMonth;
+
+        const summary = await service.getMonthlySummary(year, month);
+        if (summary.count === 0) {
+            res.status(400).json({ message: 'No expenses to analyze for this month' });
+            return;
+        }
+
+        // Previous 3 months (not just 1) — lets the AI tell a real streak
+        // ("risen 3 months running") from a one-off blip, not just a single
+        // MoM delta. JS Date rolls negative months back a year automatically.
+        const prevMonthDates = [1, 2, 3].map(i => new Date(year, month - 1 - i, 1));
+        const [prevSummaries, monthExpenses] = await Promise.all([
+            Promise.all(prevMonthDates.map(d => service.getMonthlySummary(d.getFullYear(), d.getMonth() + 1))),
+            service.getByMonth(year, month),
+        ]);
+        const [prevSummary] = prevSummaries;
+
+        const topExpense = monthExpenses.reduce<typeof monthExpenses[number] | null>(
+            (max, e) => (!max || Number(e.amount) > Number(max.amount)) ? e : max,
+            null,
+        );
+
+        // Real day-of-week concentration, computed straight from this
+        // month's actual transaction dates — not something the AI infers.
+        const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayTotals = new Array(7).fill(0);
+        for (const e of monthExpenses) {
+            const net = Number(e.amount) - Number(e.cashback || 0);
+            dayTotals[new Date(`${e.date}T00:00:00`).getDay()] += net;
+        }
+        const dayNetTotal = dayTotals.reduce((a, b) => a + b, 0);
+        const topDayIdx = dayTotals.reduce((best, v, i) => (v > dayTotals[best] ? i : best), 0);
+        const dayOfWeekTop = dayNetTotal > 0 && dayTotals[topDayIdx] > 0
+            ? { day: DAY_NAMES[topDayIdx], share: Math.round((dayTotals[topDayIdx] / dayNetTotal) * 100) }
+            : null;
+
+        const input: MonthAnalysisInput = {
+            year,
+            month,
+            total: Math.round((summary.total - summary.cashbackTotal) * 100) / 100,
+            cashbackTotal: summary.cashbackTotal,
+            count: summary.count,
+            breakdown: summary.breakdown.map(b => ({
+                name: b.name,
+                net: Math.round((b.total - b.cashbackTotal) * 100) / 100,
+                count: b.count,
+            })),
+            previousMonthNet: prevSummary.count > 0
+                ? Math.round((prevSummary.total - prevSummary.cashbackTotal) * 100) / 100
+                : null,
+            previousBreakdown: prevSummary.breakdown.map(b => ({
+                name: b.name,
+                net: Math.round((b.total - b.cashbackTotal) * 100) / 100,
+            })),
+            recentTotals: prevMonthDates
+                .map((d, i) => ({ d, s: prevSummaries[i] }))
+                .filter(({ s }) => s.count > 0)
+                .reverse() // oldest first, for a natural chronological read
+                .map(({ d, s }) => ({
+                    label: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+                    net: Math.round((s.total - s.cashbackTotal) * 100) / 100,
+                })),
+            topTransaction: topExpense ? {
+                description: topExpense.description,
+                amount: Number(topExpense.amount),
+                category: topExpense.category?.name ?? 'Uncategorized',
+            } : null,
+            dayOfWeekTop,
+        };
+        const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
+
+        const cached = await service.getCachedInsight(year, month, inputHash);
+        if (cached) {
+            res.json({ points: cached, cached: true });
+            return;
+        }
+
+        if (!process.env.GEMINI_API_KEY) {
+            log.error('gemini: GEMINI_API_KEY not configured');
+            res.status(503).json({ message: 'AI analysis not configured' });
+            return;
+        }
+
+        const generated = await aiService.analyzeMonth(input);
+        await service.saveInsight(year, month, inputHash, generated);
+        res.json({ points: generated, cached: false });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {

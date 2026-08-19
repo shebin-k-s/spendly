@@ -70,6 +70,22 @@ export function usePrefetchCategorySpend() {
   };
 }
 
+const ANALYSIS_KEY = ['expenses', 'analyze'] as const;
+
+// enabled: false — this must only ever run when the user taps "Analyze"
+// (via refetch()), never automatically on mount, since a cache miss on the
+// backend means a real Gemini call. React Query's own persisted cache means
+// a month analyzed in an earlier session shows up instantly on revisit
+// without needing any server-side "peek" endpoint.
+export function useMonthAnalysis(year: number, month: number) {
+  return useQuery({
+    queryKey: [...ANALYSIS_KEY, year, month],
+    queryFn: () => expensesApi.analyzeMonth(year, month),
+    enabled: false,
+    retry: false,
+  });
+}
+
 export function useCreateExpense() {
   const qc = useQueryClient();
   return useMutation({

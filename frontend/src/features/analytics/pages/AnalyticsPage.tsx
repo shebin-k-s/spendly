@@ -1,5 +1,9 @@
+import { useEffect } from 'react';
+import { toast } from 'sonner';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { currentYearMonth, monthLabel } from '@/lib/utils';
-import { useAnalytics, useMonthlySummary } from '@/features/expenses/hooks/useExpenses';
+import { useAnalytics, useMonthlySummary, useMonthAnalysis } from '@/features/expenses/hooks/useExpenses';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
@@ -24,6 +28,14 @@ export default function AnalyticsPage() {
   const { data: summary, isLoading: summaryLoading } = summaryQuery;
   const summaryFreshness = useQueryFreshness(summaryQuery);
   useRefetchOnFocus(summaryQuery);
+
+  // Query key includes year/month, so switching months naturally shows that
+  // month's own cached result (if this session — or a persisted past one —
+  // already fetched it) with no manual reset needed.
+  const analysis = useMonthAnalysis(year, month);
+  useEffect(() => {
+    if (analysis.error) toast.error(getErrorMessage(analysis.error));
+  }, [analysis.error]);
 
   return (
     <div className="animate-fade-in">
@@ -86,6 +98,56 @@ export default function AnalyticsPage() {
             <p className="text-sm text-muted-foreground text-center py-4">No data for {monthLabel(year, month)}</p>
           )}
         </div>
+
+        {/* AI summary — its own card, same as every other section here,
+            instead of tacked onto the end of Month Detail's stat grid. */}
+        {summary && summary.count > 0 && (
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">AI Summary</p>
+            </div>
+
+            {analysis.data ? (
+              <div className="space-y-2">
+                <ul className="space-y-2.5">
+                  {analysis.data.points.map((point, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm leading-relaxed">
+                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0 mt-1.5" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+                {/* Nothing here auto-detects new expenses added after this was
+                    generated — re-analyzing is a deliberate re-ask, and the
+                    backend's own hash check decides whether that's actually
+                    a fresh Gemini call or just the same cached answer. */}
+                <button
+                  type="button"
+                  onClick={() => analysis.refetch()}
+                  disabled={analysis.isFetching}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
+                >
+                  {analysis.isFetching ? 'Re-analyzing…' : 'Re-analyze'}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => analysis.refetch()}
+                disabled={analysis.isFetching}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium hover:bg-secondary/30 transition-colors disabled:opacity-60"
+              >
+                {analysis.isFetching ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {analysis.isFetching ? 'Analyzing…' : 'Analyze this month'}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Category pie chart for selected month */}
         <CategoryPieChart

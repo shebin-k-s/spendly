@@ -4,6 +4,20 @@ import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils
 
 export interface CategoryOption { id: string; name: string; icon: string; }
 
+export interface MonthAnalysisInput {
+    year: number;
+    month: number;
+    total: number;
+    cashbackTotal: number;
+    count: number;
+    breakdown: { name: string; net: number; count: number }[];
+    previousMonthNet: number | null;
+    previousBreakdown: { name: string; net: number }[];
+    recentTotals: { label: string; net: number }[];
+    topTransaction: { description: string; amount: number; category: string } | null;
+    dayOfWeekTop: { day: string; share: number } | null;
+}
+
 export class ExpenseAiService {
     private readonly timeoutMs = 25_000;
     private readonly modelFallbacks = [
@@ -213,6 +227,79 @@ ${merchantHintBlock}
 ${itemHintBlock}
 
 ${categoryBlock}`;
+    }
+
+    private buildMonthAnalysisPrompt(input: MonthAnalysisInput): string {
+        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransaction, dayOfWeekTop } = input;
+        const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
+
+        const breakdownLines = breakdown
+            .slice(0, 8)
+            .map(b => `- ${b.name}: ₹${b.net} (${b.count} transaction${b.count === 1 ? '' : 's'})`)
+            .join('\n');
+
+        const momLine = previousMonthNet !== null
+            ? `Previous month's total net spend: ₹${previousMonthNet}.`
+            : 'No previous month data available — this is the first tracked month, so skip any month-to-month comparison.';
+
+        const prevBreakdownBlock = previousBreakdown.length > 0
+            ? `Previous month's category breakdown, for comparing category-by-category (not just the overall total):\n${previousBreakdown.map(b => `- ${b.name}: ₹${b.net}`).join('\n')}`
+            : 'No previous month category breakdown available.';
+
+        const trendBlock = recentTotals.length >= 2
+            ? `Total net spend trend over recent months, oldest first (use this to say whether this is part of a real multi-month streak, not just a one-off change vs last month):\n${recentTotals.map(r => `- ${r.label}: ₹${r.net}`).join('\n')}\n- ${monthName} ${year} (this month): ₹${total}`
+            : 'Not enough month-to-month history yet for a multi-month trend — skip trend-over-time commentary.';
+
+        const topTransactionLine = topTransaction
+            ? `Single largest transaction this month: "${topTransaction.description}" — ₹${topTransaction.amount} (${topTransaction.category}).`
+            : '';
+
+        const dayOfWeekLine = dayOfWeekTop && dayOfWeekTop.share >= 30
+            ? `Day-of-week pattern: ${dayOfWeekTop.share}% of this month's net spend happened on ${dayOfWeekTop.day}s specifically (summed across every ${dayOfWeekTop.day} this month).`
+            : 'No single day-of-week stands out this month — spend was fairly spread across the week.';
+
+        return `You are a personal finance assistant. Write a short spending summary for ${monthName} ${year} using ONLY the numbers given below — never invent, estimate, or assume anything not explicitly listed here.
+
+Total net spend: ₹${total} across ${count} transaction${count === 1 ? '' : 's'}.
+Cashback earned: ₹${cashbackTotal}.
+${momLine}
+${topTransactionLine}
+${dayOfWeekLine}
+
+This month's category breakdown (net spend, highest first):
+${breakdownLines}
+
+${prevBreakdownBlock}
+
+${trendBlock}
+
+Return ONLY a JSON array of exactly 4 short strings (no markdown, no explanation outside the array) — each string is ONE standalone point, meant to be read as a separate line, not a paragraph:
+
+1. Compare THIS month's category breakdown against the PREVIOUS month's category-by-category (not the overall totals) and call out the single category that moved the most, by name, with its approximate ₹ or % shift — e.g. "Food & Dining nearly doubled from ₹1,200 to ₹2,243." If a category exists in one month's list but not the other, say so explicitly (a new habit appearing, or one that stopped).
+2. Using the multi-month trend given above (if there's enough history), say whether this month continues a real streak (e.g. "third month in a row above ₹7,000") or is a return-to-normal / one-off deviation from a more stable pattern (e.g. "back in line with your typical ₹X after last month's spike") — do NOT just restate a single month-over-month %, actually characterize the shape of the trend across the months given.
+3. Mention the single largest transaction (given above, if present) by its description and amount, framed as a specific standout moment — e.g. "Your biggest single purchase was Rent at ₹1,750."
+4. If a day-of-week pattern is given above, use it verbatim as this point (e.g. "42% of your spending this month happened on Saturdays"). If none stood out, give one other genuinely specific observation instead (e.g. a category with an unusually high transaction count for its total, or cashback earned being ₹0 despite meaningful spend).
+
+Each string must be direct and specific like a friend who actually looked closely at your numbers — never a vague sentence like "spending was up this month." Use ₹ for all amounts. Do not mention anything not present in the data above. Example shape: ["Food & Dining dropped from ₹3,505 to ₹2,243 this month.", "This is the third month in a row your spending has landed above ₹7,000.", "Your biggest single purchase was Rent at ₹1,750.", "42% of your spending this month happened on Saturdays."]`;
+    }
+
+    async analyzeMonth(input: MonthAnalysisInput): Promise<string[]> {
+        const prompt = this.buildMonthAnalysisPrompt(input);
+        const rawText = await this.runModel([prompt]);
+
+        let jsonStr = rawText.trim();
+        const firstBracket = jsonStr.indexOf('[');
+        const lastBracket = jsonStr.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket >= firstBracket) {
+            jsonStr = jsonStr.substring(firstBracket, lastBracket + 1);
+        }
+        try {
+            const points = JSON.parse(jsonStr);
+            if (Array.isArray(points) && points.every(p => typeof p === 'string')) return points;
+        } catch {
+            // fall through
+        }
+        throw new ApiError('AI returned an unreadable response', 422);
     }
 
     private isOverloadedError(err: unknown): boolean {

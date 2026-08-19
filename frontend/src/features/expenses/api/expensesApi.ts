@@ -30,6 +30,13 @@ export const expensesApi = {
     return data;
   },
 
+  async analyzeMonth(year: number, month: number): Promise<{ points: string[]; cached: boolean }> {
+    const { data } = await apiClient.get<{ points: string[]; cached: boolean }>(`${URL}/analyze`, {
+      params: { year, month },
+    });
+    return data;
+  },
+
   async getCategorySpend(categoryId: string, range: CategorySpendRange): Promise<CategorySpend> {
     const { data } = await apiClient.get<CategorySpend>(`${URL}/by-category`, {
       params: { categoryId, ...range },
