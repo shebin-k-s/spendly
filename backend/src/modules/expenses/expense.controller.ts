@@ -16,6 +16,51 @@ const service = new ExpenseService();
 const categoryService = new CategoryService();
 const aiService = new ExpenseAiService();
 
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Two category names are "related" if one appears as a whole word inside
+// the other (case-insensitive) — e.g. "Family" and "Family Movie". Deviation
+// checks that only ever look at one category at a time miss a spike that's
+// really split across a couple of related ones.
+function categoriesAreRelated(a: string, b: string): boolean {
+    const na = a.trim().toLowerCase();
+    const nb = b.trim().toLowerCase();
+    if (na === nb) return false;
+    return new RegExp(`\\b${escapeRegExp(na)}\\b`, 'i').test(nb) || new RegExp(`\\b${escapeRegExp(nb)}\\b`, 'i').test(na);
+}
+
+// Union-find over category names using the relation above, returning only
+// the groups with 2+ members.
+function groupRelatedCategories(names: string[]): string[][] {
+    const parent = new Map<string, string>();
+    const find = (x: string): string => {
+        const p = parent.get(x) ?? x;
+        if (p === x) return x;
+        const root = find(p);
+        parent.set(x, root);
+        return root;
+    };
+    const union = (x: string, y: string) => {
+        const rx = find(x), ry = find(y);
+        if (rx !== ry) parent.set(rx, ry);
+    };
+    for (const n of names) parent.set(n, n);
+    for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) {
+            if (categoriesAreRelated(names[i], names[j])) union(names[i], names[j]);
+        }
+    }
+    const groups = new Map<string, string[]>();
+    for (const n of names) {
+        const root = find(n);
+        if (!groups.has(root)) groups.set(root, []);
+        groups.get(root)!.push(n);
+    }
+    return [...groups.values()].filter(g => g.length >= 2);
+}
+
 export class ExpenseController {
     getByMonth = async (req: Request, res: Response) => {
         const { year: istYear, month: istMonth } = getISTParts();
@@ -78,34 +123,66 @@ export class ExpenseController {
             })()
             : null;
 
-        // The category that deviates most from ITS OWN historical average
-        // (not just vs last month, which can itself have been unusual) —
-        // covers both a spike in an existing category and one that
-        // appeared/disappeared entirely.
+        // This month's per-category net spend, and the same for each
+        // qualifying past month — the shared basis for the anomaly search,
+        // the related-category grouping, and the concentration fact below.
+        const thisMonthCategoryNet: Record<string, number> = {};
+        for (const b of summary.breakdown) thisMonthCategoryNet[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
+        const pastBreakdownMaps = qualifyingPast.map(({ s }) => {
+            const map: Record<string, number> = {};
+            for (const b of s.breakdown) map[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
+            return map;
+        });
+
+        // Categories whose names clearly share a theme (e.g. "Family" and
+        // "Family Movie") — surfaced on their own below, and also fed into
+        // the anomaly search as a combined candidate, so a spike split
+        // across a couple of related categories doesn't get missed just
+        // because neither one alone looks unusual.
+        const relatedGroups = groupRelatedCategories([
+            ...new Set([...Object.keys(thisMonthCategoryNet), ...pastBreakdownMaps.flatMap(m => Object.keys(m))]),
+        ]);
+        const relatedCategoryGroups = relatedGroups
+            .map(members => ({
+                label: [...members].sort((a, b) => a.length - b.length)[0],
+                members,
+                combinedNet: Math.round(members.reduce((s, m) => s + (thisMonthCategoryNet[m] ?? 0), 0) * 100) / 100,
+            }))
+            .filter(g => g.combinedNet > 0)
+            .sort((a, b) => b.combinedNet - a.combinedNet)
+            .slice(0, 2);
+
+        // The category (or related-category group) that deviates most from
+        // ITS OWN historical average (not just vs last month, which can
+        // itself have been unusual) — covers a spike in an existing
+        // category, one that appeared/disappeared entirely, or a combined
+        // related-category spike.
         let categoryAnomaly: { name: string; thisMonth: number; historicalAvg: number; monthsCounted: number } | null = null;
         if (qualifyingPast.length >= 2) {
-            const thisMonthCategoryNet: Record<string, number> = {};
-            for (const b of summary.breakdown) thisMonthCategoryNet[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
-            const pastBreakdownMaps = qualifyingPast.map(({ s }) => {
-                const map: Record<string, number> = {};
-                for (const b of s.breakdown) map[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
-                return map;
-            });
             const allCategoryNames = new Set<string>([
                 ...Object.keys(thisMonthCategoryNet),
                 ...pastBreakdownMaps.flatMap(m => Object.keys(m)),
             ]);
             let best: { name: string; thisMonth: number; historicalAvg: number; deviation: number } | null = null;
-            for (const name of allCategoryNames) {
-                const thisVal = thisMonthCategoryNet[name] ?? 0;
-                const historicalValues = pastBreakdownMaps.map(m => m[name] ?? 0);
+            const consider = (name: string, thisVal: number, historicalValues: number[]) => {
                 const avg = historicalValues.reduce((a, b) => a + b, 0) / historicalValues.length;
                 const deviation = thisVal - avg;
                 const meaningfulThreshold = Math.max(300, avg * 0.4);
-                if (Math.abs(deviation) < meaningfulThreshold) continue;
+                if (Math.abs(deviation) < meaningfulThreshold) return;
                 if (!best || Math.abs(deviation) > Math.abs(best.deviation)) {
-                    best = { name, thisMonth: thisVal, historicalAvg: Math.round(avg * 100) / 100, deviation };
+                    best = { name, thisMonth: Math.round(thisVal * 100) / 100, historicalAvg: Math.round(avg * 100) / 100, deviation };
                 }
+            };
+            for (const name of allCategoryNames) {
+                consider(name, thisMonthCategoryNet[name] ?? 0, pastBreakdownMaps.map(m => m[name] ?? 0));
+            }
+            for (const members of relatedGroups) {
+                const label = `${[...members].sort((a, b) => a.length - b.length)[0]} (combined: ${members.join(' + ')})`;
+                consider(
+                    label,
+                    members.reduce((s, m) => s + (thisMonthCategoryNet[m] ?? 0), 0),
+                    pastBreakdownMaps.map(m => members.reduce((s, name) => s + (m[name] ?? 0), 0)),
+                );
             }
             if (best) categoryAnomaly = { name: best.name, thisMonth: best.thisMonth, historicalAvg: best.historicalAvg, monthsCounted: qualifyingPast.length };
         }
@@ -118,7 +195,7 @@ export class ExpenseController {
             const net = Number(e.amount) - Number(e.cashback || 0);
             dayNetMap.set(e.date, (dayNetMap.get(e.date) ?? 0) + net);
         }
-        let heaviestDay: { date: string; net: number; topDescriptions: string[] } | null = null;
+        let heaviestDay: { date: string; net: number; topDescriptions: string[]; avgDayNet: number; spikeMultiple: number } | null = null;
         if (dayNetMap.size >= 2) {
             const [topDate, topNet] = [...dayNetMap.entries()].reduce((best, cur) => (cur[1] > best[1] ? cur : best));
             if (topNet > 0) {
@@ -127,7 +204,18 @@ export class ExpenseController {
                     .sort((a, b) => Number(b.amount) - Number(a.amount))
                     .slice(0, 3)
                     .map(e => e.description);
-                heaviestDay = { date: topDate, net: Math.round(topNet * 100) / 100, topDescriptions };
+                // Compared against the AVERAGE spending day (across days that
+                // had any spend), not the monthly total — so a real spike
+                // (e.g. ₹1,000 on a ₹200-a-day month) reads as the outlier it
+                // is, not just "the biggest of several similar days."
+                const avgDayNet = [...dayNetMap.values()].reduce((a, b) => a + b, 0) / dayNetMap.size;
+                heaviestDay = {
+                    date: topDate,
+                    net: Math.round(topNet * 100) / 100,
+                    topDescriptions,
+                    avgDayNet: Math.round(avgDayNet * 100) / 100,
+                    spikeMultiple: avgDayNet > 0 ? Math.round((topNet / avgDayNet) * 10) / 10 : 0,
+                };
             }
         }
 
@@ -241,6 +329,7 @@ export class ExpenseController {
             categoryAnomaly,
             heaviestDay,
             transactionSizeShift,
+            relatedCategoryGroups,
         };
         const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 

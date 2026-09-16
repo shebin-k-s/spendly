@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tansta
 import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
 import { getErrorMessage } from '@/utils/getErrorMessage';
+import { monthLabel } from '@/lib/utils';
 import type { CreateExpensePayload, UpdateExpensePayload, CategorySpendRange } from '../types';
 
 const EXPENSES_KEY = ['expenses'] as const;
@@ -105,8 +106,11 @@ export function useReanalyzeMonth() {
     onSuccess: (data, { year, month }) => {
       qc.setQueryData([...ANALYSIS_KEY, year, month], data);
     },
-    onError: (error) => {
-      toast.error(getErrorMessage(error));
+    // Firing re-analyze for one month, then switching and firing it again
+    // for another before the first resolves, used to produce an error toast
+    // with no indication of which month it was actually for — prefix it.
+    onError: (error, { year, month }) => {
+      toast.error(`${monthLabel(year, month)}: ${getErrorMessage(error)}`);
     },
   });
 }
