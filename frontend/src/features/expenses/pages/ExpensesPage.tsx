@@ -85,13 +85,25 @@ export default function ExpensesPage() {
     jumpHandledRef.current = true;
     setSearchParams({}, { replace: true });
     if (jumpDate) {
-      requestAnimationFrame(() => {
+      // A single requestAnimationFrame fired too early to be reliable: the
+      // route change plays a ~180ms slide transition, and Layout's own
+      // useLayoutEffect forces this page's scroll back to 0 as it enters —
+      // both can still be in flight one frame later. Wait them out, then
+      // keep retrying briefly in case the list itself is still rendering
+      // (e.g. right after clearFilters() above changes what's shown).
+      let attempts = 0;
+      const tryScroll = () => {
         const el = document.getElementById(`date-${jumpDate}`);
-        if (!el) return;
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        el.classList.add('ring-2', 'ring-primary', 'rounded-xl');
-        setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-xl'), 2500);
-      });
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          el.classList.add('ring-2', 'ring-primary', 'rounded-xl');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-xl'), 2500);
+        } else if (attempts < 10) {
+          attempts += 1;
+          setTimeout(tryScroll, 100);
+        }
+      };
+      setTimeout(tryScroll, 250);
     }
   }, [searchParams, year, month, isSuccess, dispatch, setSearchParams]);
 
