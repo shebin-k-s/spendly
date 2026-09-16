@@ -20,6 +20,13 @@ function escapeRegExp(s: string): string {
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function ordinalSuffix(n: number): string {
+    if (n % 10 === 1 && n % 100 !== 11) return 'st';
+    if (n % 10 === 2 && n % 100 !== 12) return 'nd';
+    if (n % 10 === 3 && n % 100 !== 13) return 'rd';
+    return 'th';
+}
+
 // Two category names are "related" if one appears as a whole word inside
 // the other (case-insensitive) — e.g. "Family" and "Family Movie". Deviation
 // checks that only ever look at one category at a time miss a spike that's
@@ -195,7 +202,7 @@ export class ExpenseController {
             const net = Number(e.amount) - Number(e.cashback || 0);
             dayNetMap.set(e.date, (dayNetMap.get(e.date) ?? 0) + net);
         }
-        let heaviestDay: { date: string; net: number; topDescriptions: string[]; avgDayNet: number; spikeMultiple: number } | null = null;
+        let heaviestDay: { date: string; dayLabel: string; net: number; topDescriptions: string[]; avgDayNet: number; spikeMultiple: number } | null = null;
         if (dayNetMap.size >= 2) {
             const [topDate, topNet] = [...dayNetMap.entries()].reduce((best, cur) => (cur[1] > best[1] ? cur : best));
             if (topNet > 0) {
@@ -209,8 +216,16 @@ export class ExpenseController {
                 // (e.g. ₹1,000 on a ₹200-a-day month) reads as the outlier it
                 // is, not just "the biggest of several similar days."
                 const avgDayNet = [...dayNetMap.values()].reduce((a, b) => a + b, 0) / dayNetMap.size;
+                // Weekday name is what actually jogs memory ("oh right, that
+                // was a Sunday") — a bare yyyy-MM-dd doesn't. No month name
+                // here since the whole analysis is already scoped to one.
+                const topDateObj = new Date(`${topDate}T00:00:00`);
+                const weekdayName = topDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                const dayNum = topDateObj.getDate();
+                const dayLabel = `${weekdayName}, the ${dayNum}${ordinalSuffix(dayNum)}`;
                 heaviestDay = {
                     date: topDate,
+                    dayLabel,
                     net: Math.round(topNet * 100) / 100,
                     topDescriptions,
                     avgDayNet: Math.round(avgDayNet * 100) / 100,
