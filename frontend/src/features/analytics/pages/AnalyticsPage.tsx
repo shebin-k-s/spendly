@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { currentYearMonth, monthLabel } from '@/lib/utils';
 import { useAnalytics, useMonthlySummary, useMonthAnalysis, useReanalyzeMonth } from '@/features/expenses/hooks/useExpenses';
@@ -45,7 +46,14 @@ export default function AnalyticsPage() {
     seenAnalysisError.current = analysis.error;
   }, [analysis.error]);
 
-  const reanalyze = useReanalyzeMonth(year, month);
+  const reanalyze = useReanalyzeMonth();
+  // reanalyze is one shared mutation instance — if it's mid-flight for a
+  // month the user has since navigated away from, its `variables` (the
+  // month it was actually called with) still points at that other month,
+  // so only show "Re-analyzing…" here when it's actually this month's.
+  const isReanalyzingThisMonth = reanalyze.isPending
+    && reanalyze.variables?.year === year
+    && reanalyze.variables?.month === month;
 
   return (
     <div className="animate-fade-in">
@@ -128,18 +136,23 @@ export default function AnalyticsPage() {
                     </li>
                   ))}
                 </ul>
-                {/* Explicit re-ask — always forces a fresh AI pass (bypassing
-                    the backend's hash cache) rather than silently handing
-                    back the same points when nothing about the numbers
-                    changed, which used to read as "re-analyze does nothing." */}
-                <button
-                  type="button"
-                  onClick={() => reanalyze.mutate()}
-                  disabled={reanalyze.isPending}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
-                >
-                  {reanalyze.isPending ? 'Re-analyzing…' : 'Re-analyze'}
-                </button>
+                <div className="flex items-center justify-between pt-1">
+                  <p className="text-[11px] text-muted-foreground">
+                    Last analyzed {formatDistanceToNow(new Date(analysis.data.generatedAt), { addSuffix: true })}
+                  </p>
+                  {/* Explicit re-ask — always forces a fresh AI pass (bypassing
+                      the backend's hash cache) rather than silently handing
+                      back the same points when nothing about the numbers
+                      changed, which used to read as "re-analyze does nothing." */}
+                  <button
+                    type="button"
+                    onClick={() => reanalyze.mutate({ year, month })}
+                    disabled={isReanalyzingThisMonth}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
+                  >
+                    {isReanalyzingThisMonth ? 'Re-analyzing…' : 'Re-analyze'}
+                  </button>
+                </div>
               </div>
             ) : (
               <button

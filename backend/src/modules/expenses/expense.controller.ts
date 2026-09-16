@@ -57,6 +57,90 @@ export class ExpenseController {
             service.getByMonth(year, month),
         ]);
         const [prevSummary] = prevSummaries;
+        const thisMonthNet = Math.round((summary.total - summary.cashbackTotal) * 100) / 100;
+
+        // Only months the app actually has data for — an early month with
+        // count 0 usually means tracking hadn't started yet, not that ₹0
+        // was spent, so it shouldn't drag the baseline/anomaly math down.
+        const qualifyingPast = prevMonthDates
+            .map((d, i) => ({ d, s: prevSummaries[i] }))
+            .filter(({ s }) => s.count > 0);
+
+        // Headline verdict: how this month stacks up against the user's own
+        // recent average, not just a single adjacent month — "highest in 5
+        // months" says something last-month-only comparisons can't.
+        const baseline = qualifyingPast.length >= 2
+            ? (() => {
+                const pastNets = qualifyingPast.map(({ s }) => Math.round((s.total - s.cashbackTotal) * 100) / 100);
+                const avg = Math.round((pastNets.reduce((a, b) => a + b, 0) / pastNets.length) * 100) / 100;
+                const rank = [...pastNets, thisMonthNet].sort((a, b) => b - a).indexOf(thisMonthNet) + 1;
+                return { avg, monthsCounted: pastNets.length, rank, totalMonths: pastNets.length + 1 };
+            })()
+            : null;
+
+        // The category that deviates most from ITS OWN historical average
+        // (not just vs last month, which can itself have been unusual) —
+        // covers both a spike in an existing category and one that
+        // appeared/disappeared entirely.
+        let categoryAnomaly: { name: string; thisMonth: number; historicalAvg: number; monthsCounted: number } | null = null;
+        if (qualifyingPast.length >= 2) {
+            const thisMonthCategoryNet: Record<string, number> = {};
+            for (const b of summary.breakdown) thisMonthCategoryNet[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
+            const pastBreakdownMaps = qualifyingPast.map(({ s }) => {
+                const map: Record<string, number> = {};
+                for (const b of s.breakdown) map[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
+                return map;
+            });
+            const allCategoryNames = new Set<string>([
+                ...Object.keys(thisMonthCategoryNet),
+                ...pastBreakdownMaps.flatMap(m => Object.keys(m)),
+            ]);
+            let best: { name: string; thisMonth: number; historicalAvg: number; deviation: number } | null = null;
+            for (const name of allCategoryNames) {
+                const thisVal = thisMonthCategoryNet[name] ?? 0;
+                const historicalValues = pastBreakdownMaps.map(m => m[name] ?? 0);
+                const avg = historicalValues.reduce((a, b) => a + b, 0) / historicalValues.length;
+                const deviation = thisVal - avg;
+                const meaningfulThreshold = Math.max(300, avg * 0.4);
+                if (Math.abs(deviation) < meaningfulThreshold) continue;
+                if (!best || Math.abs(deviation) > Math.abs(best.deviation)) {
+                    best = { name, thisMonth: thisVal, historicalAvg: Math.round(avg * 100) / 100, deviation };
+                }
+            }
+            if (best) categoryAnomaly = { name: best.name, thisMonth: best.thisMonth, historicalAvg: best.historicalAvg, monthsCounted: qualifyingPast.length };
+        }
+
+        // The single calendar day that drove the most spend, with what was
+        // actually bought that day — concrete enough to feel like a real
+        // look at behavior, not a rounded-off stat.
+        const dayNetMap = new Map<string, number>();
+        for (const e of monthExpenses) {
+            const net = Number(e.amount) - Number(e.cashback || 0);
+            dayNetMap.set(e.date, (dayNetMap.get(e.date) ?? 0) + net);
+        }
+        let heaviestDay: { date: string; net: number; topDescriptions: string[] } | null = null;
+        if (dayNetMap.size >= 2) {
+            const [topDate, topNet] = [...dayNetMap.entries()].reduce((best, cur) => (cur[1] > best[1] ? cur : best));
+            if (topNet > 0) {
+                const topDescriptions = monthExpenses
+                    .filter(e => e.date === topDate)
+                    .sort((a, b) => Number(b.amount) - Number(a.amount))
+                    .slice(0, 3)
+                    .map(e => e.description);
+                heaviestDay = { date: topDate, net: Math.round(topNet * 100) / 100, topDescriptions };
+            }
+        }
+
+        // Fewer-but-bigger vs more-but-smaller purchases — a behavior shift
+        // that a raw total or category breakdown can't show on its own.
+        const transactionSizeShift = prevSummary.count > 0
+            ? {
+                thisAvg: Math.round((thisMonthNet / summary.count) * 100) / 100,
+                prevAvg: Math.round(((prevSummary.total - prevSummary.cashbackTotal) / prevSummary.count) * 100) / 100,
+                thisCount: summary.count,
+                prevCount: prevSummary.count,
+            }
+            : null;
 
         // Top 3 (not just 1) so the AI can call out more than one standout
         // purchase when several exist, instead of only ever the single largest.
@@ -127,7 +211,7 @@ export class ExpenseController {
         const input: MonthAnalysisInput = {
             year,
             month,
-            total: Math.round((summary.total - summary.cashbackTotal) * 100) / 100,
+            total: thisMonthNet,
             cashbackTotal: summary.cashbackTotal,
             count: summary.count,
             breakdown: summary.breakdown.map(b => ({
@@ -153,6 +237,10 @@ export class ExpenseController {
             topTransactions,
             timingPattern,
             topCategoryConcentration,
+            baseline,
+            categoryAnomaly,
+            heaviestDay,
+            transactionSizeShift,
         };
         const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
@@ -163,7 +251,7 @@ export class ExpenseController {
         const force = req.query.force === 'true';
         const cached = force ? null : await service.getCachedInsight(year, month, inputHash);
         if (cached) {
-            res.json({ points: cached, cached: true });
+            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt });
             return;
         }
 
@@ -174,8 +262,8 @@ export class ExpenseController {
         }
 
         const generated = await aiService.analyzeMonth(input);
-        await service.saveInsight(year, month, inputHash, generated);
-        res.json({ points: generated, cached: false });
+        const generatedAt = await service.saveInsight(year, month, inputHash, generated);
+        res.json({ points: generated, cached: false, generatedAt });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {

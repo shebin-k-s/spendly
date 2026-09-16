@@ -188,23 +188,24 @@ export class ExpenseService {
     // numbers — otherwise null, so the caller knows to ask the AI again.
     // A row surviving from an earlier, differently-shaped cache format could
     // fail to parse — treat that the same as a miss rather than erroring.
-    async getCachedInsight(year: number, month: number, inputHash: string): Promise<string[] | null> {
+    async getCachedInsight(year: number, month: number, inputHash: string): Promise<{ points: string[]; generatedAt: Date } | null> {
         const row = await this.insightRepo.findOneBy({ year, month });
         if (!row || row.inputHash !== inputHash) return null;
         try {
             const parsed = JSON.parse(row.points);
-            return Array.isArray(parsed) ? parsed : null;
+            return Array.isArray(parsed) ? { points: parsed, generatedAt: row.generatedAt } : null;
         } catch {
             return null;
         }
     }
 
-    async saveInsight(year: number, month: number, inputHash: string, points: string[]) {
+    async saveInsight(year: number, month: number, inputHash: string, points: string[]): Promise<Date> {
         let row = await this.insightRepo.findOneBy({ year, month });
         if (!row) row = this.insightRepo.create({ year, month });
         row.inputHash = inputHash;
         row.points = JSON.stringify(points);
-        await this.insightRepo.save(row);
+        const saved = await this.insightRepo.save(row);
+        return saved.generatedAt;
     }
 
     async getAnalytics(months: number = 6) {

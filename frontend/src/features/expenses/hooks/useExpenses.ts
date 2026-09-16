@@ -91,11 +91,18 @@ export function useMonthAnalysis(year: number, month: number) {
 // the month's numbers changed — which reads as "re-analyze does nothing."
 // This bypasses that cache for a genuinely fresh AI pass, then overwrites
 // the cached query result so the rest of the UI sees it immediately.
-export function useReanalyzeMonth(year: number, month: number) {
+//
+// year/month are passed to mutate() rather than captured from the caller's
+// render — a single mutation instance is shared across renders, so if they
+// switch months while a re-analysis is still in flight, closing over
+// whatever year/month were current at call time (via `variables` in the
+// callbacks) keeps the result going to the month that was actually
+// re-analyzed instead of wherever the user has since navigated to.
+export function useReanalyzeMonth() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => expensesApi.analyzeMonth(year, month, true),
-    onSuccess: (data) => {
+    mutationFn: ({ year, month }: { year: number; month: number }) => expensesApi.analyzeMonth(year, month, true),
+    onSuccess: (data, { year, month }) => {
       qc.setQueryData([...ANALYSIS_KEY, year, month], data);
     },
     onError: (error) => {
