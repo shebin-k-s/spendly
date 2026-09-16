@@ -8,7 +8,7 @@ import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setDate } from '@/store/dateSlice';
-import { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
+import { setSearchTerm, toggleCategoryId, setCategoryIds, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useToggleCashback } from '@/features/webauthn/hooks/useToggleCashback';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
@@ -36,29 +36,46 @@ export default function ExpensesPage() {
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
 
-  // Deep link from the AI analysis ("View expenses" on a spend spike):
-  // ?date=yyyy-MM-dd switches to that day's month, clears any active filter
-  // that might hide it, then scrolls to and briefly highlights that day's
-  // group once its month's data has loaded. Runs once per link (the ref
-  // guard), and the param is stripped so it doesn't re-trigger later.
+  // Deep links from the AI analysis: ?date=yyyy-MM-dd (a spend spike) or
+  // ?category=id&year=Y&month=M (a category mention) — switches to the
+  // right month, clears any active filter that might hide the target
+  // (applies a category filter instead, for the category case), then
+  // scrolls to and briefly highlights the day's group once loaded (date
+  // case only — a category filter needs no scroll target). Runs once per
+  // link (the ref guard), and the params are stripped so they don't
+  // re-trigger later.
   const [searchParams, setSearchParams] = useSearchParams();
   const jumpHandledRef = useRef(false);
   useEffect(() => {
     if (jumpHandledRef.current) return;
     const jumpDate = searchParams.get('date');
-    if (!jumpDate) return;
-    const parsed = parseISO(jumpDate);
-    if (!isValid(parsed)) { jumpHandledRef.current = true; return; }
+    const jumpCategoryId = searchParams.get('category');
+    if (!jumpDate && !jumpCategoryId) return;
 
-    // Clear whatever could hide the target day regardless of whether the
-    // month needs switching too — previously this only ran on a month
-    // mismatch, so an active filter on the CURRENT month's page silently
-    // kept the target day hidden.
+    let targetYear = year;
+    let targetMonth = month;
+    if (jumpDate) {
+      const parsed = parseISO(jumpDate);
+      if (!isValid(parsed)) { jumpHandledRef.current = true; return; }
+      targetYear = parsed.getFullYear();
+      targetMonth = parsed.getMonth() + 1;
+    } else {
+      const paramYear = parseInt(searchParams.get('year') ?? '', 10);
+      const paramMonth = parseInt(searchParams.get('month') ?? '', 10);
+      if (paramYear && paramMonth) {
+        targetYear = paramYear;
+        targetMonth = paramMonth;
+      }
+    }
+
+    // Clear whatever could hide the target regardless of whether the month
+    // needs switching too — previously this only ran on a month mismatch,
+    // so an active filter on the CURRENT month's page silently kept the
+    // target hidden.
     dispatch(clearFilters());
     dispatch(setFilterOpen(false));
+    if (jumpCategoryId) dispatch(setCategoryIds([jumpCategoryId]));
 
-    const targetYear = parsed.getFullYear();
-    const targetMonth = parsed.getMonth() + 1;
     if (targetYear !== year || targetMonth !== month) {
       dispatch(setDate({ year: targetYear, month: targetMonth }));
       return; // wait for the next render with the right month before scrolling
@@ -67,13 +84,15 @@ export default function ExpensesPage() {
 
     jumpHandledRef.current = true;
     setSearchParams({}, { replace: true });
-    requestAnimationFrame(() => {
-      const el = document.getElementById(`date-${jumpDate}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      el.classList.add('ring-2', 'ring-primary', 'rounded-xl');
-      setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-xl'), 2500);
-    });
+    if (jumpDate) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`date-${jumpDate}`);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('ring-2', 'ring-primary', 'rounded-xl');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-xl'), 2500);
+      });
+    }
   }, [searchParams, year, month, isSuccess, dispatch, setSearchParams]);
 
   // Long-press the total to toggle the shared "show gross/cashback" preference,

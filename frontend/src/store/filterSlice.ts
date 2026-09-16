@@ -27,6 +27,9 @@ const filterSlice = createSlice({
         state.selectedCategoryIds.splice(idx, 1);
       }
     },
+    setCategoryIds: (state, action: PayloadAction<string[]>) => {
+      state.selectedCategoryIds = action.payload;
+    },
     setFilterOpen: (state, action: PayloadAction<boolean>) => {
       state.isFilterOpen = action.payload;
     },
@@ -40,5 +43,5 @@ const filterSlice = createSlice({
   },
 });
 
-export const { setSearchTerm, toggleCategoryId, setFilterOpen, clearFilters, clearCategories } = filterSlice.actions;
+export const { setSearchTerm, toggleCategoryId, setCategoryIds, setFilterOpen, clearFilters, clearCategories } = filterSlice.actions;
 export default filterSlice.reducer;

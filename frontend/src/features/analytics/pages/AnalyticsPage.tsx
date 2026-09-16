@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -60,6 +61,34 @@ export default function AnalyticsPage() {
   const lastAnalyzedLabel = Number.isNaN(generatedAtTime)
     ? null
     : formatDistanceToNow(generatedAtTime, { addSuffix: true });
+
+  // Wraps just the category's own name wherever it appears in the AI's
+  // sentence — not the whole sentence — in a link straight to that
+  // category's expenses for this month. No separate "related categories"
+  // line; the mention itself is the link.
+  const categories = analysis.data?.categories ?? [];
+  const linkifyCategories = useMemo(() => {
+    if (categories.length === 0) return (text: string): ReactNode => text;
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`(${categories.map(c => escapeRegExp(c.name)).join('|')})`, 'gi');
+    const byLowerName = new Map(categories.map(c => [c.name.toLowerCase(), c]));
+    return (text: string): ReactNode => {
+      const parts = text.split(pattern);
+      if (parts.length === 1) return text;
+      return parts.map((part, i) => {
+        const match = byLowerName.get(part.toLowerCase());
+        return match ? (
+          <Link
+            key={i}
+            to={`/expenses?category=${match.categoryId}&year=${year}&month=${month}`}
+            className="text-primary hover:text-primary/80 transition-colors font-medium"
+          >
+            {part}
+          </Link>
+        ) : <span key={i}>{part}</span>;
+      });
+    };
+  }, [categories, year, month]);
 
   return (
     <div className="animate-fade-in">
@@ -138,48 +167,36 @@ export default function AnalyticsPage() {
                   {analysis.data.points.map((point, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm leading-relaxed">
                       <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0 mt-1.5" />
-                      <span>{point}</span>
+                      <div className="flex-1 min-w-0">
+                        {/* Only the category's own name (wherever it's
+                            mentioned) is a link/colored — never the whole
+                            sentence. spikeDays is absent on results cached
+                            before this field existed. */}
+                        <span>{linkifyCategories(point)}</span>
+                        {/* Point 3 ("unusual high-spend days") is where the
+                            spike-day fact goes in the prompt — nest the real
+                            dates/amounts here instead of appending them as
+                            a separate list at the end. Only the day label
+                            is a link/colored; the rest reads as plain text. */}
+                        {i === 2 && (analysis.data!.spikeDays?.length ?? 0) > 0 && (
+                          <ol className="mt-1.5 space-y-1">
+                            {analysis.data!.spikeDays.map((d, di) => (
+                              <li key={d.date} className="flex items-start gap-1.5 text-sm leading-relaxed">
+                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 mt-0.5">{di + 1}.</span>
+                                <span>
+                                  <Link to={`/expenses?date=${d.date}`} className="text-primary hover:text-primary/80 transition-colors font-medium">
+                                    {d.dayLabel}
+                                  </Link>
+                                  {' '}— ₹{d.net.toLocaleString('en-IN')} ({d.spikeMultiple}x your average day)
+                                  {d.topDescriptions.length > 0 ? `, mostly ${d.topDescriptions.join(', ')}` : ''}
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                      </div>
                     </li>
                   ))}
-                  {/* Same list, same look — but numbered instead of dotted,
-                      and the exact amount/day/reason is real data, not the
-                      AI's prose. Each line itself is the link (no separate
-                      "view" button) straight to that day in Expenses.
-                      spikeDays is absent on results cached before this
-                      field existed. */}
-                  {(analysis.data.spikeDays ?? []).map((d, i) => (
-                    <li key={d.date}>
-                      <Link
-                        to={`/expenses?date=${d.date}`}
-                        className="flex items-start gap-2 text-sm leading-relaxed text-primary hover:text-primary/80 transition-colors"
-                      >
-                        <span className="text-xs font-semibold flex-shrink-0 mt-0.5">{i + 1}.</span>
-                        <span>
-                          {d.dayLabel} — ₹{d.net.toLocaleString('en-IN')} ({d.spikeMultiple}x your average day)
-                          {d.topDescriptions.length > 0 ? `, mostly ${d.topDescriptions.join(', ')}` : ''}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                  {/* Same idea for the categories the analysis actually
-                      discussed — a real link to each one's page, inline in
-                      the same list rather than a separate section. */}
-                  {(analysis.data.categories?.length ?? 0) > 0 && (
-                    <li className="flex items-start gap-2 text-sm leading-relaxed">
-                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 flex-shrink-0 mt-1.5" />
-                      <span>
-                        Related categories:{' '}
-                        {analysis.data.categories.map((c, i) => (
-                          <span key={c.categoryId}>
-                            <Link to={`/categories/${c.categoryId}`} className="text-primary hover:text-primary/80 transition-colors font-medium">
-                              {c.name}
-                            </Link>
-                            {i < analysis.data!.categories.length - 1 ? ', ' : ''}
-                          </span>
-                        ))}
-                      </span>
-                    </li>
-                  )}
                 </ul>
                 <div className="flex items-center justify-between pt-1">
                   {/* generatedAt is missing on results persisted by an older
