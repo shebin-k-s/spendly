@@ -21,7 +21,6 @@ export interface MonthAnalysisInput {
     categoryAnomaly: { name: string; thisMonth: number; historicalAvg: number; monthsCounted: number } | null;
     heaviestDay: { date: string; dayLabel: string; net: number; topDescriptions: string[]; avgDayNet: number; spikeMultiple: number } | null;
     transactionSizeShift: { thisAvg: number; prevAvg: number; thisCount: number; prevCount: number } | null;
-    relatedCategoryGroups: { label: string; members: string[]; combinedNet: number }[];
 }
 
 export class ExpenseAiService {
@@ -236,7 +235,7 @@ ${categoryBlock}`;
     }
 
     private buildMonthAnalysisPrompt(input: MonthAnalysisInput): string {
-        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, heaviestDay, transactionSizeShift, relatedCategoryGroups } = input;
+        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, heaviestDay, transactionSizeShift } = input;
         const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
         const CATEGORY_CAP = 12;
@@ -293,10 +292,6 @@ ${categoryBlock}`;
             ? `Purchase pattern: this month averaged ₹${transactionSizeShift.thisAvg} per transaction across ${transactionSizeShift.thisCount} transactions, vs ₹${transactionSizeShift.prevAvg} per transaction across ${transactionSizeShift.prevCount} last month.`
             : '';
 
-        const relatedGroupsLine = relatedCategoryGroups.length > 0
-            ? `Related categories (grouped by shared name, since they likely track the same kind of spending): ${relatedCategoryGroups.map(g => `${g.members.join(' + ')} combined = ₹${g.combinedNet}`).join('; ')}.`
-            : '';
-
         return `You are a sharp personal finance analyst, not a report generator. Using ONLY the numbers given below — never invent, estimate, or assume anything not explicitly listed here — write a spending analysis for ${monthName} ${year} that draws real conclusions, not just a readout of stats.
 
 Total net spend: ₹${total} across ${count} transaction${count === 1 ? '' : 's'}.
@@ -308,7 +303,6 @@ ${heaviestDayLine}
 ${transactionSizeShiftLine}
 ${timingLine}
 ${concentrationLine}
-${relatedGroupsLine}
 
 ${topTransactionsBlock}
 
@@ -322,10 +316,10 @@ ${trendBlock}
 Return ONLY a JSON array of exactly 5 short strings (no markdown, no explanation outside the array) — each string is ONE standalone point, meant to be read as a separate line, not a paragraph. Every point must draw a conclusion or characterize behavior — not just restate a number that's already sitting in the data above:
 
 1. HEADLINE VERDICT: if the baseline/rank fact is given above, lead with what kind of month this was relative to the user's own recent normal — e.g. "This was your highest spending month in the last 5 you've tracked, 34% above your ₹5,200 average." If no baseline is available yet, characterize the month plainly using the total and transaction count instead, without inventing a comparison.
-2. CATEGORY ANOMALY: if the category-anomaly fact is given above, explain it in plain terms — is this a new/growing habit or a return to something dormant, and how far off the category's own normal is it (e.g. "Groceries hit ₹2,400 this month, over double its usual ₹900 — your biggest deviation from normal all year."). If the anomaly's name mentions two categories "combined", say so explicitly — e.g. "Between Family and Family Movie, you put ₹3,100 toward family-related spending this month, well above the usual ₹1,200." If no anomaly is available, instead compare THIS month's category breakdown against the PREVIOUS month's category-by-category and call out the single category that moved the most, by name, with its ₹ or % shift; say explicitly if a category appeared or vanished entirely.
+2. CATEGORY ANOMALY: if the category-anomaly fact is given above, explain it in plain terms — is this a new/growing habit or a return to something dormant, and how far off the category's own normal is it (e.g. "Groceries hit ₹2,400 this month, over double its usual ₹900 — your biggest deviation from normal all year."). If no anomaly is available, instead compare THIS month's category breakdown against the PREVIOUS month's category-by-category and call out the single category that moved the most, by name, with its ₹ or % shift; say explicitly if a category appeared or vanished entirely.
 3. HEAVIEST DAY OR TOP TRANSACTIONS: if the heaviest-single-day fact is given above, call it out using its day label given (already phrased like "Saturday, the 14th" — use it as-is, don't restate it as a bare date or add the month name back in, the analysis is already scoped to one month) and what drove it — and if it's meaningfully above the average day given alongside it (roughly 2x or more), explicitly frame it as a spike/outlier, not just "the biggest day" (e.g. "Saturday, the 14th was a real spike — ₹2,400 in a single day, about 5x your typical ₹480 day, driven mostly by Rent and Groceries."). If it's only slightly above average, just state it plainly without calling it unusual. If no heaviest-day fact is available, mention the largest transaction(s) given above by description and amount instead, framed as a specific standout moment — if two or three are close in size, say so.
 4. BEHAVIOR SHIFT: if the purchase-pattern fact is given above, characterize whether the user is making fewer-but-bigger purchases or more-frequent-but-smaller ones compared to last month, and what that suggests (e.g. "You made 40% fewer purchases than last month but each one averaged 60% more — fewer, bigger trips rather than daily small spends."). If not available, use the multi-month trend instead to say whether this month continues a real streak or is a one-off deviation — do not just restate a single month-over-month %.
-5. SOMETHING ELSE SPECIFIC: prefer the related-categories fact above if present and not already used in point 2 — point out that two differently-named categories are really the same kind of spending and what they add up to together (e.g. "Family and Family Movie together came to ₹3,100 this month — worth tracking as one 'family' bucket rather than two."). Otherwise use the timing pattern or category-concentration fact, whichever is more notable and not already covered by points 1-4 — e.g. a timing habit, or how concentrated spend is in just 1-2 categories (treat over ~55% as worth flagging, or note positively if well-spread). If none apply, make one other genuinely specific observation from the data (e.g. cashback earned being ₹0 despite meaningful spend) — never repeat a point already made above.
+5. SOMETHING ELSE SPECIFIC: use the timing pattern or category-concentration fact above, whichever is more notable and not already covered by points 1-4 — e.g. a timing habit, or how concentrated spend is in just 1-2 categories. Treat high concentration (over ~55%) as worth flagging, or note positively if spend looks well-spread. If neither applies, make one other genuinely specific observation from the data (e.g. cashback earned being ₹0 despite meaningful spend) — never repeat a point already made above.
 
 Write like a friend who actually studied your numbers and is telling you what they mean, not listing them back to you. Never a vague sentence like "spending was up this month" — always say what it means, whether it's unusual for the user personally, and why. Use ₹ for all amounts. Do not mention anything not present in the data above. Example shape: ["This was your highest spending month in the last 5 you've tracked, 34% above your usual ₹5,200.", "Groceries hit ₹2,400 this month, over double its normal ₹900 — the biggest outlier in your spending all year.", "Saturday, the 14th alone accounted for ₹2,400, mostly Rent and Groceries.", "You made 40% fewer purchases than last month but each one averaged 60% more — fewer, bigger trips rather than daily small spends.", "Food & Dining and Transport together made up 63% of everything you spent this month."]`;
     }
