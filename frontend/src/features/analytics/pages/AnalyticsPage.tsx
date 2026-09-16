@@ -55,6 +55,11 @@ export default function AnalyticsPage() {
     && reanalyze.variables?.year === year
     && reanalyze.variables?.month === month;
 
+  const generatedAtTime = analysis.data?.generatedAt ? new Date(analysis.data.generatedAt).getTime() : NaN;
+  const lastAnalyzedLabel = Number.isNaN(generatedAtTime)
+    ? null
+    : formatDistanceToNow(generatedAtTime, { addSuffix: true });
+
   return (
     <div className="animate-fade-in">
       <div className="page-header">
@@ -137,8 +142,12 @@ export default function AnalyticsPage() {
                   ))}
                 </ul>
                 <div className="flex items-center justify-between pt-1">
+                  {/* generatedAt is missing on results persisted by an older
+                      app version (localStorage cache predates this field) —
+                      guard against Invalid Date rather than let date-fns throw
+                      and blank the whole page (no error boundary above this). */}
                   <p className="text-[11px] text-muted-foreground">
-                    Last analyzed {formatDistanceToNow(new Date(analysis.data.generatedAt), { addSuffix: true })}
+                    {lastAnalyzedLabel ? `Last analyzed ${lastAnalyzedLabel}` : ''}
                   </p>
                   {/* Explicit re-ask — always forces a fresh AI pass (bypassing
                       the backend's hash cache) rather than silently handing
