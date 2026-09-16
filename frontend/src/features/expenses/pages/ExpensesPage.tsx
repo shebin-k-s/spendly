@@ -40,8 +40,8 @@ export default function ExpensesPage() {
   // ?category=id&year=Y&month=M (a category mention) — switches to the
   // right month, clears any active filter that might hide the target
   // (applies a category filter instead, for the category case), then
-  // scrolls to and briefly highlights the day's group once loaded (date
-  // case only — a category filter needs no scroll target). Runs once per
+  // scrolls to the day's group once loaded (date case only — a category
+  // filter needs no scroll target). Runs once per
   // link (the ref guard), and the params are stripped so they don't
   // re-trigger later.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -96,8 +96,6 @@ export default function ExpensesPage() {
         const el = document.getElementById(`date-${jumpDate}`);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          el.classList.add('ring-2', 'ring-primary', 'rounded-xl');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-xl'), 2500);
         } else if (attempts < 10) {
           attempts += 1;
           setTimeout(tryScroll, 100);
@@ -384,7 +382,7 @@ export default function ExpensesPage() {
               const dayGross = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
               return (
-                <div key={dateStr} id={`date-${dateStr}`} className="scroll-mt-36 transition-shadow duration-300">
+                <div key={dateStr} id={`date-${dateStr}`} className="scroll-mt-36">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
                     <div className="flex flex-col items-end">
