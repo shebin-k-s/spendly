@@ -129,43 +129,49 @@ export class ExpenseController {
             if (best) categoryAnomaly = { name: best.name, thisMonth: best.thisMonth, historicalAvg: best.historicalAvg, monthsCounted: qualifyingPast.length };
         }
 
-        // The single calendar day that drove the most spend, with what was
-        // actually bought that day — concrete enough to feel like a real
-        // look at behavior, not a rounded-off stat.
+        // EVERY day that was a real outlier vs. the user's own average
+        // spending day this month — not just the single biggest one. A
+        // spontaneous outing or one-off purchase can happen more than once
+        // in a month, and each one is worth surfacing on its own; reporting
+        // only the single heaviest day would silently drop the rest of that
+        // same pattern.
         const dayNetMap = new Map<string, number>();
         for (const e of monthExpenses) {
             const net = Number(e.amount) - Number(e.cashback || 0);
             dayNetMap.set(e.date, (dayNetMap.get(e.date) ?? 0) + net);
         }
-        let heaviestDay: { date: string; dayLabel: string; net: number; topDescriptions: string[]; avgDayNet: number; spikeMultiple: number } | null = null;
-        if (dayNetMap.size >= 2) {
-            const [topDate, topNet] = [...dayNetMap.entries()].reduce((best, cur) => (cur[1] > best[1] ? cur : best));
-            if (topNet > 0) {
-                const topDescriptions = monthExpenses
-                    .filter(e => e.date === topDate)
-                    .sort((a, b) => Number(b.amount) - Number(a.amount))
-                    .slice(0, 3)
-                    .map(e => e.description);
-                // Compared against the AVERAGE spending day (across days that
-                // had any spend), not the monthly total — so a real spike
-                // (e.g. ₹1,000 on a ₹200-a-day month) reads as the outlier it
-                // is, not just "the biggest of several similar days."
-                const avgDayNet = [...dayNetMap.values()].reduce((a, b) => a + b, 0) / dayNetMap.size;
-                // Weekday name is what actually jogs memory ("oh right, that
-                // was a Sunday") — a bare yyyy-MM-dd doesn't. No month name
-                // here since the whole analysis is already scoped to one.
-                const topDateObj = new Date(`${topDate}T00:00:00`);
-                const weekdayName = topDateObj.toLocaleDateString('en-US', { weekday: 'long' });
-                const dayNum = topDateObj.getDate();
-                const dayLabel = `${weekdayName}, the ${dayNum}${ordinalSuffix(dayNum)}`;
-                heaviestDay = {
-                    date: topDate,
-                    dayLabel,
-                    net: Math.round(topNet * 100) / 100,
-                    topDescriptions,
-                    avgDayNet: Math.round(avgDayNet * 100) / 100,
-                    spikeMultiple: avgDayNet > 0 ? Math.round((topNet / avgDayNet) * 10) / 10 : 0,
-                };
+        const SPIKE_DAY_THRESHOLD = 2; // at least 2x the average spending day
+        const MAX_SPIKE_DAYS = 3; // cap so this doesn't turn into a data dump
+        let spikeDays: { date: string; dayLabel: string; net: number; topDescriptions: string[]; spikeMultiple: number }[] = [];
+        if (dayNetMap.size >= 3) {
+            const avgDayNet = [...dayNetMap.values()].reduce((a, b) => a + b, 0) / dayNetMap.size;
+            if (avgDayNet > 0) {
+                spikeDays = [...dayNetMap.entries()]
+                    .map(([date, net]) => ({ date, net, spikeMultiple: Math.round((net / avgDayNet) * 10) / 10 }))
+                    .filter(d => d.spikeMultiple >= SPIKE_DAY_THRESHOLD)
+                    .sort((a, b) => b.net - a.net)
+                    .slice(0, MAX_SPIKE_DAYS)
+                    .map(({ date, net, spikeMultiple }) => {
+                        const topDescriptions = monthExpenses
+                            .filter(e => e.date === date)
+                            .sort((a, b) => Number(b.amount) - Number(a.amount))
+                            .slice(0, 2)
+                            .map(e => e.description);
+                        // Weekday name is what actually jogs memory ("oh
+                        // right, that was a Sunday") — a bare yyyy-MM-dd
+                        // doesn't. No month name since the analysis is
+                        // already scoped to one.
+                        const dateObj = new Date(`${date}T00:00:00`);
+                        const weekdayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                        const dayNum = dateObj.getDate();
+                        return {
+                            date,
+                            dayLabel: `${weekdayName}, the ${dayNum}${ordinalSuffix(dayNum)}`,
+                            net: Math.round(net * 100) / 100,
+                            topDescriptions,
+                            spikeMultiple,
+                        };
+                    });
             }
         }
 
@@ -277,7 +283,7 @@ export class ExpenseController {
             topCategoryConcentration,
             baseline,
             categoryAnomaly,
-            heaviestDay,
+            spikeDays,
             transactionSizeShift,
         };
         const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');

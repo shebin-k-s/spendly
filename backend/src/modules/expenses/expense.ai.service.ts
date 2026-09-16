@@ -19,7 +19,7 @@ export interface MonthAnalysisInput {
     topCategoryConcentration: { categories: string[]; share: number } | null;
     baseline: { avg: number; monthsCounted: number; rank: number; totalMonths: number } | null;
     categoryAnomaly: { name: string; thisMonth: number; historicalAvg: number; monthsCounted: number } | null;
-    heaviestDay: { date: string; dayLabel: string; net: number; topDescriptions: string[]; avgDayNet: number; spikeMultiple: number } | null;
+    spikeDays: { date: string; dayLabel: string; net: number; topDescriptions: string[]; spikeMultiple: number }[];
     transactionSizeShift: { thisAvg: number; prevAvg: number; thisCount: number; prevCount: number } | null;
 }
 
@@ -235,7 +235,7 @@ ${categoryBlock}`;
     }
 
     private buildMonthAnalysisPrompt(input: MonthAnalysisInput): string {
-        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, heaviestDay, transactionSizeShift } = input;
+        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, spikeDays, transactionSizeShift } = input;
         const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
         const CATEGORY_CAP = 12;
@@ -284,9 +284,9 @@ ${categoryBlock}`;
             ? items.join('')
             : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
-        const heaviestDayLine = heaviestDay
-            ? `Heaviest single day: ${heaviestDay.dayLabel} totaled ₹${heaviestDay.net} net (your average spending day this month was ₹${heaviestDay.avgDayNet}, so this was ${heaviestDay.spikeMultiple}x that), driven mainly by ${joinWithAnd(heaviestDay.topDescriptions)}.`
-            : '';
+        const spikeDaysLine = spikeDays.length > 0
+            ? `Unusual high-spend day${spikeDays.length === 1 ? '' : 's'} (well above this month's average spending day), biggest first:\n${spikeDays.map(d => `- ${d.dayLabel}: ₹${d.net} net (${d.spikeMultiple}x an average day), driven mainly by ${joinWithAnd(d.topDescriptions)}`).join('\n')}`
+            : 'No day this month stood out as a real outlier vs. the average spending day — spend was fairly even day to day.';
 
         const transactionSizeShiftLine = transactionSizeShift
             ? `Purchase pattern: this month averaged ₹${transactionSizeShift.thisAvg} per transaction across ${transactionSizeShift.thisCount} transactions, vs ₹${transactionSizeShift.prevAvg} per transaction across ${transactionSizeShift.prevCount} last month.`
@@ -299,7 +299,7 @@ Cashback earned: ₹${cashbackTotal}.
 ${momLine}
 ${baselineLine}
 ${categoryAnomalyLine}
-${heaviestDayLine}
+${spikeDaysLine}
 ${transactionSizeShiftLine}
 ${timingLine}
 ${concentrationLine}
@@ -317,11 +317,11 @@ Return ONLY a JSON array of exactly 5 short strings (no markdown, no explanation
 
 1. HEADLINE VERDICT: if the baseline/rank fact is given above, lead with what kind of month this was relative to the user's own recent normal — e.g. "This was your highest spending month in the last 5 you've tracked, 34% above your ₹5,200 average." If no baseline is available yet, characterize the month plainly using the total and transaction count instead, without inventing a comparison.
 2. CATEGORY ANOMALY: if the category-anomaly fact is given above, explain it in plain terms — is this a new/growing habit or a return to something dormant, and how far off the category's own normal is it (e.g. "Groceries hit ₹2,400 this month, over double its usual ₹900 — your biggest deviation from normal all year."). If no anomaly is available, instead compare THIS month's category breakdown against the PREVIOUS month's category-by-category and call out the single category that moved the most, by name, with its ₹ or % shift; say explicitly if a category appeared or vanished entirely.
-3. HEAVIEST DAY OR TOP TRANSACTIONS: if the heaviest-single-day fact is given above, call it out using its day label given (already phrased like "Saturday, the 14th" — use it as-is, don't restate it as a bare date or add the month name back in, the analysis is already scoped to one month) and what drove it — and if it's meaningfully above the average day given alongside it (roughly 2x or more), explicitly frame it as a spike/outlier, not just "the biggest day" (e.g. "Saturday, the 14th was a real spike — ₹2,400 in a single day, about 5x your typical ₹480 day, driven mostly by Rent and Groceries."). If it's only slightly above average, just state it plainly without calling it unusual. If no heaviest-day fact is available, mention the largest transaction(s) given above by description and amount instead, framed as a specific standout moment — if two or three are close in size, say so.
+3. UNUSUAL HIGH-SPEND DAYS OR TOP TRANSACTIONS: if the unusual-high-spend-days fact above lists one or more days, cover ALL of them given (not just the biggest) in this one point — each is a real outlier vs. the user's own average day, likely a one-off outing or purchase rather than routine spending. Use each day's label as given (already phrased like "Saturday, the 14th" — use as-is, don't restate as a bare date or add the month name back in) and its multiple (e.g. "You had two spend spikes this month — Saturday, the 14th at ₹2,400 (5x your typical day) and Tuesday, the 21st at ₹1,100 (2.3x) — both look like one-off outings rather than routine spending."). If only one day is listed, cover just that one. If none are listed, mention the largest transaction(s) given above instead, by description and amount, framed as a specific standout moment — if two or three are close in size, say so.
 4. BEHAVIOR SHIFT: if the purchase-pattern fact is given above, characterize whether the user is making fewer-but-bigger purchases or more-frequent-but-smaller ones compared to last month, and what that suggests (e.g. "You made 40% fewer purchases than last month but each one averaged 60% more — fewer, bigger trips rather than daily small spends."). If not available, use the multi-month trend instead to say whether this month continues a real streak or is a one-off deviation — do not just restate a single month-over-month %.
 5. SOMETHING ELSE SPECIFIC: use the timing pattern or category-concentration fact above, whichever is more notable and not already covered by points 1-4 — e.g. a timing habit, or how concentrated spend is in just 1-2 categories. Treat high concentration (over ~55%) as worth flagging, or note positively if spend looks well-spread. If neither applies, make one other genuinely specific observation from the data (e.g. cashback earned being ₹0 despite meaningful spend) — never repeat a point already made above.
 
-Write like a friend who actually studied your numbers and is telling you what they mean, not listing them back to you. Never a vague sentence like "spending was up this month" — always say what it means, whether it's unusual for the user personally, and why. Use ₹ for all amounts. Do not mention anything not present in the data above. Example shape: ["This was your highest spending month in the last 5 you've tracked, 34% above your usual ₹5,200.", "Groceries hit ₹2,400 this month, over double its normal ₹900 — the biggest outlier in your spending all year.", "Saturday, the 14th alone accounted for ₹2,400, mostly Rent and Groceries.", "You made 40% fewer purchases than last month but each one averaged 60% more — fewer, bigger trips rather than daily small spends.", "Food & Dining and Transport together made up 63% of everything you spent this month."]`;
+Write like a friend who actually studied your numbers and is telling you what they mean, not listing them back to you. Never a vague sentence like "spending was up this month" — always say what it means, whether it's unusual for the user personally, and why. Use ₹ for all amounts. Do not mention anything not present in the data above. Example shape: ["This was your highest spending month in the last 5 you've tracked, 34% above your usual ₹5,200.", "Groceries hit ₹2,400 this month, over double its normal ₹900 — the biggest outlier in your spending all year.", "You had two spend spikes this month — Saturday, the 14th at ₹2,400 (5x your typical day) and Tuesday, the 21st at ₹1,100 (2.3x) — both look like one-off outings rather than routine spending.", "You made 40% fewer purchases than last month but each one averaged 60% more — fewer, bigger trips rather than daily small spends.", "Food & Dining and Transport together made up 63% of everything you spent this month."]`;
     }
 
     async analyzeMonth(input: MonthAnalysisInput): Promise<string[]> {
