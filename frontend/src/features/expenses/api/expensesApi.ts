@@ -1,5 +1,5 @@
 import apiClient from '@/lib/apiClient';
-import type { Expense, CreateExpensePayload, UpdateExpensePayload, MonthlySummary, MonthlyAnalytic, CategorySpend, CategorySpendRange } from '../types';
+import type { Expense, CreateExpensePayload, UpdateExpensePayload, MonthlySummary, MonthlyAnalytic, CategorySpend, CategorySpendRange, MonthAnalysis } from '../types';
 
 const URL = '/expenses';
 
@@ -30,8 +30,8 @@ export const expensesApi = {
     return data;
   },
 
-  async analyzeMonth(year: number, month: number, force = false): Promise<{ points: string[]; cached: boolean; generatedAt: string }> {
-    const { data } = await apiClient.get<{ points: string[]; cached: boolean; generatedAt: string }>(`${URL}/analyze`, {
+  async analyzeMonth(year: number, month: number, force = false): Promise<MonthAnalysis> {
+    const { data } = await apiClient.get<MonthAnalysis>(`${URL}/analyze`, {
       params: { year, month, ...(force ? { force: 'true' } : {}) },
     });
     return data;

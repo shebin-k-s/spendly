@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { formatINR } from '@/lib/utils';
 import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
 import { useExpensesQuery } from '../hooks/useExpenses';
@@ -35,6 +35,40 @@ export default function ExpensesPage() {
   const { toggle: toggleCashback, verifying: verifyingCashback, prefetchChallenge } = useToggleCashback();
 
   const activeFilterCount = (searchTerm ? 1 : 0) + selectedCategoryIds.length;
+
+  // Deep link from the AI analysis ("View expenses" on a spend spike):
+  // ?date=yyyy-MM-dd switches to that day's month, clears any active filter
+  // that might hide it, then scrolls to and briefly highlights that day's
+  // group once its month's data has loaded. Runs once per link (the ref
+  // guard), and the param is stripped so it doesn't re-trigger later.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const jumpHandledRef = useRef(false);
+  useEffect(() => {
+    if (jumpHandledRef.current) return;
+    const jumpDate = searchParams.get('date');
+    if (!jumpDate) return;
+    const parsed = parseISO(jumpDate);
+    if (!isValid(parsed)) { jumpHandledRef.current = true; return; }
+
+    const targetYear = parsed.getFullYear();
+    const targetMonth = parsed.getMonth() + 1;
+    if (targetYear !== year || targetMonth !== month) {
+      dispatch(setDate({ year: targetYear, month: targetMonth }));
+      dispatch(clearFilters());
+      return; // wait for the next render with the right month before scrolling
+    }
+    if (!isSuccess) return; // wait for that month's expenses to load
+
+    jumpHandledRef.current = true;
+    setSearchParams({}, { replace: true });
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`date-${jumpDate}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('ring-2', 'ring-primary', 'rounded-xl');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-primary', 'rounded-xl'), 2500);
+    });
+  }, [searchParams, year, month, isSuccess, dispatch, setSearchParams]);
 
   // Long-press the total to toggle the shared "show gross/cashback" preference,
   // same gesture as the dashboard's month summary card.
@@ -313,7 +347,7 @@ export default function ExpensesPage() {
               const dayGross = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
               return (
-                <div key={dateStr}>
+                <div key={dateStr} id={`date-${dateStr}`} className="transition-shadow duration-300">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
                     <div className="flex flex-col items-end">

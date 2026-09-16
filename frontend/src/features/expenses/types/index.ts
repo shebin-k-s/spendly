@@ -75,3 +75,18 @@ export interface CategorySpend {
 
 export type CategorySpendRange = { year: number } | { start: string; end: string };
 
+export interface SpikeDay {
+  date: string;
+  dayLabel: string;
+  net: number;
+  spikeMultiple: number;
+  topDescriptions: string[];
+}
+
+export interface MonthAnalysis {
+  points: string[];
+  cached: boolean;
+  generatedAt: string;
+  spikeDays: SpikeDay[];
+}
+

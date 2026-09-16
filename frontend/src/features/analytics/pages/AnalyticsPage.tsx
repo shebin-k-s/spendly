@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, ArrowRight } from 'lucide-react';
 import { currentYearMonth, monthLabel } from '@/lib/utils';
 import { useAnalytics, useMonthlySummary, useMonthAnalysis, useReanalyzeMonth } from '@/features/expenses/hooks/useExpenses';
 import { getErrorMessage } from '@/utils/getErrorMessage';
@@ -141,6 +142,40 @@ export default function AnalyticsPage() {
                     </li>
                   ))}
                 </ul>
+                {/* Structured, numbered, and independent of the AI's prose —
+                    exact amounts/dates/items straight from the data, plus a
+                    real link into Expenses instead of asking the AI to
+                    describe them accurately in free text. spikeDays is
+                    absent on results cached before this field existed. */}
+                {(analysis.data.spikeDays?.length ?? 0) > 0 && (
+                  <div className="pt-2 mt-1 border-t border-border">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Spend Spikes
+                    </p>
+                    <ol className="space-y-2.5">
+                      {analysis.data.spikeDays.map((d, i) => (
+                        <li key={d.date} className="flex items-start gap-2 text-sm">
+                          <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 mt-0.5">{i + 1}.</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="font-medium">{d.dayLabel}</span>
+                              <span className="text-xs text-muted-foreground flex-shrink-0">₹{d.net.toLocaleString('en-IN')} · {d.spikeMultiple}x avg</span>
+                            </div>
+                            {d.topDescriptions.length > 0 && (
+                              <p className="text-xs text-muted-foreground truncate">{d.topDescriptions.join(', ')}</p>
+                            )}
+                            <Link
+                              to={`/expenses?date=${d.date}`}
+                              className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:text-primary/80 transition-colors mt-0.5"
+                            >
+                              View expenses <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 <div className="flex items-center justify-between pt-1">
                   {/* generatedAt is missing on results persisted by an older
                       app version (localStorage cache predates this field) —

@@ -288,6 +288,19 @@ export class ExpenseController {
         };
         const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
+        // Sent alongside the AI's text so the frontend can render an exact,
+        // scannable list with a real clickable link to each spike day's
+        // actual expenses — computed fresh from this month's data every
+        // request, independent of whatever the AI's own wording does or
+        // doesn't mention.
+        const spikeDayLinks = spikeDays.map(d => ({
+            date: d.date,
+            dayLabel: d.dayLabel,
+            net: d.net,
+            spikeMultiple: d.spikeMultiple,
+            topDescriptions: d.topDescriptions,
+        }));
+
         // force=true (the explicit "Re-analyze" action) always asks the AI
         // again, even if the underlying numbers are unchanged — otherwise
         // "re-analyze" silently returns the exact same cached points, which
@@ -295,7 +308,7 @@ export class ExpenseController {
         const force = req.query.force === 'true';
         const cached = force ? null : await service.getCachedInsight(year, month, inputHash);
         if (cached) {
-            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt });
+            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt, spikeDays: spikeDayLinks });
             return;
         }
 
@@ -307,7 +320,7 @@ export class ExpenseController {
 
         const generated = await aiService.analyzeMonth(input);
         const generatedAt = await service.saveInsight(year, month, inputHash, generated);
-        res.json({ points: generated, cached: false, generatedAt });
+        res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {

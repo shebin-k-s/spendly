@@ -103,8 +103,14 @@ export function useReanalyzeMonth() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ year, month }: { year: number; month: number }) => expensesApi.analyzeMonth(year, month, true),
+    // A re-analysis can take a while (the backend tries several AI model
+    // fallbacks with its own timeouts before giving up) — if the user has
+    // since switched to another month, there's nothing on screen showing
+    // this is still running, so a silent success looked exactly like it
+    // had been dropped. Always toast, even if they're still on this month.
     onSuccess: (data, { year, month }) => {
       qc.setQueryData([...ANALYSIS_KEY, year, month], data);
+      toast.success(`${monthLabel(year, month)} re-analyzed`);
     },
     // Firing re-analyze for one month, then switching and firing it again
     // for another before the first resolves, used to produce an error toast
