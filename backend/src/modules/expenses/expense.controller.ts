@@ -48,20 +48,26 @@ export class ExpenseController {
             return;
         }
 
-        // Previous 3 months (not just 1) — lets the AI tell a real streak
+        // Previous 6 months (not just 1) — lets the AI tell a real streak
         // ("risen 3 months running") from a one-off blip, not just a single
         // MoM delta. JS Date rolls negative months back a year automatically.
-        const prevMonthDates = [1, 2, 3].map(i => new Date(year, month - 1 - i, 1));
+        const prevMonthDates = [1, 2, 3, 4, 5, 6].map(i => new Date(year, month - 1 - i, 1));
         const [prevSummaries, monthExpenses] = await Promise.all([
             Promise.all(prevMonthDates.map(d => service.getMonthlySummary(d.getFullYear(), d.getMonth() + 1))),
             service.getByMonth(year, month),
         ]);
         const [prevSummary] = prevSummaries;
 
-        const topExpense = monthExpenses.reduce<typeof monthExpenses[number] | null>(
-            (max, e) => (!max || Number(e.amount) > Number(max.amount)) ? e : max,
-            null,
-        );
+        // Top 3 (not just 1) so the AI can call out more than one standout
+        // purchase when several exist, instead of only ever the single largest.
+        const topTransactions = [...monthExpenses]
+            .sort((a, b) => Number(b.amount) - Number(a.amount))
+            .slice(0, 3)
+            .map(e => ({
+                description: e.description,
+                amount: Number(e.amount),
+                category: e.category?.name ?? 'Uncategorized',
+            }));
 
         // Real day-of-week concentration, computed straight from this
         // month's actual transaction dates — not something the AI infers.
@@ -75,6 +81,47 @@ export class ExpenseController {
         const topDayIdx = dayTotals.reduce((best, v, i) => (v > dayTotals[best] ? i : best), 0);
         const dayOfWeekTop = dayNetTotal > 0 && dayTotals[topDayIdx] > 0
             ? { day: DAY_NAMES[topDayIdx], share: Math.round((dayTotals[topDayIdx] / dayNetTotal) * 100) }
+            : null;
+
+        // Time-of-day concentration — only from expenses with an explicitly
+        // logged time (never the createdAt fallback used for sorting, which
+        // reflects when it was entered, not when it happened).
+        const TIME_BUCKETS = [
+            { label: 'the morning (5am–12pm)', from: 5, to: 12 },
+            { label: 'the afternoon (12pm–5pm)', from: 12, to: 17 },
+            { label: 'the evening (5pm–9pm)', from: 17, to: 21 },
+            { label: 'late night (9pm–5am)', from: 21, to: 29 }, // wraps past midnight
+        ];
+        const timedExpenses = monthExpenses.filter(e => e.time);
+        const timeTotals = new Array(TIME_BUCKETS.length).fill(0);
+        for (const e of timedExpenses) {
+            const net = Number(e.amount) - Number(e.cashback || 0);
+            let hour = parseInt(e.time!.split(':')[0], 10);
+            if (hour < 5) hour += 24;
+            const idx = TIME_BUCKETS.findIndex(b => hour >= b.from && hour < b.to);
+            if (idx !== -1) timeTotals[idx] += net;
+        }
+        const timeNetTotal = timeTotals.reduce((a, b) => a + b, 0);
+        const topTimeIdx = timeTotals.reduce((best, v, i) => (v > timeTotals[best] ? i : best), 0);
+        const timeOfDayTop = timedExpenses.length >= 3 && timeNetTotal > 0 && timeTotals[topTimeIdx] > 0
+            ? { label: TIME_BUCKETS[topTimeIdx].label, share: Math.round((timeTotals[topTimeIdx] / timeNetTotal) * 100) }
+            : null;
+
+        // Whichever pattern is more pronounced (day-of-week vs time-of-day)
+        // is the one worth telling the user about — showing both would be
+        // repetitive since they're often two views of the same behavior.
+        const timingPattern = dayOfWeekTop && (!timeOfDayTop || dayOfWeekTop.share >= timeOfDayTop.share)
+            ? { label: `${dayOfWeekTop.day}s`, share: dayOfWeekTop.share }
+            : timeOfDayTop;
+
+        // How concentrated spend is in the top categories — a always-available
+        // grounded fact (unlike timing/top-transaction, which can be null).
+        const sortedBreakdown = [...summary.breakdown].sort((a, b) => b.total - a.total);
+        const topCategoryConcentration = sortedBreakdown.length >= 2 && summary.total > 0
+            ? {
+                categories: sortedBreakdown.slice(0, 2).map(b => b.name),
+                share: Math.round((sortedBreakdown.slice(0, 2).reduce((s, b) => s + b.total, 0) / summary.total) * 100),
+            }
             : null;
 
         const input: MonthAnalysisInput = {
@@ -103,16 +150,18 @@ export class ExpenseController {
                     label: d.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
                     net: Math.round((s.total - s.cashbackTotal) * 100) / 100,
                 })),
-            topTransaction: topExpense ? {
-                description: topExpense.description,
-                amount: Number(topExpense.amount),
-                category: topExpense.category?.name ?? 'Uncategorized',
-            } : null,
-            dayOfWeekTop,
+            topTransactions,
+            timingPattern,
+            topCategoryConcentration,
         };
         const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
-        const cached = await service.getCachedInsight(year, month, inputHash);
+        // force=true (the explicit "Re-analyze" action) always asks the AI
+        // again, even if the underlying numbers are unchanged — otherwise
+        // "re-analyze" silently returns the exact same cached points, which
+        // reads as broken rather than as an accurate no-change result.
+        const force = req.query.force === 'true';
+        const cached = force ? null : await service.getCachedInsight(year, month, inputHash);
         if (cached) {
             res.json({ points: cached, cached: true });
             return;

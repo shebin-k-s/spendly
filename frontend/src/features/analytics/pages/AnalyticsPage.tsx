@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { currentYearMonth, monthLabel } from '@/lib/utils';
-import { useAnalytics, useMonthlySummary, useMonthAnalysis } from '@/features/expenses/hooks/useExpenses';
+import { useAnalytics, useMonthlySummary, useMonthAnalysis, useReanalyzeMonth } from '@/features/expenses/hooks/useExpenses';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
@@ -33,9 +33,19 @@ export default function AnalyticsPage() {
   // month's own cached result (if this session — or a persisted past one —
   // already fetched it) with no manual reset needed.
   const analysis = useMonthAnalysis(year, month);
+  // Errors persist on the cached query (retry: false, gcTime: 7 days), so a
+  // failure from an earlier attempt is still sitting there next time this
+  // month is visited. Only toast when the error actually just changed —
+  // never for one already attached to the query on mount.
+  const seenAnalysisError = useRef(analysis.error);
   useEffect(() => {
-    if (analysis.error) toast.error(getErrorMessage(analysis.error));
+    if (analysis.error && analysis.error !== seenAnalysisError.current) {
+      toast.error(getErrorMessage(analysis.error));
+    }
+    seenAnalysisError.current = analysis.error;
   }, [analysis.error]);
+
+  const reanalyze = useReanalyzeMonth(year, month);
 
   return (
     <div className="animate-fade-in">
@@ -118,17 +128,17 @@ export default function AnalyticsPage() {
                     </li>
                   ))}
                 </ul>
-                {/* Nothing here auto-detects new expenses added after this was
-                    generated — re-analyzing is a deliberate re-ask, and the
-                    backend's own hash check decides whether that's actually
-                    a fresh Gemini call or just the same cached answer. */}
+                {/* Explicit re-ask — always forces a fresh AI pass (bypassing
+                    the backend's hash cache) rather than silently handing
+                    back the same points when nothing about the numbers
+                    changed, which used to read as "re-analyze does nothing." */}
                 <button
                   type="button"
-                  onClick={() => analysis.refetch()}
-                  disabled={analysis.isFetching}
+                  onClick={() => reanalyze.mutate()}
+                  disabled={reanalyze.isPending}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
                 >
-                  {analysis.isFetching ? 'Re-analyzing…' : 'Re-analyze'}
+                  {reanalyze.isPending ? 'Re-analyzing…' : 'Re-analyze'}
                 </button>
               </div>
             ) : (

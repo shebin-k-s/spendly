@@ -30,9 +30,9 @@ export const expensesApi = {
     return data;
   },
 
-  async analyzeMonth(year: number, month: number): Promise<{ points: string[]; cached: boolean }> {
+  async analyzeMonth(year: number, month: number, force = false): Promise<{ points: string[]; cached: boolean }> {
     const { data } = await apiClient.get<{ points: string[]; cached: boolean }>(`${URL}/analyze`, {
-      params: { year, month },
+      params: { year, month, ...(force ? { force: 'true' } : {}) },
     });
     return data;
   },

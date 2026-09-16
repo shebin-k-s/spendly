@@ -14,8 +14,9 @@ export interface MonthAnalysisInput {
     previousMonthNet: number | null;
     previousBreakdown: { name: string; net: number }[];
     recentTotals: { label: string; net: number }[];
-    topTransaction: { description: string; amount: number; category: string } | null;
-    dayOfWeekTop: { day: string; share: number } | null;
+    topTransactions: { description: string; amount: number; category: string }[];
+    timingPattern: { label: string; share: number } | null;
+    topCategoryConcentration: { categories: string[]; share: number } | null;
 }
 
 export class ExpenseAiService {
@@ -230,13 +231,18 @@ ${categoryBlock}`;
     }
 
     private buildMonthAnalysisPrompt(input: MonthAnalysisInput): string {
-        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransaction, dayOfWeekTop } = input;
+        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration } = input;
         const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
-        const breakdownLines = breakdown
-            .slice(0, 8)
+        const CATEGORY_CAP = 12;
+        const shownBreakdown = breakdown.slice(0, CATEGORY_CAP);
+        const overflowBreakdown = breakdown.slice(CATEGORY_CAP);
+        const breakdownLines = shownBreakdown
             .map(b => `- ${b.name}: ₹${b.net} (${b.count} transaction${b.count === 1 ? '' : 's'})`)
-            .join('\n');
+            .join('\n')
+            + (overflowBreakdown.length > 0
+                ? `\n- (+${overflowBreakdown.length} more categor${overflowBreakdown.length === 1 ? 'y' : 'ies'} totaling ₹${Math.round(overflowBreakdown.reduce((s, b) => s + b.net, 0) * 100) / 100})`
+                : '');
 
         const momLine = previousMonthNet !== null
             ? `Previous month's total net spend: ₹${previousMonthNet}.`
@@ -250,21 +256,27 @@ ${categoryBlock}`;
             ? `Total net spend trend over recent months, oldest first (use this to say whether this is part of a real multi-month streak, not just a one-off change vs last month):\n${recentTotals.map(r => `- ${r.label}: ₹${r.net}`).join('\n')}\n- ${monthName} ${year} (this month): ₹${total}`
             : 'Not enough month-to-month history yet for a multi-month trend — skip trend-over-time commentary.';
 
-        const topTransactionLine = topTransaction
-            ? `Single largest transaction this month: "${topTransaction.description}" — ₹${topTransaction.amount} (${topTransaction.category}).`
+        const topTransactionsBlock = topTransactions.length > 0
+            ? `Largest transaction${topTransactions.length === 1 ? '' : 's'} this month, biggest first:\n${topTransactions.map(t => `- "${t.description}" — ₹${t.amount} (${t.category})`).join('\n')}`
             : '';
 
-        const dayOfWeekLine = dayOfWeekTop && dayOfWeekTop.share >= 30
-            ? `Day-of-week pattern: ${dayOfWeekTop.share}% of this month's net spend happened on ${dayOfWeekTop.day}s specifically (summed across every ${dayOfWeekTop.day} this month).`
-            : 'No single day-of-week stands out this month — spend was fairly spread across the week.';
+        const timingLine = timingPattern
+            ? `Timing pattern: ${timingPattern.share}% of this month's net spend happened during ${timingPattern.label} specifically.`
+            : 'No single day-of-week or time-of-day stood out this month — spend was fairly spread out.';
+
+        const concentrationLine = topCategoryConcentration
+            ? `Category concentration: ${topCategoryConcentration.categories.join(' and ')} together made up ${topCategoryConcentration.share}% of this month's total net spend.`
+            : '';
 
         return `You are a personal finance assistant. Write a short spending summary for ${monthName} ${year} using ONLY the numbers given below — never invent, estimate, or assume anything not explicitly listed here.
 
 Total net spend: ₹${total} across ${count} transaction${count === 1 ? '' : 's'}.
 Cashback earned: ₹${cashbackTotal}.
 ${momLine}
-${topTransactionLine}
-${dayOfWeekLine}
+${timingLine}
+${concentrationLine}
+
+${topTransactionsBlock}
 
 This month's category breakdown (net spend, highest first):
 ${breakdownLines}
@@ -273,14 +285,15 @@ ${prevBreakdownBlock}
 
 ${trendBlock}
 
-Return ONLY a JSON array of exactly 4 short strings (no markdown, no explanation outside the array) — each string is ONE standalone point, meant to be read as a separate line, not a paragraph:
+Return ONLY a JSON array of exactly 5 short strings (no markdown, no explanation outside the array) — each string is ONE standalone point, meant to be read as a separate line, not a paragraph:
 
 1. Compare THIS month's category breakdown against the PREVIOUS month's category-by-category (not the overall totals) and call out the single category that moved the most, by name, with its approximate ₹ or % shift — e.g. "Food & Dining nearly doubled from ₹1,200 to ₹2,243." If a category exists in one month's list but not the other, say so explicitly (a new habit appearing, or one that stopped).
 2. Using the multi-month trend given above (if there's enough history), say whether this month continues a real streak (e.g. "third month in a row above ₹7,000") or is a return-to-normal / one-off deviation from a more stable pattern (e.g. "back in line with your typical ₹X after last month's spike") — do NOT just restate a single month-over-month %, actually characterize the shape of the trend across the months given.
-3. Mention the single largest transaction (given above, if present) by its description and amount, framed as a specific standout moment — e.g. "Your biggest single purchase was Rent at ₹1,750."
-4. If a day-of-week pattern is given above, use it verbatim as this point (e.g. "42% of your spending this month happened on Saturdays"). If none stood out, give one other genuinely specific observation instead (e.g. a category with an unusually high transaction count for its total, or cashback earned being ₹0 despite meaningful spend).
+3. Mention the largest transaction(s) given above by description and amount, framed as a specific standout moment. If two or three are close in size or from the same category, say so (e.g. "Two big purchases — Rent at ₹1,750 and a laptop stand at ₹1,200 — drove most of this month's spend."). Otherwise just call out the single biggest one.
+4. Use the timing pattern given above verbatim if one is present (e.g. "42% of your spending this month happened on Saturdays" or "...during the evening"). If none stood out, give one other genuinely specific observation instead (e.g. a category with an unusually high transaction count for its total, or cashback earned being ₹0 despite meaningful spend).
+5. Use the category concentration fact given above if present (e.g. "Food & Dining and Transport together made up 63% of everything you spent this month.") — treat it as worth flagging if the share is high (over ~55%), or worth noting positively if spend looks well-spread instead. If not present, make a different genuinely specific observation not already covered by points 1-4.
 
-Each string must be direct and specific like a friend who actually looked closely at your numbers — never a vague sentence like "spending was up this month." Use ₹ for all amounts. Do not mention anything not present in the data above. Example shape: ["Food & Dining dropped from ₹3,505 to ₹2,243 this month.", "This is the third month in a row your spending has landed above ₹7,000.", "Your biggest single purchase was Rent at ₹1,750.", "42% of your spending this month happened on Saturdays."]`;
+Each string must be direct and specific like a friend who actually looked closely at your numbers — never a vague sentence like "spending was up this month." Use ₹ for all amounts. Do not mention anything not present in the data above. Example shape: ["Food & Dining dropped from ₹3,505 to ₹2,243 this month.", "This is the third month in a row your spending has landed above ₹7,000.", "Your biggest single purchase was Rent at ₹1,750.", "42% of your spending this month happened on Saturdays.", "Food & Dining and Transport together made up 63% of everything you spent this month."]`;
     }
 
     async analyzeMonth(input: MonthAnalysisInput): Promise<string[]> {

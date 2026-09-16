@@ -86,6 +86,24 @@ export function useMonthAnalysis(year: number, month: number) {
   });
 }
 
+// A plain refetch() on useMonthAnalysis would just hit the backend's own
+// hash cache and silently hand back the exact same points if nothing about
+// the month's numbers changed — which reads as "re-analyze does nothing."
+// This bypasses that cache for a genuinely fresh AI pass, then overwrites
+// the cached query result so the rest of the UI sees it immediately.
+export function useReanalyzeMonth(year: number, month: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => expensesApi.analyzeMonth(year, month, true),
+    onSuccess: (data) => {
+      qc.setQueryData([...ANALYSIS_KEY, year, month], data);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error));
+    },
+  });
+}
+
 export function useCreateExpense() {
   const qc = useQueryClient();
   return useMutation({
