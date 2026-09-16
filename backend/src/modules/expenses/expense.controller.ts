@@ -96,7 +96,13 @@ export class ExpenseController {
             return map;
         });
 
-        // Categories whose names clearly share a theme (e.g. "Family" and
+        // Category name -> real id, so the frontend can link straight to a
+        // category's page — kept out of what's sent to the AI (it never
+        // needs raw UUIDs, only names, for its narrative).
+        const categoryIdByName = new Map<string, string>();
+        for (const b of summary.breakdown) categoryIdByName.set(b.name, b.categoryId);
+        for (const { s } of qualifyingPast) for (const b of s.breakdown) categoryIdByName.set(b.name, b.categoryId);
+
         // The category that deviates most from ITS OWN historical average
         // (not just vs last month, which can itself have been unusual) —
         // covers both a spike in an existing category and one that
@@ -127,6 +133,25 @@ export class ExpenseController {
                 }
             }
             if (best) categoryAnomaly = { name: best.name, thisMonth: best.thisMonth, historicalAvg: best.historicalAvg, monthsCounted: qualifyingPast.length };
+        }
+
+        // The category with the single biggest ₹ move vs LAST month only
+        // (categoryAnomaly above needs 2+ tracked months of history; this
+        // needs just one) — used to link to that category's page even when
+        // there isn't enough history yet for the fuller anomaly check.
+        let topMoMShiftCategoryName: string | null = null;
+        if (prevSummary.count > 0) {
+            const prevMonthCategoryNet: Record<string, number> = {};
+            for (const b of prevSummary.breakdown) prevMonthCategoryNet[b.name] = Math.round((b.total - b.cashbackTotal) * 100) / 100;
+            const names = new Set([...Object.keys(thisMonthCategoryNet), ...Object.keys(prevMonthCategoryNet)]);
+            let bestDelta = -1;
+            for (const name of names) {
+                const delta = Math.abs((thisMonthCategoryNet[name] ?? 0) - (prevMonthCategoryNet[name] ?? 0));
+                if (delta > bestDelta) {
+                    bestDelta = delta;
+                    topMoMShiftCategoryName = name;
+                }
+            }
         }
 
         // EVERY day that was a real outlier vs. the user's own average
@@ -301,6 +326,22 @@ export class ExpenseController {
             topDescriptions: d.topDescriptions,
         }));
 
+        // Every category the analysis actually discusses (the anomaly, the
+        // biggest MoM mover, and the concentration categories), resolved to
+        // real ids and deduped, so the frontend can link straight to each
+        // one's page — same idea as the spike-day links above.
+        const categoryLinkNames = [
+            categoryAnomaly?.name,
+            topMoMShiftCategoryName,
+            ...(topCategoryConcentration?.categories ?? []),
+        ].filter((name): name is string => !!name);
+        const categoryLinks = [...new Map(
+            categoryLinkNames
+                .map(name => ({ name, categoryId: categoryIdByName.get(name) }))
+                .filter((c): c is { name: string; categoryId: string } => !!c.categoryId && c.categoryId !== 'uncategorized')
+                .map(c => [c.categoryId, c] as const),
+        ).values()].slice(0, 4);
+
         // force=true (the explicit "Re-analyze" action) always asks the AI
         // again, even if the underlying numbers are unchanged — otherwise
         // "re-analyze" silently returns the exact same cached points, which
@@ -308,7 +349,7 @@ export class ExpenseController {
         const force = req.query.force === 'true';
         const cached = force ? null : await service.getCachedInsight(year, month, inputHash);
         if (cached) {
-            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt, spikeDays: spikeDayLinks });
+            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt, spikeDays: spikeDayLinks, categories: categoryLinks });
             return;
         }
 
@@ -320,7 +361,7 @@ export class ExpenseController {
 
         const generated = await aiService.analyzeMonth(input);
         const generatedAt = await service.saveInsight(year, month, inputHash, generated);
-        res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks });
+        res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks, categories: categoryLinks });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {

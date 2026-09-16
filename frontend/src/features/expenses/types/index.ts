@@ -83,10 +83,16 @@ export interface SpikeDay {
   topDescriptions: string[];
 }
 
+export interface AnalysisCategoryLink {
+  categoryId: string;
+  name: string;
+}
+
 export interface MonthAnalysis {
   points: string[];
   cached: boolean;
   generatedAt: string;
   spikeDays: SpikeDay[];
+  categories: AnalysisCategoryLink[];
 }
 

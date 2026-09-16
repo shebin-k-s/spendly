@@ -50,11 +50,17 @@ export default function ExpensesPage() {
     const parsed = parseISO(jumpDate);
     if (!isValid(parsed)) { jumpHandledRef.current = true; return; }
 
+    // Clear whatever could hide the target day regardless of whether the
+    // month needs switching too — previously this only ran on a month
+    // mismatch, so an active filter on the CURRENT month's page silently
+    // kept the target day hidden.
+    dispatch(clearFilters());
+    dispatch(setFilterOpen(false));
+
     const targetYear = parsed.getFullYear();
     const targetMonth = parsed.getMonth() + 1;
     if (targetYear !== year || targetMonth !== month) {
       dispatch(setDate({ year: targetYear, month: targetMonth }));
-      dispatch(clearFilters());
       return; // wait for the next render with the right month before scrolling
     }
     if (!isSuccess) return; // wait for that month's expenses to load
@@ -347,7 +353,7 @@ export default function ExpensesPage() {
               const dayGross = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
               return (
-                <div key={dateStr} id={`date-${dateStr}`} className="transition-shadow duration-300">
+                <div key={dateStr} id={`date-${dateStr}`} className="scroll-mt-36 transition-shadow duration-300">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
                     <div className="flex flex-col items-end">
