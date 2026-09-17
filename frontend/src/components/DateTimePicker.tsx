@@ -31,7 +31,7 @@ function fmtDisplayDate(dateStr: string): string {
   if (dateStr === today) return 'Today';
   if (dateStr === yesterday) return 'Yesterday';
   const d = parse(dateStr, 'yyyy-MM-dd', new Date());
-  return isValid(d) ? format(d, 'd MMM yyyy') : dateStr;
+  return isValid(d) ? format(d, 'EEE, d MMM yyyy') : dateStr;
 }
 
 function fmtDisplayTime(h12: number, min: number, p: 'AM' | 'PM'): string {

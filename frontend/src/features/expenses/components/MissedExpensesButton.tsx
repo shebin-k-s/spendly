@@ -9,6 +9,11 @@ import type { MissedExpenseSuggestion } from '../types';
 
 // slotKey rides along as an opaque tag so a removal (onRemoveItem below) can
 // be written back to the dismiss ledger — BulkParseModal never looks inside it.
+//
+// BulkParseModal's card has no field of its own for "why was this
+// suggested" — pre-filling the note with the habit's frequency covers that
+// context instead of leaving it blank, and doubles as a visible reason to
+// look at the (otherwise easy-to-miss) note box at all.
 function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
   return {
     amount: String(s.typicalAmount),
@@ -17,7 +22,7 @@ function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
     time: s.suggestedTime,
     category_id: s.categoryId,
     category_name: s.categoryName,
-    note: null,
+    note: `You usually do this ${s.frequencyPct}% of tracked days.`,
     cashback: null,
     suggested_flow: 'expense',
     transfer_person: null,

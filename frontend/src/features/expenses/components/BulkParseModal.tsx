@@ -762,13 +762,13 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       </div>
                     )}
 
-                    {/* Notes (Small inline) */}
+                    {/* Notes */}
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Note</label>
                       <textarea
                         disabled={isSaved}
                         rows={1}
-                        className="w-full bg-transparent border-none p-0 text-sm text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/30 italic resize-none leading-relaxed break-words overflow-hidden"
+                        className="w-full bg-secondary/50 border-none rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-0 disabled:opacity-50 placeholder:text-muted-foreground/50 resize-none leading-relaxed break-words overflow-hidden"
                         value={item.note || ''}
                         ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
                         onChange={e => updateItem(idx, { note: e.target.value })}
