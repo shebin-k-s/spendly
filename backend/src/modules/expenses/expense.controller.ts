@@ -577,7 +577,7 @@ export class ExpenseController {
         }
 
         const MIN_OCCURRENCES = 5;
-        const MIN_FREQUENCY = 0.5; // present at least half the tracked days
+        const MIN_FREQUENCY = 0.33; // present at least a third of the tracked days
         const MIN_WINDOW_DAYS = 10; // need enough history to trust the pattern
         const MAX_SUGGESTIONS = 20;
         const GRACE_MIN_MINUTES = 45; // even a razor-tight habit gets at least this much buffer
