@@ -23,6 +23,13 @@ function ordinalSuffix(n: number): string {
     return 'th';
 }
 
+// The `description` field is a terse label ("Groceries"); `note` is where
+// the actual itemized breakdown lives when the user gave one ("Milk ₹24,
+// Bread ₹40 and Eggs ₹60."). Prefer the real detail when it exists.
+function realNote(e: { note?: string | null; description: string }): string {
+    return e.note && e.note.trim() ? e.note.trim() : e.description;
+}
+
 export class ExpenseController {
     getByMonth = async (req: Request, res: Response) => {
         const { year: istYear, month: istMonth } = getISTParts();
@@ -181,7 +188,7 @@ export class ExpenseController {
                             .filter(e => e.date === date)
                             .sort((a, b) => Number(b.amount) - Number(a.amount))
                             .slice(0, 2)
-                            .map(e => e.description);
+                            .map(e => realNote(e));
                         // Weekday name is what actually jogs memory ("oh
                         // right, that was a Sunday") — a bare yyyy-MM-dd
                         // doesn't. No month name since the analysis is
@@ -284,7 +291,7 @@ export class ExpenseController {
             .sort((a, b) => Number(b.amount) - Number(a.amount))
             .slice(0, 3)
             .map(e => ({
-                description: e.description,
+                description: realNote(e),
                 amount: Number(e.amount),
                 category: e.category?.name ?? 'Uncategorized',
             }));
