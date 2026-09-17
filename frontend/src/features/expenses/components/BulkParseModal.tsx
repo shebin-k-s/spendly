@@ -391,6 +391,27 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
     onClose();
   };
 
+  // Saving one item on its own (as opposed to via Save All) still needs the
+  // same query invalidation so the dashboard/lists pick it up immediately —
+  // just scoped to a single toast instead of a batch summary, and without
+  // closing the sheet or resetting the draft (the other items are still
+  // pending review).
+  const handleSaveOne = async (idx: number) => {
+    const ok = await saveOne(idx);
+    if (!ok) {
+      toast.error('Failed to save — check the highlighted fields');
+      return;
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'expenses' && query.queryKey[1] !== 'analyze',
+        refetchType: 'all',
+      }),
+      queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' }),
+    ]);
+    toast.success('Saved');
+  };
+
   const savedCount = items.filter(it => it._saved).length;
   const totalCount = items.length;
   const allSaved = totalCount > 0 && savedCount === totalCount;
@@ -616,12 +637,24 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       </div>
 
                       {!isSaved && (
-                        <button
-                          onClick={() => removeItem(idx)}
-                          className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-all shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => void handleSaveOne(idx)}
+                            disabled={item._saving || !item.amount || (!item.description && !item.transfer_person)}
+                            className="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
+                          >
+                            {item._saving
+                              ? <Loader2 className="w-3.5 h-3.5 text-success animate-spin" />
+                              : <Check className="w-3.5 h-3.5 text-success" />}
+                          </button>
+                          <button
+                            onClick={() => removeItem(idx)}
+                            disabled={item._saving}
+                            className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </button>
+                        </div>
                       )}
                     </div>
 
