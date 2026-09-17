@@ -492,6 +492,7 @@ export class ExpenseController {
     // in order. No cursor supplied (or one older than MAX_BACKFILL_DAYS) —
     // falls back to that fixed backfill cap.
     getMissedExpenses = async (req: Request, res: Response) => {
+        const debug = req.query.debug === 'true';
         const { dateString: today, hour: currentHour } = getISTParts();
         const { yesterday } = getRelativeDateHints();
 
@@ -538,7 +539,10 @@ export class ExpenseController {
             : [[], await service.getByDateRange(since, today)];
 
         if (trainingExpenses.length === 0) {
-            res.json({ items: [], since });
+            res.json({
+                items: [], since,
+                ...(debug ? { _debug: { today, currentHour, since, sinceBucketIndex, trainingStartStr, trainingEndStr, trainingExpensesCount: 0, checkRangeExpensesCount: checkRangeExpenses.length, reason: 'no expenses at all in the training window' } } : {}),
+            });
             return;
         }
 
@@ -596,6 +600,19 @@ export class ExpenseController {
         const MIN_FREQUENCY = 0.5; // present at least half the tracked days
         const MIN_WINDOW_DAYS = 10; // need enough history to trust the pattern
         const MAX_SUGGESTIONS = 20;
+
+        // Every group found in the training data, with its raw numbers and
+        // whether it actually cleared the habit thresholds — the point of
+        // ?debug=true: seeing why something that feels like a habit isn't
+        // showing (too few occurrences, too low a frequency, or not enough
+        // tracked days yet to trust it at all).
+        const groupDebug = [...groups.values()].map(g => ({
+            categoryName: g.categoryName,
+            bucketLabel: g.bucket.label,
+            occurrences: g.dates.size,
+            frequencyPct: totalTrainingDays > 0 ? Math.round((g.dates.size / totalTrainingDays) * 100) : 0,
+            qualifies: totalTrainingDays >= MIN_WINDOW_DAYS && g.dates.size >= MIN_OCCURRENCES && (g.dates.size / totalTrainingDays) >= MIN_FREQUENCY,
+        }));
 
         const habits = [...groups.values()]
             .map(g => {
@@ -662,7 +679,21 @@ export class ExpenseController {
             })
             .slice(0, MAX_SUGGESTIONS);
 
-        res.json({ items: suggestions, since });
+        res.json({
+            items: suggestions, since,
+            ...(debug ? {
+                _debug: {
+                    today, currentHour, since, sinceBucketIndex,
+                    trainingStartStr, trainingEndStr, totalTrainingDays,
+                    trainingExpensesCount: trainingExpenses.length,
+                    checkRangeExpensesCount: checkRangeExpenses.length,
+                    timedTrainingExpensesCount: trainingExpenses.filter(e => e.time).length,
+                    categorizedTrainingExpensesCount: trainingExpenses.filter(e => e.category).length,
+                    checkDatesCount: checkDates.length,
+                    groups: groupDebug,
+                },
+            } : {}),
+        });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {
