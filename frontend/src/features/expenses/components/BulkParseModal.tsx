@@ -637,22 +637,22 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       </div>
 
                       {!isSaved && (
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-4 shrink-0">
                           <button
                             onClick={() => void handleSaveOne(idx)}
                             disabled={item._saving || !item.amount || (!item.description && !item.transfer_person)}
-                            className="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
+                            className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
                           >
                             {item._saving
-                              ? <Loader2 className="w-3.5 h-3.5 text-success animate-spin" />
-                              : <Check className="w-3.5 h-3.5 text-success" />}
+                              ? <Loader2 className="w-4 h-4 text-success animate-spin" />
+                              : <Check className="w-4 h-4 text-success" />}
                           </button>
                           <button
                             onClick={() => removeItem(idx)}
                             disabled={item._saving}
-                            className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
+                            className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </button>
                         </div>
                       )}
