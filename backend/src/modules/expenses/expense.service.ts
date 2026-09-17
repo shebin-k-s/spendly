@@ -134,6 +134,14 @@ export class ExpenseService {
         };
     }
 
+    async getByDateRange(start: string, end: string) {
+        return this.repo
+            .createQueryBuilder('expense')
+            .leftJoinAndSelect('expense.category', 'category')
+            .where('expense.date >= :start AND expense.date <= :end', { start, end })
+            .getMany();
+    }
+
     async getByCategoryRange(categoryId: string, start: string, end: string) {
         const expenses = await this.repo
             .createQueryBuilder('expense')

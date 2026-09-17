@@ -12,6 +12,7 @@ router.get('/', controller.getByMonth);
 router.get('/summary', controller.getMonthlySummary);
 router.get('/analytics', controller.getAnalytics);
 router.get('/analyze', controller.analyzeMonth);
+router.get('/missed', controller.getMissedExpenses);
 router.get('/by-category', controller.getByCategoryYear);
 router.post('/parse-text', validate(parseTextSchema), controller.parseText);
 router.post('/parse-bulk-text', validate(parseBulkTextSchema), controller.parseBulkText);

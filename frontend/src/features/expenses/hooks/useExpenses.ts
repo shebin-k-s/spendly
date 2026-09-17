@@ -9,6 +9,7 @@ const EXPENSES_KEY = ['expenses'] as const;
 const SUMMARY_KEY = ['expenses', 'summary'] as const;
 const ANALYTICS_KEY = ['expenses', 'analytics'] as const;
 const CATEGORY_SPEND_KEY = ['expenses', 'by-category'] as const;
+const MISSED_KEY = ['expenses', 'missed'] as const;
 
 export function useExpensesQuery(year: number, month: number, categoryId?: string) {
   return useQuery({
@@ -40,6 +41,14 @@ export function useAnalytics(months = 6) {
     queryKey: [...ANALYTICS_KEY, months],
     queryFn: () => expensesApi.getAnalytics(months),
     staleTime: 60_000,
+  });
+}
+
+export function useMissedExpenses(sinceDate?: string, sinceBucket?: string) {
+  return useQuery({
+    queryKey: [...MISSED_KEY, sinceDate, sinceBucket],
+    queryFn: () => expensesApi.getMissed(sinceDate, sinceBucket),
+    staleTime: 30_000,
   });
 }
 

@@ -106,3 +106,22 @@ export interface MonthAnalysis {
   categories: AnalysisCategoryLink[];
 }
 
+export interface MissedExpenseSuggestion {
+  date: string;
+  dayLabel: string;
+  categoryId: string;
+  categoryName: string;
+  categoryIcon: string;
+  bucketKey: string;
+  bucketLabel: string;
+  typicalAmount: number;
+  typicalDescription: string;
+  suggestedTime: string;
+  frequencyPct: number;
+}
+
+export interface MissedExpensesResult {
+  items: MissedExpenseSuggestion[];
+  since: string;
+}
+

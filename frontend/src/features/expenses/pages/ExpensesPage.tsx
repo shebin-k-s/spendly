@@ -16,6 +16,7 @@ import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import ExpenseCard from '../components/ExpenseCard';
+import MissedExpensesButton from '../components/MissedExpensesButton';
 import ExpenseFilter from '../components/ExpenseFilter';
 import ExpenseListSkeleton from '../components/ExpenseListSkeleton';
 import MonthNavigator from '../components/MonthNavigator';
@@ -225,6 +226,7 @@ export default function ExpensesPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <MissedExpensesButton />
             <button
               onClick={() => dispatch(setFilterOpen(!isFilterOpen))}
               className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors

@@ -169,7 +169,7 @@ export default function AddExpensePage() {
   const sharedImage = searchParams.get('shared') === 'image';
   const sharedText = searchParams.get('shared') === 'text';
   const parsed = useMemo(() => shareRaw ? parseShareText(shareRaw) : null, [shareRaw]);
-  const prefill = (location.state as { prefill?: { amount: string; description: string; categoryId: string; note: string } } | null)?.prefill ?? null;
+  const prefill = (location.state as { prefill?: { amount: string; description: string; categoryId: string; note: string; date?: string; time?: string } } | null)?.prefill ?? null;
   const parsedShare = (location.state as { parsedShare?: Record<string, unknown>; shareTs?: number } | null)?.parsedShare ?? null;
   const forceExpense = (location.state as { forceExpense?: boolean } | null)?.forceExpense ?? false;
   const shareTs = (location.state as { shareTs?: number } | null)?.shareTs ?? (searchParams.get('shareTs') ? parseInt(searchParams.get('shareTs')!, 10) : null);
@@ -311,8 +311,8 @@ export default function AddExpensePage() {
   const [amount, setAmount] = useState(stripTrailingZeros(prefill?.amount ?? (ps?.amount as string) ?? parsed?.amount ?? ''));
   const [cashback, setCashback] = useState(stripTrailingZeros((ps?.cashback as string) ?? ''));
   const [description, setDescription] = useState(prefill?.description ?? (ps?.description as string) ?? parsed?.description ?? '');
-  const [date, setDate] = useState((ps?.date as string) ?? parsed?.date ?? format(now, 'yyyy-MM-dd'));
-  const [time, setTime] = useState<string | null>((ps?.time as string) ?? parsed?.time ?? format(now, 'HH:mm'));
+  const [date, setDate] = useState(prefill?.date ?? (ps?.date as string) ?? parsed?.date ?? format(now, 'yyyy-MM-dd'));
+  const [time, setTime] = useState<string | null>(prefill?.time ?? (ps?.time as string) ?? parsed?.time ?? format(now, 'HH:mm'));
   const [categoryId, setCategoryId] = useState(prefill?.categoryId ?? (ps?.category_id as string) ?? '');
   const [note, setNote] = useState(prefill?.note ?? (ps?.note as string) ?? '');
   const [aiStatus, setAiStatus] = useState<AiStatus>(parsedShare ? 'done' : 'idle');

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
 import { ExpenseAiService, type MonthAnalysisInput } from './expense.ai.service';
-import { getISTParts } from '../../common/utils/date.utils';
+import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
 
 const log = {
     info: (msg: string, meta?: Record<string, unknown>) =>
@@ -442,6 +442,220 @@ export class ExpenseController {
         const generated = await aiService.analyzeMonth(input);
         const generatedAt = await service.saveInsight(year, month, inputHash, generated);
         res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks, unusualExpenses: unusualExpenseLinks, categories: categoryLinks });
+    };
+
+    // Same 4 buckets used by the AI analysis's timing-pattern signal — kept
+    // separate (not imported) since that one lives in a per-request local,
+    // not something shared across the file.
+    private readonly missedCheckBuckets = [
+        { key: 'morning', label: 'morning', from: 5, to: 12 },
+        { key: 'afternoon', label: 'afternoon', from: 12, to: 17 },
+        { key: 'evening', label: 'evening', from: 17, to: 21 },
+        { key: 'night', label: 'late night', from: 21, to: 29 }, // wraps past midnight
+    ];
+
+    private bucketForHour = (hour: number) => {
+        const h = hour < 5 ? hour + 24 : hour;
+        return this.missedCheckBuckets.find(b => h >= b.from && h < b.to) ?? null;
+    };
+
+    private parseHour = (time: string) => parseInt(time.split(':')[0], 10);
+
+    // "Today", "Yesterday", or a weekday+ordinal for anything older — same
+    // shape as the AI analysis's spike-day labels.
+    private dayLabelFor = (date: string, today: string, yesterday: string) => {
+        if (date === today) return 'Today';
+        if (date === yesterday) return 'Yesterday';
+        const dateObj = new Date(`${date}T00:00:00`);
+        const weekdayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        const dayNum = dateObj.getDate();
+        return `${weekdayName}, the ${dayNum}${ordinalSuffix(dayNum)}`;
+    };
+
+    // "You usually log something in this category around this time of day,
+    // most days — and that window has already passed with nothing logged"
+    // — a plain frequency check per category+time-bucket, no AI involved.
+    // Deliberately per-category + time-of-day rather than exact
+    // description/amount match: the point is catching a HABIT (e.g. a
+    // morning tea) even when what's bought or spent varies day to day.
+    //
+    // The client holds a "caught up through" cursor — a (date, bucket)
+    // position, passed as ?sinceDate&sinceBucket — and only positions
+    // strictly AFTER it are ever returned. It only ever moves forward, and
+    // only in response to an explicit user action (adding or discarding one
+    // suggestion advances it to that suggestion's own position; a "mark
+    // everything covered" action jumps it to the newest position currently
+    // shown) — never just from opening/viewing the list. Everything at or
+    // before the cursor is treated as resolved from then on, even entries
+    // that were never individually looked at — the tradeoff the user chose
+    // over per-item tracking, on the assumption the list is worked through
+    // in order. No cursor supplied (or one older than MAX_BACKFILL_DAYS) —
+    // falls back to that fixed backfill cap.
+    getMissedExpenses = async (req: Request, res: Response) => {
+        const { dateString: today, hour: currentHour } = getISTParts();
+        const { yesterday } = getRelativeDateHints();
+
+        const MAX_BACKFILL_DAYS = 14;
+        const earliestAllowedDate = new Date(`${today}T00:00:00`);
+        earliestAllowedDate.setDate(earliestAllowedDate.getDate() - MAX_BACKFILL_DAYS);
+        const earliestAllowed = earliestAllowedDate.toISOString().slice(0, 10);
+
+        const isValidIsoDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+        const sinceDateParam = req.query.sinceDate as string | undefined;
+        const sinceBucketParam = req.query.sinceBucket as string | undefined;
+        const since = isValidIsoDate(sinceDateParam) && sinceDateParam! > earliestAllowed ? sinceDateParam! : earliestAllowed;
+        // The bucket half of the cursor only makes sense paired with its own
+        // date — if the date got clamped up to earliestAllowed above, start
+        // that date from its first bucket rather than honoring a bucket
+        // index that belonged to a different (older) date.
+        const sinceBucketIndex = since === sinceDateParam
+            ? this.missedCheckBuckets.findIndex(b => b.key === sinceBucketParam)
+            : -1;
+
+        // Training window: the 30 days strictly BEFORE `since` — never the
+        // days being checked, so backfilling a long gap never erodes the
+        // pattern it's being checked against.
+        const TRAINING_DAYS = 30;
+        const trainingEnd = new Date(`${since}T00:00:00`);
+        trainingEnd.setDate(trainingEnd.getDate() - 1);
+        const trainingEndStr = trainingEnd.toISOString().slice(0, 10);
+        const trainingStart = new Date(`${trainingEndStr}T00:00:00`);
+        trainingStart.setDate(trainingStart.getDate() - TRAINING_DAYS);
+        const trainingStartStr = trainingStart.toISOString().slice(0, 10);
+
+        const [trainingExpenses, checkRangeExpenses] = trainingEndStr >= trainingStartStr
+            ? await Promise.all([
+                service.getByDateRange(trainingStartStr, trainingEndStr),
+                service.getByDateRange(since, today),
+            ])
+            : [[], await service.getByDateRange(since, today)];
+
+        if (trainingExpenses.length === 0) {
+            res.json({ items: [], since });
+            return;
+        }
+
+        // Bound the "how many days should this have happened" denominator by
+        // when tracking in this window actually started — a user who only
+        // started logging 10 days ago shouldn't have their morning-tea
+        // frequency diluted by 20 days of no data at all.
+        const earliestTrainingDate = trainingExpenses.reduce((min, e) => (e.date < min ? e.date : min), trainingExpenses[0].date);
+        const totalTrainingDays = Math.round(
+            (new Date(`${trainingEndStr}T00:00:00`).getTime() - new Date(`${earliestTrainingDate}T00:00:00`).getTime()) / 86_400_000,
+        ) + 1;
+
+        type Group = {
+            categoryId: string;
+            categoryName: string;
+            categoryIcon: string;
+            bucket: typeof this.missedCheckBuckets[number];
+            dates: Set<string>;
+            amounts: number[];
+            descriptions: string[];
+            minutesOfDay: number[];
+        };
+        const groups = new Map<string, Group>();
+        for (const e of trainingExpenses) {
+            if (!e.time || !e.category) continue;
+            const hour = this.parseHour(e.time);
+            const bucket = this.bucketForHour(hour);
+            if (!bucket) continue;
+            const key = `${e.category.id}::${bucket.key}`;
+            const g = groups.get(key) ?? {
+                categoryId: e.category.id,
+                categoryName: e.category.name,
+                categoryIcon: e.category.icon,
+                bucket,
+                dates: new Set<string>(),
+                amounts: [],
+                descriptions: [],
+                minutesOfDay: [],
+            };
+            g.dates.add(e.date);
+            g.amounts.push(Number(e.amount));
+            g.descriptions.push(e.description);
+            g.minutesOfDay.push(hour * 60 + parseInt(e.time.split(':')[1], 10));
+            groups.set(key, g);
+        }
+
+        const isCoveredOnDate = (date: string, categoryId: string, bucketKey: string) =>
+            checkRangeExpenses.some(e => {
+                if (e.date !== date || e.category?.id !== categoryId) return false;
+                if (!e.time) return true; // logged without a time — don't nag about "when", just that it happened
+                return this.bucketForHour(this.parseHour(e.time))?.key === bucketKey;
+            });
+
+        const MIN_OCCURRENCES = 5;
+        const MIN_FREQUENCY = 0.5; // present at least half the tracked days
+        const MIN_WINDOW_DAYS = 10; // need enough history to trust the pattern
+        const MAX_SUGGESTIONS = 20;
+
+        const habits = [...groups.values()]
+            .map(g => {
+                const frequency = totalTrainingDays > 0 ? g.dates.size / totalTrainingDays : 0;
+                if (totalTrainingDays < MIN_WINDOW_DAYS) return null;
+                if (g.dates.size < MIN_OCCURRENCES || frequency < MIN_FREQUENCY) return null;
+
+                const typicalAmount = Math.round((g.amounts.reduce((a, b) => a + b, 0) / g.amounts.length) * 100) / 100;
+                const descCounts = new Map<string, number>();
+                for (const d of g.descriptions) descCounts.set(d, (descCounts.get(d) ?? 0) + 1);
+                const typicalDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+                const avgMinutes = g.minutesOfDay.reduce((a, b) => a + b, 0) / g.minutesOfDay.length;
+                const wrappedMinutes = ((Math.round(avgMinutes) % 1440) + 1440) % 1440;
+                const suggestedTime = `${Math.floor(wrappedMinutes / 60).toString().padStart(2, '0')}:${(wrappedMinutes % 60).toString().padStart(2, '0')}`;
+
+                return {
+                    categoryId: g.categoryId,
+                    categoryName: g.categoryName,
+                    categoryIcon: g.categoryIcon,
+                    bucket: g.bucket,
+                    typicalAmount,
+                    typicalDescription,
+                    suggestedTime,
+                    frequencyPct: Math.round(frequency * 100),
+                };
+            })
+            .filter((h): h is NonNullable<typeof h> => !!h);
+
+        const checkDates: string[] = [];
+        for (let d = new Date(`${since}T00:00:00`); d <= new Date(`${today}T00:00:00`); d.setDate(d.getDate() + 1)) {
+            checkDates.push(d.toISOString().slice(0, 10));
+        }
+        const currentHourAdjusted = currentHour < 5 ? currentHour + 24 : currentHour;
+
+        const suggestions = checkDates.flatMap(date => {
+            const isToday = date === today;
+            return habits
+                // A past day is fully over — every bucket applies. Today only
+                // counts a bucket once its window has actually passed —
+                // otherwise "missing" just means "not yet", not "skipped".
+                .filter(h => (isToday ? currentHourAdjusted >= h.bucket.to : true))
+                .filter(h => date !== since || this.missedCheckBuckets.indexOf(h.bucket) > sinceBucketIndex)
+                .filter(h => !isCoveredOnDate(date, h.categoryId, h.bucket.key))
+                .map(h => ({
+                    date,
+                    dayLabel: this.dayLabelFor(date, today, yesterday),
+                    categoryId: h.categoryId,
+                    categoryName: h.categoryName,
+                    categoryIcon: h.categoryIcon,
+                    bucketKey: h.bucket.key,
+                    bucketLabel: h.bucket.label,
+                    typicalAmount: h.typicalAmount,
+                    typicalDescription: h.typicalDescription,
+                    suggestedTime: h.suggestedTime,
+                    frequencyPct: h.frequencyPct,
+                }));
+        })
+            // Oldest first, then in time-of-day order within a day — so the
+            // list reads as one chronological sequence to work through.
+            .sort((a, b) => {
+                if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+                return this.missedCheckBuckets.findIndex(bk => bk.key === a.bucketKey)
+                    - this.missedCheckBuckets.findIndex(bk => bk.key === b.bucketKey);
+            })
+            .slice(0, MAX_SUGGESTIONS);
+
+        res.json({ items: suggestions, since });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {
