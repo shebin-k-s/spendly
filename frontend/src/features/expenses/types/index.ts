@@ -112,8 +112,7 @@ export interface MissedExpenseSuggestion {
   categoryId: string;
   categoryName: string;
   categoryIcon: string;
-  bucketKey: string;
-  bucketLabel: string;
+  slotKey: string;
   typicalAmount: number;
   typicalDescription: string;
   suggestedTime: string;

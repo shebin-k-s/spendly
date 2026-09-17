@@ -7,14 +7,21 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
-import { getMissedCursor, advanceMissedCursor, yesterdayStr, LAST_BUCKET } from '../utils/missedCursor';
+import { getMissedCursorDate, advanceMissedCursor, yesterdayStr } from '../utils/missedCursor';
 import { isMissedExpenseDismissed, dismissMissedExpense } from '../utils/missedDismissals';
 import type { MissedExpenseSuggestion } from '../types';
 
+function fmtTime(t: string): string {
+  const [h, m] = t.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
 export default function MissedExpensesButton() {
   const navigate = useNavigate();
-  const [cursor, setCursor] = useState(() => getMissedCursor());
-  const missedQuery = useMissedExpenses(cursor?.date, cursor?.bucketKey);
+  const [cursorDate] = useState(() => getMissedCursorDate() ?? undefined);
+  const missedQuery = useMissedExpenses(cursorDate);
   const { data } = missedQuery;
   const freshness = useQueryFreshness(missedQuery);
   useRefetchOnFocus(missedQuery);
@@ -28,7 +35,7 @@ export default function MissedExpensesButton() {
   // affects that one entry, but via real data (the next fetch sees it as
   // covered) rather than this ledger.
   const items = useMemo(
-    () => (data?.items ?? []).filter((s) => !isMissedExpenseDismissed(s.date, s.categoryId, s.bucketKey)),
+    () => (data?.items ?? []).filter((s) => !isMissedExpenseDismissed(s.date, s.categoryId, s.slotKey)),
     [data, dismissVersion],
   );
 
@@ -43,15 +50,14 @@ export default function MissedExpensesButton() {
   // up forever.
   useEffect(() => {
     if ((data?.items.length ?? 0) > 0 && items.length === 0) {
-      setCursor(advanceMissedCursor({ date: yesterdayStr(), bucketKey: LAST_BUCKET }));
+      advanceMissedCursor(yesterdayStr());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length, data]);
 
   if (items.length === 0) return null;
 
   const handleDiscard = (s: MissedExpenseSuggestion) => {
-    dismissMissedExpense(s.date, s.categoryId, s.bucketKey);
+    dismissMissedExpense(s.date, s.categoryId, s.slotKey);
     setDismissVersion((v) => v + 1);
   };
 
@@ -75,9 +81,9 @@ export default function MissedExpensesButton() {
     // The cursor only ever reaches yesterday-or-earlier (today always stays
     // freshly checked), so it alone won't hide anything dated today —
     // dismiss those individually too, the same as pressing ✕ on each.
-    for (const s of items) dismissMissedExpense(s.date, s.categoryId, s.bucketKey);
+    for (const s of items) dismissMissedExpense(s.date, s.categoryId, s.slotKey);
     setDismissVersion((v) => v + 1);
-    setCursor(advanceMissedCursor({ date: yesterdayStr(), bucketKey: LAST_BUCKET }));
+    advanceMissedCursor(yesterdayStr());
     setOpen(false);
   };
 
@@ -118,12 +124,12 @@ export default function MissedExpensesButton() {
             Mark everything covered up to now
           </button>
           {items.map((s) => (
-            <div key={`${s.date}::${s.categoryId}::${s.bucketKey}`} className="bg-secondary/50 rounded-xl p-3 flex items-center gap-3">
+            <div key={`${s.date}::${s.categoryId}::${s.slotKey}`} className="bg-secondary/50 rounded-xl p-3 flex items-center gap-3">
               <span className="text-xl flex-shrink-0">{s.categoryIcon}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{s.typicalDescription}</p>
                 <p className="text-xs text-muted-foreground">
-                  {s.dayLabel} · {s.categoryName} · usually in the {s.bucketLabel} · ~₹{s.typicalAmount.toLocaleString('en-IN')} · {s.frequencyPct}% of days
+                  {s.dayLabel} · {s.categoryName} · usually around {fmtTime(s.suggestedTime)} · ~₹{s.typicalAmount.toLocaleString('en-IN')} · {s.frequencyPct}% of days
                 </p>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">

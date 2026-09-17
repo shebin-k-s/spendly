@@ -37,9 +37,9 @@ export const expensesApi = {
     return data;
   },
 
-  async getMissed(sinceDate?: string, sinceBucket?: string): Promise<MissedExpensesResult> {
+  async getMissed(sinceDate?: string): Promise<MissedExpensesResult> {
     const { data } = await apiClient.get<MissedExpensesResult>(`${URL}/missed`, {
-      params: { ...(sinceDate ? { sinceDate } : {}), ...(sinceBucket ? { sinceBucket } : {}) },
+      params: { ...(sinceDate ? { sinceDate } : {}) },
     });
     return data;
   },

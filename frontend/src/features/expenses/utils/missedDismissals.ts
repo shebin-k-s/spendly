@@ -2,15 +2,15 @@
 // that day." Persisted indefinitely (not reset daily, not tied to the
 // cursor in missedCursor.ts): discarding ONE entry must never silently
 // affect any other entry, so this exists purely to remember that one exact
-// (date, category, bucket) without touching the cursor. The cursor is only
-// ever moved by an explicit "mark everything covered" action or once this
-// ledger + real expense data together empty out the list naturally — see
-// MissedExpensesButton.tsx. Pruned on write so it can't grow unbounded.
+// (date, category, time-slot) without touching the cursor. The cursor is
+// only ever moved by an explicit "mark everything covered" action or once
+// this ledger + real expense data together empty out the list naturally —
+// see MissedExpensesButton.tsx. Pruned on write so it can't grow unbounded.
 const STORAGE_KEY = 'spendly:missed-dismissed';
 const PRUNE_AFTER_DAYS = 35; // a bit past the backend's own 14-day backfill cap, as a safety margin
 
-function suggestionKey(date: string, categoryId: string, bucketKey: string): string {
-  return `${date}::${categoryId}::${bucketKey}`;
+function suggestionKey(date: string, categoryId: string, slotKey: string): string {
+  return `${date}::${categoryId}::${slotKey}`;
 }
 
 function readAll(): Record<string, true> {
@@ -39,12 +39,12 @@ function writeAll(entries: Record<string, true>): void {
   }
 }
 
-export function isMissedExpenseDismissed(date: string, categoryId: string, bucketKey: string): boolean {
-  return suggestionKey(date, categoryId, bucketKey) in readAll();
+export function isMissedExpenseDismissed(date: string, categoryId: string, slotKey: string): boolean {
+  return suggestionKey(date, categoryId, slotKey) in readAll();
 }
 
-export function dismissMissedExpense(date: string, categoryId: string, bucketKey: string): void {
+export function dismissMissedExpense(date: string, categoryId: string, slotKey: string): void {
   const entries = readAll();
-  entries[suggestionKey(date, categoryId, bucketKey)] = true;
+  entries[suggestionKey(date, categoryId, slotKey)] = true;
   writeAll(entries);
 }

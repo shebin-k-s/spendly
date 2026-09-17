@@ -44,10 +44,10 @@ export function useAnalytics(months = 6) {
   });
 }
 
-export function useMissedExpenses(sinceDate?: string, sinceBucket?: string) {
+export function useMissedExpenses(sinceDate?: string) {
   return useQuery({
-    queryKey: [...MISSED_KEY, sinceDate, sinceBucket],
-    queryFn: () => expensesApi.getMissed(sinceDate, sinceBucket),
+    queryKey: [...MISSED_KEY, sinceDate],
+    queryFn: () => expensesApi.getMissed(sinceDate),
     staleTime: 30_000,
   });
 }
