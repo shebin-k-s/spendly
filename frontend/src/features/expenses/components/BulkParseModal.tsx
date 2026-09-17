@@ -301,8 +301,15 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
 
     // Refresh expense + people lists once for the whole batch — refetchType:'all'
     // so cached/unmounted screens (dashboard totals, balances) refetch now too.
+    // The AI analysis cache ('expenses','analyze',...) is excluded: it's manual-only
+    // (enabled: false) and entries can exist with no bound queryFn (e.g. written via
+    // setQueryData for a different month, or hydrated from persisted storage), which
+    // throws "Missing queryFn" if forced to refetch here.
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['expenses'], refetchType: 'all' }),
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'expenses' && query.queryKey[1] !== 'analyze',
+        refetchType: 'all',
+      }),
       queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' }),
     ]);
 
