@@ -627,13 +627,20 @@ export class ExpenseController {
                 const descCounts = new Map<string, number>();
                 for (const c of cluster) descCounts.set(c.description, (descCounts.get(c.description) ?? 0) + 1);
                 const typicalDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-                // Average only the amounts from occasions that actually
-                // match the typical description — averaging across the
-                // WHOLE cluster would blend in whatever else shares this
-                // time slot (e.g. an occasional pricier meal at the same
-                // hour), giving a number that doesn't correspond to what
-                // the shown description actually tends to cost.
-                const matchingAmounts = cluster.filter(c => c.description === typicalDescription).map(c => c.amount);
+                // The single most common EXACT amount among occasions that
+                // match the typical description — not an average. A routine
+                // purchase tends to cost one of a few real recurring prices
+                // (₹36 on its own, ₹46 with something else added), never
+                // literally the mean of them; averaging ₹36 and ₹46 gives
+                // ₹41, a number that never actually happened and is
+                // guaranteed to be wrong every single time. The mode is at
+                // least a real amount that's genuinely happened before.
+                const amountCounts = new Map<number, number>();
+                for (const c of cluster) {
+                    if (c.description !== typicalDescription) continue;
+                    amountCounts.set(c.amount, (amountCounts.get(c.amount) ?? 0) + 1);
+                }
+                const typicalAmount = [...amountCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
                 // Tighter historical spread → tighter grace before flagging;
                 // looser spread → more slack, within the min/max above.
                 const graceMinutes = Math.min(GRACE_MAX_MINUTES, Math.max(GRACE_MIN_MINUTES, Math.round(spreadMinutes * 1.5)));
@@ -650,7 +657,7 @@ export class ExpenseController {
                     // with new data — the display time above stays exact.
                     slotKey: this.minutesToClockTime(Math.round(avgMinutes / 30) * 30),
                     graceMinutes,
-                    typicalAmount: Math.round((matchingAmounts.reduce((a, b) => a + b, 0) / matchingAmounts.length) * 100) / 100,
+                    typicalAmount,
                     typicalDescription,
                     frequencyPct: Math.round(frequency * 100),
                 });
