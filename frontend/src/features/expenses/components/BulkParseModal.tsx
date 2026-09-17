@@ -132,7 +132,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   // focus, so the keyboard's own action key just dismisses it instead —
   // paired with enterKeyHint="done" below so the key itself reads "Done"
   // rather than "Next".
-  const dismissKeyboardOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const dismissKeyboardOnEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       e.currentTarget.blur();
@@ -802,6 +802,8 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                         ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
                         onChange={e => updateItem(idx, { note: e.target.value })}
                         placeholder="Add a small note..."
+                        enterKeyHint="done"
+                        onKeyDown={dismissKeyboardOnEnter}
                       />
                     </div>
 
