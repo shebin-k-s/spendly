@@ -13,6 +13,7 @@ import { cn, formatINR, stripTrailingZeros } from '@/lib/utils';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
 import { useBackToClose } from '@/hooks/useBackToClose';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -117,6 +118,26 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   // resume-with-keyboard-already-open case where the viewport resize doesn't re-fire.
   const [kbInset, setKbInset] = useState(0);
   const queryClient = useQueryClient();
+  // The tab-swipe gesture lives on the page underneath this sheet — without
+  // this, a swipe meant to scroll/interact with the sheet (e.g. reviewing
+  // missed-expense suggestions) could instead navigate to a different tab.
+  const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+  useEffect(() => {
+    if (!open) return;
+    disableGlobalSwipe();
+    return () => enableGlobalSwipe();
+  }, [open, disableGlobalSwipe, enableGlobalSwipe]);
+
+  // These are single-purpose fields with nowhere useful for "Next" to send
+  // focus, so the keyboard's own action key just dismisses it instead —
+  // paired with enterKeyHint="done" below so the key itself reads "Done"
+  // rather than "Next".
+  const dismissKeyboardOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+  };
   const { data: people = [] } = usePeople();
   const categoriesQuery = useCategoriesQuery();
   const categories = categoriesQuery.data || [];
@@ -576,6 +597,8 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                               className="bg-transparent border-none p-0 text-sm font-semibold focus:ring-0 focus:outline-none placeholder:text-muted-foreground/30"
                               value={item.description}
                               onChange={e => updateItem(idx, { description: e.target.value })}
+                              enterKeyHint="done"
+                              onKeyDown={dismissKeyboardOnEnter}
                               placeholder={item.suggested_flow === 'transfer' ? "What was it for?" : "What was it?"}
                             />
                             <div className="flex items-center gap-2 mt-0.5">
@@ -617,6 +640,8 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                           value={item.amount}
                           onChange={e => updateItem(idx, { amount: e.target.value })}
                           placeholder="0.00"
+                          enterKeyHint="done"
+                          onKeyDown={dismissKeyboardOnEnter}
                         />
                       </div>
                       {item.suggested_flow !== 'transfer' && (
@@ -630,6 +655,8 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                             value={item.cashback || ''}
                             onChange={e => updateItem(idx, { cashback: e.target.value })}
                             placeholder="0.00"
+                            enterKeyHint="done"
+                            onKeyDown={dismissKeyboardOnEnter}
                           />
                         </div>
                       )}
@@ -673,6 +700,8 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                                 value={item.transfer_person || ''}
                                 onChange={e => updateItem(idx, { transfer_person: e.target.value })}
                                 placeholder="Name"
+                                enterKeyHint="done"
+                                onKeyDown={dismissKeyboardOnEnter}
                               />
                               {item.transfer_person?.trim() && (
                                 matched ? (
@@ -853,6 +882,8 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                 value={personSearch}
                 onChange={e => setPersonSearch(e.target.value)}
                 autoFocus
+                enterKeyHint="done"
+                onKeyDown={dismissKeyboardOnEnter}
               />
               {personSearch && (
                 <button 
