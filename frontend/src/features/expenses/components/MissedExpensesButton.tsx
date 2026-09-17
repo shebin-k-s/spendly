@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
-import { AlertCircle, Plus, X, CheckCheck } from 'lucide-react';
+import { AlertCircle, Trash2, CheckCheck, Plus } from 'lucide-react';
 import { useMissedExpenses } from '../hooks/useExpenses';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
@@ -16,6 +16,19 @@ function fmtTime(t: string): string {
   const period = h >= 12 ? 'PM' : 'AM';
   const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${h12}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
+// Same grouping shape as the Expenses list itself — one header per date,
+// its items nested underneath, in the order they already arrive (backend
+// sorts oldest-first).
+function groupByDate(items: MissedExpenseSuggestion[]): { date: string; dayLabel: string; items: MissedExpenseSuggestion[] }[] {
+  const groups: { date: string; dayLabel: string; items: MissedExpenseSuggestion[] }[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === item.date) last.items.push(item);
+    else groups.push({ date: item.date, dayLabel: item.dayLabel, items: [item] });
+  }
+  return groups;
 }
 
 export default function MissedExpensesButton() {
@@ -111,7 +124,7 @@ export default function MissedExpensesButton() {
           </div>
         )}
       >
-        <div className="px-4 pb-4 space-y-3">
+        <div className="px-4 pb-4 space-y-5">
           <p className="text-xs text-muted-foreground">
             Based on your usual habits, these look like they might be missing. Nothing here is lost by just looking — an entry only goes away once you Add or discard it.
           </p>
@@ -123,32 +136,62 @@ export default function MissedExpensesButton() {
             <CheckCheck className="w-3.5 h-3.5" />
             Mark everything covered up to now
           </button>
-          {items.map((s) => (
-            <div key={`${s.date}::${s.categoryId}::${s.slotKey}`} className="bg-secondary/50 rounded-xl p-3 flex items-center gap-3">
-              <span className="text-xl flex-shrink-0">{s.categoryIcon}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{s.typicalDescription}</p>
-                <p className="text-xs text-muted-foreground">
-                  {s.dayLabel} · {s.categoryName} · usually around {fmtTime(s.suggestedTime)} · ~₹{s.typicalAmount.toLocaleString('en-IN')} · {s.frequencyPct}% of days
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleDiscard(s)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
-                  aria-label="Not done that day"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAdd(s)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
-                  aria-label="Add expense"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+
+          {groupByDate(items).map((group) => (
+            <div key={group.date}>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{group.dayLabel}</p>
+              <div className="space-y-3">
+                {group.items.map((s) => (
+                  <div key={`${s.date}::${s.categoryId}::${s.slotKey}`} className="rounded-2xl border border-border bg-card p-3.5 space-y-3.5">
+                    {/* Header: icon, description/category, discard */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-base shrink-0">
+                        <span>{s.categoryIcon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">
+                          {s.categoryName}
+                        </label>
+                        <p className="text-sm font-semibold truncate">{s.typicalDescription}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDiscard(s)}
+                        className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-all shrink-0"
+                        aria-label="Not done that day"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </button>
+                    </div>
+
+                    {/* Amount / usual time */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Amount (₹)</label>
+                        <div className="w-full bg-secondary/50 rounded-xl px-3 py-2 text-sm font-bold">
+                          {s.typicalAmount.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Usually around</label>
+                        <div className="w-full bg-secondary/50 rounded-xl px-3 py-2 text-sm font-bold">
+                          {fmtTime(s.suggestedTime)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground">{s.frequencyPct}% of tracked days</p>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAdd(s)}
+                      className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add expense
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
