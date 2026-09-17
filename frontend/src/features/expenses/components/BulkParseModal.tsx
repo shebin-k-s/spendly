@@ -112,6 +112,11 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   const [personSearch, setPersonSearch] = useState('');
   const [searchingCategoryIdx, setSearchingCategoryIdx] = useState<number | null>(null);
   const [categorySearch, setCategorySearch] = useState('');
+  // A quick natural-language correction per row ("add biscuit", "43rs")
+  // instead of manually editing fields — keyed by index rather than living
+  // on ParsedItem, since it's transient input, not part of the expense.
+  const [fixText, setFixText] = useState<Record<number, string>>({});
+  const [fixingIdx, setFixingIdx] = useState<number | null>(null);
   // Tracks open→close transitions so the restore toast can re-fire on every open.
   const prevOpenRef = useRef(false);
   // Keyboard overlap (px). Lifts the sheet above the keyboard even in the
@@ -410,6 +415,45 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
       queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' }),
     ]);
     toast.success('Saved');
+  };
+
+  // "add biscuit" or "43rs" — a follow-up correction on top of the item as
+  // it currently stands (not a fresh parse from scratch), so anything the
+  // instruction doesn't address is expected to come back unchanged.
+  const handleFixWithAi = async (idx: number) => {
+    const instruction = (fixText[idx] || '').trim();
+    if (!instruction) return;
+    const item = items[idx];
+    setFixingIdx(idx);
+    try {
+      const raw = await expensesApi.reviseExpense(
+        {
+          amount: item.amount || null,
+          description: item.description || null,
+          date: item.date,
+          time: item.time,
+          category_id: item.category_id,
+          note: item.note ?? null,
+          cashback: item.cashback ?? null,
+        },
+        instruction,
+      );
+      updateItem(idx, {
+        amount: typeof raw.amount === 'string' ? stripTrailingZeros(raw.amount) : item.amount,
+        description: typeof raw.description === 'string' ? raw.description : item.description,
+        date: typeof raw.date === 'string' ? raw.date : item.date,
+        time: typeof raw.time === 'string' ? raw.time : item.time,
+        category_id: typeof raw.category_id === 'string' ? raw.category_id : item.category_id,
+        category_name: typeof raw.category_name === 'string' ? raw.category_name : item.category_name,
+        note: typeof raw.note === 'string' ? raw.note : item.note,
+        cashback: typeof raw.cashback === 'string' ? stripTrailingZeros(raw.cashback) : item.cashback,
+      });
+      setFixText(prev => ({ ...prev, [idx]: '' }));
+    } catch {
+      toast.error('Could not apply that correction — try rephrasing');
+    } finally {
+      setFixingIdx(null);
+    }
   };
 
   const savedCount = items.filter(it => it._saved).length;
@@ -839,6 +883,40 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                         onKeyDown={dismissKeyboardOnEnter}
                       />
                     </div>
+
+                    {/* Quick natural-language correction — "add biscuit" or
+                        "43rs" — instead of manually editing the fields above. */}
+                    {!isSaved && (
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary/60" />
+                          <input
+                            value={fixText[idx] || ''}
+                            onChange={e => setFixText(prev => ({ ...prev, [idx]: e.target.value }))}
+                            disabled={fixingIdx === idx}
+                            placeholder="e.g. \"add biscuit\" or \"43\""
+                            className="w-full bg-primary/5 border border-primary/10 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
+                            enterKeyHint="done"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.currentTarget.blur();
+                                void handleFixWithAi(idx);
+                              }
+                            }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => void handleFixWithAi(idx)}
+                          disabled={fixingIdx === idx || !(fixText[idx] || '').trim()}
+                          className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 shrink-0"
+                        >
+                          {fixingIdx === idx
+                            ? <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                            : <Sparkles className="w-4 h-4 text-primary" />}
+                        </button>
+                      </div>
+                    )}
 
                     {item._error && (
                       <p className="text-[10px] text-destructive font-bold flex items-center gap-1">

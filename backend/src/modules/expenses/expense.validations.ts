@@ -21,6 +21,19 @@ export const parseBulkTextSchema = Joi.object({
     text: Joi.string().min(1).max(2000).required(),
 });
 
+export const reviseExpenseSchema = Joi.object({
+    current: Joi.object({
+        amount: Joi.string().allow('', null).optional(),
+        description: Joi.string().allow('', null).optional(),
+        date: Joi.string().allow('', null).optional(),
+        time: Joi.string().allow('', null).optional(),
+        category_id: Joi.string().allow('', null).optional(),
+        note: Joi.string().allow('', null).optional(),
+        cashback: Joi.string().allow('', null).optional(),
+    }).required(),
+    instruction: Joi.string().min(1).max(200).required(),
+});
+
 
 
 export const updateExpenseSchema = Joi.object({

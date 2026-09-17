@@ -75,5 +75,13 @@ export const expensesApi = {
     return data;
   },
 
+  async reviseExpense(
+    current: { amount: string | null; description: string | null; date: string | null; time: string | null; category_id: string | null; note: string | null; cashback: string | null },
+    instruction: string,
+  ): Promise<Record<string, unknown>> {
+    const { data } = await apiClient.post(`${URL}/revise`, { current, instruction });
+    return data;
+  },
+
 };
 

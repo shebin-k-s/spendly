@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
-import { ExpenseAiService, type MonthAnalysisInput } from './expense.ai.service';
+import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
 
 const log = {
@@ -808,6 +808,23 @@ export class ExpenseController {
         }
         const debug = req.query.debug === 'true';
         res.json(await aiService.parseText(text, categories, debug));
+    };
+
+    reviseExpense = async (req: Request, res: Response) => {
+        const { current, instruction } = req.body as { current: CurrentExpenseFields; instruction: string };
+        if (!process.env.GEMINI_API_KEY) {
+            log.error('gemini: GEMINI_API_KEY not configured');
+            res.status(503).json({ message: 'AI analysis not configured' });
+            return;
+        }
+        let categories: { id: string; name: string; icon: string }[] = [];
+        try {
+            categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
+        } catch (err) {
+            log.error('reviseExpense: failed to fetch categories', { error: String(err) });
+        }
+        const debug = req.query.debug === 'true';
+        res.json(await aiService.reviseExpense(current, instruction, categories, debug));
     };
 
 

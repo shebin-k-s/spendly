@@ -4,6 +4,16 @@ import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils
 
 export interface CategoryOption { id: string; name: string; icon: string; }
 
+export interface CurrentExpenseFields {
+    amount: string | null;
+    description: string | null;
+    date: string | null;
+    time: string | null;
+    category_id: string | null;
+    note: string | null;
+    cashback: string | null;
+}
+
 export interface MonthAnalysisInput {
     year: number;
     month: number;
@@ -235,6 +245,51 @@ ${itemHintBlock}
 ${categoryBlock}`;
     }
 
+    private buildRevisePrompt(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], today: string, currentTime: string): string {
+        const { categoryBlock } = this.buildCommonBlocks(categories);
+        const categoryName = current.category_id ? categories.find(c => c.id === current.category_id)?.name : null;
+
+        return `You are an expense correction assistant. The user already has this expense entered — they just gave a follow-up correction or addition, not a brand new expense. Update ONLY what the correction implies and leave every other field exactly as given below; this is an edit, not a rewrite from scratch.
+
+Today's date is ${today} and current time is ${currentTime}.
+
+${this.buildDateRefBlock()}
+
+Current expense:
+{
+  "amount": "${current.amount ?? ''}",
+  "description": "${current.description ?? ''}",
+  "date": "${current.date ?? ''}",
+  "time": "${current.time ?? ''}",
+  "category": ${categoryName ? `"${categoryName}"` : 'null'},
+  "note": ${current.note ? `"${current.note}"` : 'null'},
+  "cashback": "${current.cashback ?? ''}"
+}
+
+User's correction: "${instruction}"
+
+Rules for interpreting the correction:
+- A bare number or amount-like phrase (e.g. "43", "43rs", "₹43") means the AMOUNT was wrong — replace it with this new value entirely. Never treat a bare number as a new item to add.
+- Naming an item not already reflected in the note (e.g. "add biscuit", "also had a coffee") means append it to the note — and fold it into the description too if it's now one of the major items — but do NOT change the amount unless the user also gave a new total or explicit per-item price to add.
+- Naming a category corrects category_id to match it.
+- A date, time, merchant, or cashback correction follows the same interpretation as normal expense parsing.
+- CRITICAL: never drop or forget anything from the current expense that the correction doesn't address — copy it through unchanged.
+- description stays a short at-a-glance label (max 40 chars) naming the major item(s), never quantities/prices. note lists every known item with its price where given (e.g. "Tea ₹20 and Biscuit ₹10."), ending in a full stop.
+
+Return ONLY a JSON object with these fields (no markdown, no explanation):
+{
+  "amount": "<number as string, e.g. \\"43.00\\">",
+  "description": "<short label, max 40 chars>",
+  "date": "<yyyy-MM-dd>",
+  "time": "<HH:mm 24h, or null>",
+  "category_id": "<exact id from the list below, or null>",
+  "note": "<detailed breakdown, or null>",
+  "cashback": "<number as string, or null>"
+}
+
+${categoryBlock}`;
+    }
+
     private buildMonthAnalysisPrompt(input: MonthAnalysisInput): string {
         const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, spikeDays, transactionSizeShift, unusualExpenses } = input;
         const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
@@ -451,6 +506,16 @@ Write like a friend who actually studied your numbers and is telling you what th
     async parseText(text: string, categories: CategoryOption[], debug = false) {
         const { dateString, timeString } = getISTParts();
         const prompt = this.buildTextPrompt(text, categories, dateString, timeString);
+        const rawText = await this.runModel([prompt]);
+        const raw = this.extractJson(rawText);
+        const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
+        if (debug) payload._debug = { prompt, rawText };
+        return payload;
+    }
+
+    async reviseExpense(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], debug = false) {
+        const { dateString, timeString } = getISTParts();
+        const prompt = this.buildRevisePrompt(current, instruction, categories, dateString, timeString);
         const rawText = await this.runModel([prompt]);
         const raw = this.extractJson(rawText);
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);

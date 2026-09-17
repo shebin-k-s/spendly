@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { ExpenseController } from './expense.controller';
 import { validate } from '../../common/middlewares/validate.middleware';
-import { createExpenseSchema, updateExpenseSchema, parseTextSchema, parseBulkTextSchema } from './expense.validations';
+import { createExpenseSchema, updateExpenseSchema, parseTextSchema, parseBulkTextSchema, reviseExpenseSchema } from './expense.validations';
 
 const router = Router();
 const controller = new ExpenseController();
@@ -16,6 +16,7 @@ router.get('/missed', controller.getMissedExpenses);
 router.get('/by-category', controller.getByCategoryYear);
 router.post('/parse-text', validate(parseTextSchema), controller.parseText);
 router.post('/parse-bulk-text', validate(parseBulkTextSchema), controller.parseBulkText);
+router.post('/revise', validate(reviseExpenseSchema), controller.reviseExpense);
 router.post('/parse-image', upload.single('image'), controller.parseImage);
 router.get('/:id', controller.getById);
 router.post('/', validate(createExpenseSchema), controller.create);
