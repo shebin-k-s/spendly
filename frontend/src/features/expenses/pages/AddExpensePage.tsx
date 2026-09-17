@@ -165,6 +165,17 @@ export default function AddExpensePage() {
   const categoriesQuery = useCategoriesQuery();
   const categories = categoriesQuery.data || [];
 
+  // These are single-purpose fields with nowhere useful for "Next" to send
+  // focus, so the keyboard's own action key just dismisses it instead —
+  // paired with enterKeyHint="done" below so the key itself reads "Done"
+  // rather than "Next".
+  const dismissKeyboardOnEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.currentTarget.blur();
+    }
+  };
+
   const shareRaw = searchParams.get('text') || searchParams.get('title') || '';
   const sharedImage = searchParams.get('shared') === 'image';
   const sharedText = searchParams.get('shared') === 'text';
@@ -891,6 +902,8 @@ export default function AddExpensePage() {
             onWheel={(e) => e.currentTarget.blur()}
             placeholder="0.00"
             className="form-input text-2xl font-bold"
+            enterKeyHint="done"
+            onKeyDown={dismissKeyboardOnEnter}
           />
         </div>
 
@@ -905,6 +918,8 @@ export default function AddExpensePage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="What did you spend on?"
                 className="form-input"
+                enterKeyHint="done"
+                onKeyDown={dismissKeyboardOnEnter}
               />
             </div>
 
@@ -921,6 +936,8 @@ export default function AddExpensePage() {
                 onWheel={(e) => e.currentTarget.blur()}
                 placeholder="0.00"
                 className="form-input"
+                enterKeyHint="done"
+                onKeyDown={dismissKeyboardOnEnter}
               />
               {cashback && parseFloat(cashback) > 0 && amount && parseFloat(amount) > 0 && (
                 <p className="text-xs text-emerald-500 mt-1.5">
@@ -952,7 +969,7 @@ export default function AddExpensePage() {
             {/* Note */}
             <div>
               <label className="form-label">Note (Optional)</label>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Any additional details..." rows={2} className="form-input resize-none" />
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Any additional details..." rows={2} className="form-input resize-none" enterKeyHint="done" onKeyDown={dismissKeyboardOnEnter} />
             </div>
 
             <button onClick={handleSubmit} disabled={!canSubmit} className="btn-primary">
@@ -1009,7 +1026,7 @@ export default function AddExpensePage() {
               {people.length >= 3 && (
                 <div className="relative">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <input value={personSearch} onChange={e => setPersonSearch(e.target.value)} placeholder="Search..." className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
+                  <input value={personSearch} onChange={e => setPersonSearch(e.target.value)} placeholder="Search..." className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" enterKeyHint="search" onKeyDown={dismissKeyboardOnEnter} />
                 </div>
               )}
 
@@ -1061,7 +1078,7 @@ export default function AddExpensePage() {
             {/* Note */}
             <div>
               <label className="form-label">Note (Optional)</label>
-              <input value={note} onChange={e => setNote(e.target.value)} placeholder="What was this for?" className="form-input" />
+              <input value={note} onChange={e => setNote(e.target.value)} placeholder="What was this for?" className="form-input" enterKeyHint="done" onKeyDown={dismissKeyboardOnEnter} />
             </div>
 
             <button
