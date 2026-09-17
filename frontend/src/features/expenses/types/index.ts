@@ -115,6 +115,7 @@ export interface MissedExpenseSuggestion {
   slotKey: string;
   typicalAmount: number;
   typicalDescription: string;
+  typicalNote: string | null;
   suggestedTime: string;
   frequencyPct: number;
 }

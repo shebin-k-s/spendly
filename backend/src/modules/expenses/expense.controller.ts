@@ -574,12 +574,12 @@ export class ExpenseController {
         // Group by category only — the time-of-day split happens per
         // category via clusterByTime below, driven by the real gaps in
         // that category's own data.
-        type TimedEntry = { date: string; minutes: number; amount: number; description: string };
+        type TimedEntry = { date: string; minutes: number; amount: number; description: string; note: string | null };
         const byCategory = new Map<string, { categoryName: string; categoryIcon: string; entries: TimedEntry[] }>();
         for (const e of trainingExpenses) {
             if (!e.time || !e.category) continue;
             const cat = byCategory.get(e.category.id) ?? { categoryName: e.category.name, categoryIcon: e.category.icon, entries: [] };
-            cat.entries.push({ date: e.date, minutes: this.parseTimeToMinutes(e.time), amount: Number(e.amount), description: e.description });
+            cat.entries.push({ date: e.date, minutes: this.parseTimeToMinutes(e.time), amount: Number(e.amount), description: e.description, note: e.note ?? null });
             byCategory.set(e.category.id, cat);
         }
 
@@ -601,7 +601,7 @@ export class ExpenseController {
             categoryId: string; categoryName: string; categoryIcon: string;
             expectedMinutes: number; expectedTime: string; slotKey: string;
             graceMinutes: number; typicalAmount: number; typicalDescription: string;
-            frequencyPct: number;
+            typicalNote: string | null; frequencyPct: number;
         };
         const habits: Habit[] = [];
         // Every category+time-cluster found in the training data, with its
@@ -648,6 +648,20 @@ export class ExpenseController {
                     amountCounts.set(c.amount, (amountCounts.get(c.amount) ?? 0) + 1);
                 }
                 const typicalAmount = [...amountCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+                // Same idea as the amount above, but for the note — the real
+                // itemized breakdown from past occasions ("Tea ₹20, Biscuit
+                // ₹10.") beats a made-up explanation of why this was
+                // suggested. Only among occasions that actually had one;
+                // null (not a blank string) when this habit never got a note,
+                // so the caller can fall back to something else.
+                const noteCounts = new Map<string, number>();
+                for (const c of cluster) {
+                    if (c.description !== typicalDescription || !c.note) continue;
+                    noteCounts.set(c.note, (noteCounts.get(c.note) ?? 0) + 1);
+                }
+                const typicalNote = noteCounts.size > 0
+                    ? [...noteCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+                    : null;
                 // Tighter historical spread → tighter grace before flagging;
                 // looser spread → more slack, within the min/max above.
                 const graceMinutes = Math.min(GRACE_MAX_MINUTES, Math.max(GRACE_MIN_MINUTES, Math.round(spreadMinutes * 1.5)));
@@ -666,6 +680,7 @@ export class ExpenseController {
                     graceMinutes,
                     typicalAmount,
                     typicalDescription,
+                    typicalNote,
                     frequencyPct: Math.round(frequency * 100),
                 });
             }
@@ -706,6 +721,7 @@ export class ExpenseController {
                     slotKey: h.slotKey,
                     typicalAmount: h.typicalAmount,
                     typicalDescription: h.typicalDescription,
+                    typicalNote: h.typicalNote,
                     suggestedTime: h.expectedTime,
                     frequencyPct: h.frequencyPct,
                 }));

@@ -11,9 +11,11 @@ import type { MissedExpenseSuggestion } from '../types';
 // be written back to the dismiss ledger — BulkParseModal never looks inside it.
 //
 // BulkParseModal's card has no field of its own for "why was this
-// suggested" — pre-filling the note with the habit's frequency covers that
-// context instead of leaving it blank, and doubles as a visible reason to
-// look at the (otherwise easy-to-miss) note box at all.
+// suggested" — pre-filling the note covers that context instead of leaving
+// it blank, and doubles as a visible reason to look at the (otherwise
+// easy-to-miss) note box at all. Prefer the real note from past occasions
+// (the actual itemized breakdown, e.g. "Tea ₹20, Biscuit ₹10.") when this
+// habit has one; only fall back to the frequency explanation when it doesn't.
 function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
   return {
     amount: String(s.typicalAmount),
@@ -22,7 +24,7 @@ function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
     time: s.suggestedTime,
     category_id: s.categoryId,
     category_name: s.categoryName,
-    note: `You usually do this ${s.frequencyPct}% of tracked days.`,
+    note: s.typicalNote ?? `You usually do this ${s.frequencyPct}% of tracked days.`,
     cashback: null,
     suggested_flow: 'expense',
     transfer_person: null,
