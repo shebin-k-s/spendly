@@ -1,42 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import * as Dialog from '@radix-ui/react-dialog';
-import { AlertCircle, Trash2, CheckCheck, Plus } from 'lucide-react';
+import { AlertCircle, CheckCheck } from 'lucide-react';
 import { useMissedExpenses } from '../hooks/useExpenses';
-import { BottomSheet } from '@/components/ui/BottomSheet';
-import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
-import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
+import { BulkParseModal, type ParsedItem } from './BulkParseModal';
 import { getMissedCursorDate, advanceMissedCursor, yesterdayStr } from '../utils/missedCursor';
 import { isMissedExpenseDismissed, dismissMissedExpense } from '../utils/missedDismissals';
 import type { MissedExpenseSuggestion } from '../types';
 
-function fmtTime(t: string): string {
-  const [h, m] = t.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m.toString().padStart(2, '0')} ${period}`;
-}
-
-// Same grouping shape as the Expenses list itself — one header per date,
-// its items nested underneath, in the order they already arrive (backend
-// sorts oldest-first).
-function groupByDate(items: MissedExpenseSuggestion[]): { date: string; dayLabel: string; items: MissedExpenseSuggestion[] }[] {
-  const groups: { date: string; dayLabel: string; items: MissedExpenseSuggestion[] }[] = [];
-  for (const item of items) {
-    const last = groups[groups.length - 1];
-    if (last && last.date === item.date) last.items.push(item);
-    else groups.push({ date: item.date, dayLabel: item.dayLabel, items: [item] });
-  }
-  return groups;
+// slotKey rides along as an opaque tag so a removal (onRemoveItem below) can
+// be written back to the dismiss ledger — BulkParseModal never looks inside it.
+function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
+  return {
+    amount: String(s.typicalAmount),
+    description: s.typicalDescription,
+    date: s.date,
+    time: s.suggestedTime,
+    category_id: s.categoryId,
+    category_name: s.categoryName,
+    note: null,
+    cashback: null,
+    suggested_flow: 'expense',
+    transfer_person: null,
+    transfer_phone: null,
+    transfer_direction: null,
+    _tag: `${s.date}::${s.categoryId}::${s.slotKey}`,
+  };
 }
 
 export default function MissedExpensesButton() {
-  const navigate = useNavigate();
   const [cursorDate] = useState(() => getMissedCursorDate() ?? undefined);
   const missedQuery = useMissedExpenses(cursorDate);
   const { data } = missedQuery;
-  const freshness = useQueryFreshness(missedQuery);
   useRefetchOnFocus(missedQuery);
   const [open, setOpen] = useState(false);
   // Dismissal lives in localStorage, not React state — bump this after
@@ -44,9 +38,10 @@ export default function MissedExpensesButton() {
   const [dismissVersion, setDismissVersion] = useState(0);
 
   // Individually discarding one entry only ever removes that one entry —
-  // it never touches the cursor or any other entry. Adding one also only
-  // affects that one entry, but via real data (the next fetch sees it as
-  // covered) rather than this ledger.
+  // it never touches the cursor or any other entry. Saving (via
+  // BulkParseModal's own Save All) also only affects the items actually
+  // saved, but via real data (the next fetch sees each as covered) rather
+  // than this ledger.
   const items = useMemo(
     () => (data?.items ?? []).filter((s) => !isMissedExpenseDismissed(s.date, s.categoryId, s.slotKey)),
     [data, dismissVersion],
@@ -69,31 +64,16 @@ export default function MissedExpensesButton() {
 
   if (items.length === 0) return null;
 
-  const handleDiscard = (s: MissedExpenseSuggestion) => {
-    dismissMissedExpense(s.date, s.categoryId, s.slotKey);
+  const handleRemoveItem = (item: ParsedItem) => {
+    const [date, categoryId, slotKey] = (item._tag ?? '').split('::');
+    if (date && categoryId && slotKey) dismissMissedExpense(date, categoryId, slotKey);
     setDismissVersion((v) => v + 1);
-  };
-
-  const handleAdd = (s: MissedExpenseSuggestion) => {
-    setOpen(false);
-    navigate('/expenses/new', {
-      state: {
-        prefill: {
-          amount: String(s.typicalAmount),
-          description: s.typicalDescription,
-          categoryId: s.categoryId,
-          note: '',
-          date: s.date,
-          time: s.suggestedTime,
-        },
-      },
-    });
   };
 
   const handleMarkAllCovered = () => {
     // The cursor only ever reaches yesterday-or-earlier (today always stays
     // freshly checked), so it alone won't hide anything dated today —
-    // dismiss those individually too, the same as pressing ✕ on each.
+    // dismiss those individually too, the same as removing each row.
     for (const s of items) dismissMissedExpense(s.date, s.categoryId, s.slotKey);
     setDismissVersion((v) => v + 1);
     advanceMissedCursor(yesterdayStr());
@@ -114,89 +94,26 @@ export default function MissedExpensesButton() {
         </span>
       </button>
 
-      <BottomSheet
-        open={open}
-        onOpenChange={setOpen}
-        header={(
-          <div className="flex items-center gap-2">
-            <Dialog.Title className="text-base font-semibold">Possibly missed</Dialog.Title>
-            <DataFreshnessIndicator status={freshness.status} isFetching={freshness.isFetching} />
-          </div>
-        )}
-      >
-        <div className="px-4 pb-4 space-y-5">
-          <p className="text-xs text-muted-foreground">
-            Based on your usual habits, these look like they might be missing. Nothing here is lost by just looking — an entry only goes away once you Add or discard it.
-          </p>
-          <button
-            type="button"
-            onClick={handleMarkAllCovered}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-border text-xs font-medium text-muted-foreground hover:bg-secondary/30 transition-colors"
-          >
-            <CheckCheck className="w-3.5 h-3.5" />
-            Mark everything covered up to now
-          </button>
-
-          {groupByDate(items).map((group) => (
-            <div key={group.date}>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{group.dayLabel}</p>
-              <div className="space-y-3">
-                {group.items.map((s) => (
-                  <div key={`${s.date}::${s.categoryId}::${s.slotKey}`} className="rounded-2xl border border-border bg-card p-3.5 space-y-3.5">
-                    {/* Header: icon, description/category, discard */}
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-base shrink-0">
-                        <span>{s.categoryIcon}</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">
-                          {s.categoryName}
-                        </label>
-                        <p className="text-sm font-semibold truncate">{s.typicalDescription}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDiscard(s)}
-                        className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center active:scale-90 transition-all shrink-0"
-                        aria-label="Not done that day"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                      </button>
-                    </div>
-
-                    {/* Amount / usual time */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Amount (₹)</label>
-                        <div className="w-full bg-secondary/50 rounded-xl px-3 py-2 text-sm font-bold">
-                          {s.typicalAmount.toLocaleString('en-IN')}
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Usually around</label>
-                        <div className="w-full bg-secondary/50 rounded-xl px-3 py-2 text-sm font-bold">
-                          {fmtTime(s.suggestedTime)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-muted-foreground">{s.frequencyPct}% of tracked days</p>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAdd(s)}
-                      className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add expense
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </BottomSheet>
+      {/* Remounted fresh each time it opens (rather than staying mounted
+          with open toggled) so initialItems — read only once, on mount —
+          always seeds from the current list instead of a stale one from
+          the last time this was open. */}
+      {open && (
+        <BulkParseModal
+          open
+          onClose={() => setOpen(false)}
+          initialItems={items.map(toParsedItem)}
+          title="Possibly missed"
+          subtitle="Based on your usual habits — review, edit, or remove"
+          headerIcon={<AlertCircle className="w-4 h-4 text-primary" />}
+          topAction={{
+            label: 'Mark everything covered up to now',
+            icon: <CheckCheck className="w-3.5 h-3.5" />,
+            onClick: handleMarkAllCovered,
+          }}
+          onRemoveItem={handleRemoveItem}
+        />
+      )}
     </>
   );
 }

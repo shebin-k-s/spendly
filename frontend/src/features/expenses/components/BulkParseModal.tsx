@@ -16,7 +16,7 @@ import { useBackToClose } from '@/hooks/useBackToClose';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ParsedItem {
+export interface ParsedItem {
   amount: string;
   description: string;
   date: string | null;
@@ -32,12 +32,37 @@ interface ParsedItem {
   _saved?: boolean;
   _saving?: boolean;
   _error?: boolean;
+  // Opaque tag a caller can attach to a seeded item (initialItems) and read
+  // back via onRemoveItem — this component never reads it itself.
+  _tag?: string;
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onAllSaved?: () => void;
+  // Skips the free-text "type it, AI splits it" step entirely and opens
+  // straight into the review/edit list, pre-filled from the caller — for any
+  // flow that already knows what the expenses should be (e.g. missed-expense
+  // suggestions) rather than needing AI parsing. When set, this instance
+  // never reads or writes the bulk-add-via-text draft (spendly:bulk-add-draft)
+  // — that draft belongs to the free-text flow, and a seeded session mixing
+  // into it would either show someone else's unrelated unsaved draft here or
+  // clobber their real one on save. The caller should mount a fresh instance
+  // (e.g. conditional render, or a changing `key`) each time it wants a new
+  // seed — initialItems is only read once, on first mount.
+  initialItems?: ParsedItem[];
+  title?: string;
+  subtitle?: string;
+  headerIcon?: React.ReactNode;
+  // An extra pill button rendered above the item list (alongside/instead of
+  // "Re-parse", which never makes sense for a seeded session with no source
+  // text to re-parse).
+  topAction?: { label: string; icon: React.ReactNode; onClick: () => void };
+  // Fired right before a row is removed via the trash button — lets a
+  // seeded caller react to an explicit "discard" (e.g. record it so the
+  // same suggestion doesn't come back). Never fired by Save All.
+  onRemoveItem?: (item: ParsedItem, idx: number) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -74,10 +99,14 @@ function clearBulkDraft() {
   try { localStorage.removeItem(BULK_DRAFT_KEY); } catch { /* ignore */ }
 }
 
-export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
-  const [text, setText] = useState(() => readBulkDraft()?.text ?? '');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() => readBulkDraft()?.status ?? 'idle');
-  const [items, setItems] = useState<ParsedItem[]>(() => readBulkDraft()?.items ?? []);
+export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem }: Props) {
+  // Fixed for this instance's whole lifetime — whether initialItems was
+  // passed on the mount that created this component. The caller remounts
+  // (rather than this changing) whenever it wants a fresh seed.
+  const isSeededRef = useRef(!!initialItems);
+  const [text, setText] = useState(() => isSeededRef.current ? '' : (readBulkDraft()?.text ?? ''));
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() => isSeededRef.current ? 'done' : (readBulkDraft()?.status ?? 'idle'));
+  const [items, setItems] = useState<ParsedItem[]>(() => initialItems ?? readBulkDraft()?.items ?? []);
   const [searchingPersonIdx, setSearchingPersonIdx] = useState<number | null>(null);
   const [personSearch, setPersonSearch] = useState('');
   const [searchingCategoryIdx, setSearchingCategoryIdx] = useState<number | null>(null);
@@ -101,6 +130,7 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
   // doesn't lose what was typed or the parsed rows being reviewed. Skip the transient
   // 'loading'/'error' parse states — only the stable idle/done content is worth keeping.
   useEffect(() => {
+    if (isSeededRef.current) return; // this session's items aren't the free-text draft — never touch that key
     if (status === 'loading' || status === 'error') return;
     try {
       if (text.trim() || items.length) {
@@ -188,6 +218,7 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
   // Each time the modal opens with existing draft content, offer a Discard action
   // (same pattern as the single Add Expense page).
   useEffect(() => {
+    if (isSeededRef.current) return; // seeded items were never a restored draft
     const justOpened = open && !prevOpenRef.current;
     prevOpenRef.current = open;
     if (!justOpened) return;
@@ -198,6 +229,14 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // A seeded review session (no free-text step to fall back to) that empties
+  // out — everything got saved or removed — has nothing left to show; close
+  // it instead of leaving an empty sheet or falling into the "no expenses
+  // found, try again" empty state below, which doesn't apply here.
+  useEffect(() => {
+    if (isSeededRef.current && open && status === 'done' && items.length === 0) onClose();
+  }, [items.length, open, status, onClose]);
 
   const handleParse = async () => {
     if (!text.trim() || status === 'loading') return;
@@ -231,6 +270,7 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
   };
 
   const removeItem = (idx: number) => {
+    onRemoveItem?.(items[idx], idx);
     setItems(prev => prev.filter((_, i) => i !== idx));
   };
 
@@ -321,7 +361,9 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
     toast.success(`${savedNow} item${savedNow !== 1 ? 's' : ''} saved!`);
     onAllSaved?.();
     // Everything saved — safe to discard the draft and reset for next time.
-    clearBulkDraft();
+    // A seeded session never owned that draft key, so leave it alone — it
+    // may belong to someone else's real, still-pending bulk-add-via-text.
+    if (!isSeededRef.current) clearBulkDraft();
     setText('');
     setStatus('idle');
     setItems([]);
@@ -364,11 +406,11 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
         {/* Header */}
         <div className="flex items-center gap-3 px-4 pb-3 pt-1 border-b border-border">
           <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Sparkles className="w-4 h-4 text-primary" />
+            {headerIcon ?? <Sparkles className="w-4 h-4 text-primary" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold">Bulk Add Expenses</p>
-            <p className="text-[10px] text-muted-foreground">Type all at once — AI splits them for you</p>
+            <p className="text-sm font-bold">{title ?? 'Bulk Add Expenses'}</p>
+            <p className="text-[10px] text-muted-foreground">{subtitle ?? 'Type all at once — AI splits them for you'}</p>
           </div>
           <button
             onClick={handleClose}
@@ -472,14 +514,25 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
           {/* Parsed items */}
           {status === 'done' && items.length > 0 && (
             <div className="space-y-3">
-              {/* Re-parse pill */}
-              <button
-                onClick={() => { setStatus('idle'); setItems([]); }}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-secondary text-muted-foreground text-xs font-semibold active:scale-[0.98] transition-all"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Re-parse
-              </button>
+              {/* Re-parse pill — meaningless for a seeded session, there's no source text to redo */}
+              {!isSeededRef.current && (
+                <button
+                  onClick={() => { setStatus('idle'); setItems([]); }}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-secondary text-muted-foreground text-xs font-semibold active:scale-[0.98] transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Re-parse
+                </button>
+              )}
+              {topAction && (
+                <button
+                  onClick={topAction.onClick}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-secondary text-muted-foreground text-xs font-semibold active:scale-[0.98] transition-all"
+                >
+                  {topAction.icon}
+                  {topAction.label}
+                </button>
+              )}
 
               {items.map((item, idx) => {
                 const cat = categories.find(c => c.id === item.category_id);
@@ -735,7 +788,7 @@ export function BulkParseModal({ open, onClose, onAllSaved }: Props) {
             </div>
           )}
 
-          {status === 'done' && items.length === 0 && (
+          {status === 'done' && items.length === 0 && !isSeededRef.current && (
             <div className="flex flex-col items-center py-10 gap-3 text-muted-foreground">
               <AlertCircle className="w-8 h-8" />
               <p className="text-sm">No expenses found — try again</p>
