@@ -464,8 +464,11 @@ export class ExpenseController {
     // an averaged expected time around 9:50; a category that's genuinely
     // used at two unrelated times of day still splits into two separate
     // habits, because the gap between those times is much bigger than the
-    // gaps within each one.
-    private readonly CLUSTER_GAP_MINUTES = 150;
+    // gaps within each one. 90 minutes (not more) so breakfast (~10am) and
+    // lunch (~1pm) — both "Food & Dining" but really two different meals —
+    // split into distinct habits instead of blending into one smeared-out
+    // average that's accurate for neither.
+    private readonly CLUSTER_GAP_MINUTES = 90;
     private clusterByTime = <T extends { minutes: number }>(entries: T[]): T[][] => {
         const sorted = [...entries].sort((a, b) => a.minutes - b.minutes);
         const clusters: T[][] = [];
