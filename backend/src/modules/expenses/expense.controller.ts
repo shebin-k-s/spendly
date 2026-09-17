@@ -579,7 +579,14 @@ export class ExpenseController {
         const MIN_OCCURRENCES = 5;
         const MIN_FREQUENCY = 0.33; // present at least a third of the tracked days
         const MIN_WINDOW_DAYS = 10; // need enough history to trust the pattern
-        const MAX_SUGGESTIONS = 20;
+        // High enough that it only ever bites as a genuine safety net, not
+        // as a de-facto second cap on the backfill window — 14 days of
+        // backfill x even a generous number of real habits per day stays
+        // well under this. Was 20, which silently truncated the oldest-first
+        // list before it ever reached today once the backlog + qualifying
+        // habit count grew past it — today's own entries were getting cut
+        // off the end without any indication anything was hidden.
+        const MAX_SUGGESTIONS = 100;
         const GRACE_MIN_MINUTES = 45; // even a razor-tight habit gets at least this much buffer
         const GRACE_MAX_MINUTES = 180; // even a loose one is capped so it isn't nagging half the day
 
