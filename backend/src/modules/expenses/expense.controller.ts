@@ -223,10 +223,17 @@ export class ExpenseController {
         const RARE_CATEGORY_MAX_MONTHS_USED = 1; // used in at most 1 of the tracked past months
         const BIG_FOR_CATEGORY_MULTIPLE = 3; // vs. that category's own historical avg transaction
         const MAX_UNUSUAL_EXPENSES = 3;
+        // Days already flagged as a spike show their own top expenses inline
+        // ("mostly X, Y") — re-listing one of those same transactions here
+        // as a second, separately-numbered "unusual expense" just repeats
+        // what the spike-day entry already said, so skip any day already
+        // covered that way.
+        const spikeDayDates = new Set(spikeDays.map(d => d.date));
         let unusualExpenses: { id: string; date: string; dayLabel: string; description: string; amount: number; categoryName: string }[] = [];
         if (qualifyingPast.length >= 2) {
             unusualExpenses = monthExpenses
                 .map(e => {
+                    if (spikeDayDates.has(e.date)) return null;
                     const amount = Number(e.amount);
                     if (amount < UNUSUAL_MIN_AMOUNT) return null;
                     const categoryName = e.category?.name ?? 'Uncategorized';

@@ -173,42 +173,39 @@ export default function AnalyticsPage() {
                             sentence. spikeDays is absent on results cached
                             before this field existed. */}
                         <span>{linkifyCategories(point)}</span>
-                        {/* Point 3 ("unusual high-spend days") is where the
-                            spike-day fact goes in the prompt — nest the real
-                            dates/amounts here instead of appending them as
-                            a separate list at the end. Only the day label
-                            is a link/colored; the rest reads as plain text. */}
-                        {i === 2 && (analysis.data!.spikeDays?.length ?? 0) > 0 && (
+                        {/* Point 3 ("unusual high-spend days") is where both
+                            the spike-day and unusual-one-off-expense facts go
+                            in the prompt — nest the real dates/amounts here
+                            as ONE continuously-numbered list instead of two
+                            separate ones (a spike day already shows its own
+                            top expenses inline, so a second list re-listing
+                            one of those same items read as pure repetition).
+                            Only the linked part is colored; the rest is
+                            plain text. */}
+                        {i === 2 && ((analysis.data!.spikeDays?.length ?? 0) + (analysis.data!.unusualExpenses?.length ?? 0)) > 0 && (
                           <ol className="mt-1.5 space-y-1">
-                            {analysis.data!.spikeDays.map((d, di) => (
-                              <li key={d.date} className="flex items-start gap-1.5 text-sm leading-relaxed">
-                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 mt-0.5">{di + 1}.</span>
-                                <span>
-                                  <Link to={`/expenses?date=${d.date}`} className="text-primary hover:text-primary/80 transition-colors font-medium">
-                                    {d.dayLabel}
-                                  </Link>
-                                  {' '}— ₹{d.net.toLocaleString('en-IN')} ({d.spikeMultiple}x your average day)
-                                  {d.topDescriptions.length > 0 ? `, mostly ${d.topDescriptions.join(', ')}` : ''}
-                                </span>
-                              </li>
-                            ))}
-                          </ol>
-                        )}
-                        {/* Unusual one-off expenses (a rare category, or way
-                            bigger than that category's own normal) — deep
-                            links straight to the expense itself, not just its
-                            day, since this flags one specific transaction. */}
-                        {i === 2 && (analysis.data!.unusualExpenses?.length ?? 0) > 0 && (
-                          <ol className="mt-1.5 space-y-1">
-                            {analysis.data!.unusualExpenses.map((u, ui) => (
-                              <li key={u.id} className="flex items-start gap-1.5 text-sm leading-relaxed">
-                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 mt-0.5">{ui + 1}.</span>
-                                <span>
-                                  <Link to={`/expenses/${u.id}/edit`} className="text-primary hover:text-primary/80 transition-colors font-medium">
-                                    {u.description}
-                                  </Link>
-                                  {' '}— ₹{u.amount.toLocaleString('en-IN')} ({u.categoryName}, {u.dayLabel})
-                                </span>
+                            {[
+                              ...(analysis.data!.spikeDays ?? []).map(d => ({ kind: 'spike' as const, d })),
+                              ...(analysis.data!.unusualExpenses ?? []).map(u => ({ kind: 'unusual' as const, u })),
+                            ].map((item, idx) => (
+                              <li key={item.kind === 'spike' ? item.d.date : item.u.id} className="flex items-start gap-1.5 text-sm leading-relaxed">
+                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 mt-0.5">{idx + 1}.</span>
+                                {item.kind === 'spike' ? (
+                                  <span>
+                                    <Link to={`/expenses?date=${item.d.date}`} className="text-primary hover:text-primary/80 transition-colors font-medium">
+                                      {item.d.dayLabel}
+                                    </Link>
+                                    {' '}— ₹{item.d.net.toLocaleString('en-IN')} ({item.d.spikeMultiple}x your average day)
+                                    {item.d.topDescriptions.length > 0 ? `, mostly ${item.d.topDescriptions.join(', ')}` : ''}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    <Link to={`/expenses/${item.u.id}/edit`} className="text-primary hover:text-primary/80 transition-colors font-medium">
+                                      {item.u.description}
+                                    </Link>
+                                    {' '}— ₹{item.u.amount.toLocaleString('en-IN')} ({item.u.categoryName}, {item.u.dayLabel})
+                                  </span>
+                                )}
                               </li>
                             ))}
                           </ol>
