@@ -21,6 +21,7 @@ export interface MonthAnalysisInput {
     categoryAnomaly: { name: string; thisMonth: number; historicalAvg: number; monthsCounted: number } | null;
     spikeDays: { date: string; dayLabel: string; net: number; topDescriptions: string[]; spikeMultiple: number }[];
     transactionSizeShift: { thisAvg: number; prevAvg: number; thisCount: number; prevCount: number } | null;
+    unusualExpenses: { dayLabel: string; description: string; amount: number; categoryName: string }[];
 }
 
 export class ExpenseAiService {
@@ -235,7 +236,7 @@ ${categoryBlock}`;
     }
 
     private buildMonthAnalysisPrompt(input: MonthAnalysisInput): string {
-        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, spikeDays, transactionSizeShift } = input;
+        const { year, month, total, cashbackTotal, count, breakdown, previousMonthNet, previousBreakdown, recentTotals, topTransactions, timingPattern, topCategoryConcentration, baseline, categoryAnomaly, spikeDays, transactionSizeShift, unusualExpenses } = input;
         const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' });
 
         const CATEGORY_CAP = 12;
@@ -292,6 +293,10 @@ ${categoryBlock}`;
             ? `Purchase pattern: this month averaged ₹${transactionSizeShift.thisAvg} per transaction across ${transactionSizeShift.thisCount} transactions, vs ₹${transactionSizeShift.prevAvg} per transaction across ${transactionSizeShift.prevCount} last month.`
             : '';
 
+        const unusualExpensesLine = unusualExpenses.length > 0
+            ? `Unusual one-off expense${unusualExpenses.length === 1 ? '' : 's'} this month — each is either a category the user almost never spends in, or far bigger than that category's normal one-off (e.g. a hospital bill, a big repair). The exact date/amount is ALREADY shown to the user separately as its own list — do NOT repeat those figures, just acknowledge them exist:\n${unusualExpenses.map(u => `- ${u.dayLabel}: "${u.description}" — ₹${u.amount} (${u.categoryName})`).join('\n')}`
+            : '';
+
         return `You are a sharp personal finance analyst, not a report generator. Using ONLY the numbers given below — never invent, estimate, or assume anything not explicitly listed here — write a spending analysis for ${monthName} ${year} that draws real conclusions, not just a readout of stats.
 
 Total net spend: ₹${total} across ${count} transaction${count === 1 ? '' : 's'}.
@@ -300,6 +305,7 @@ ${momLine}
 ${baselineLine}
 ${categoryAnomalyLine}
 ${spikeDaysLine}
+${unusualExpensesLine}
 ${transactionSizeShiftLine}
 ${timingLine}
 ${concentrationLine}
@@ -317,7 +323,7 @@ Return ONLY a JSON array of exactly 5 short strings (no markdown, no explanation
 
 1. HEADLINE VERDICT: if the baseline/rank fact is given above, lead with what kind of month this was relative to the user's own recent normal — e.g. "This was your highest spending month in the last 5 you've tracked, 34% above your ₹5,200 average." If no baseline is available yet, characterize the month plainly using the total and transaction count instead, without inventing a comparison.
 2. CATEGORY ANOMALY: if the category-anomaly fact is given above, explain it in plain terms — is this a new/growing habit or a return to something dormant, and how far off the category's own normal is it (e.g. "Groceries hit ₹2,400 this month, over double its usual ₹900 — your biggest deviation from normal all year."). If no anomaly is available, instead compare THIS month's category breakdown against the PREVIOUS month's category-by-category and call out the single category that moved the most, by name, with its ₹ or % shift; say explicitly if a category appeared or vanished entirely.
-3. UNUSUAL HIGH-SPEND DAYS OR TOP TRANSACTIONS: if the unusual-high-spend-days fact above lists one or more days, the exact date, amount, and what drove each one is ALREADY shown to the user separately as its own scannable list right below your analysis — do NOT repeat those individual amounts/dates/items here, that would just be redundant. Instead use this point to add the one thing a bare list can't: characterize them collectively in a single short sentence — e.g. are they scattered one-off outings, clustered together in the same week, all the same kind of spending, or a genuine break from routine (e.g. "You had 3 spend spikes this month, all in the back half — worth a look if that's becoming a pattern rather than one-off outings."). If only one day is listed, one short sentence characterizing that single day is enough (e.g. "That one spike aside, spending stayed close to your usual day-to-day range all month."). If none are listed, mention the largest transaction(s) given above instead, by description and amount, framed as a specific standout moment — if two or three are close in size, say so.
+3. UNUSUAL HIGH-SPEND DAYS, ONE-OFF EXPENSES, OR TOP TRANSACTIONS: if the unusual-high-spend-days fact above lists one or more days, the exact date, amount, and what drove each one is ALREADY shown to the user separately as its own scannable list right below your analysis — do NOT repeat those individual amounts/dates/items here, that would just be redundant. Instead use this point to add the one thing a bare list can't: characterize them collectively in a single short sentence — e.g. are they scattered one-off outings, clustered together in the same week, all the same kind of spending, or a genuine break from routine (e.g. "You had 3 spend spikes this month, all in the back half — worth a look if that's becoming a pattern rather than one-off outings."). If only one day is listed, one short sentence characterizing that single day is enough (e.g. "That one spike aside, spending stayed close to your usual day-to-day range all month."). If the unusual-one-off-expenses fact above lists anything (a rare-category or way-bigger-than-normal purchase, e.g. a hospital bill or a big repair), fold a brief acknowledgment of it into this same point too — again without repeating its exact date/amount since that's shown separately — e.g. note that it looks like a genuine one-off rather than a new pattern, or flag if it's the kind of thing worth budgeting for going forward. If none of spike-days or one-off-expenses are listed, mention the largest transaction(s) given above instead, by description and amount, framed as a specific standout moment — if two or three are close in size, say so.
 4. BEHAVIOR SHIFT: if the purchase-pattern fact is given above, characterize whether the user is making fewer-but-bigger purchases or more-frequent-but-smaller ones compared to last month, and what that suggests (e.g. "You made 40% fewer purchases than last month but each one averaged 60% more — fewer, bigger trips rather than daily small spends."). If not available, use the multi-month trend instead to say whether this month continues a real streak or is a one-off deviation — do not just restate a single month-over-month %.
 5. SOMETHING ELSE SPECIFIC: use the timing pattern or category-concentration fact above, whichever is more notable and not already covered by points 1-4 — e.g. a timing habit, or how concentrated spend is in just 1-2 categories. Treat high concentration (over ~55%) as worth flagging, or note positively if spend looks well-spread. If neither applies, make one other genuinely specific observation from the data (e.g. cashback earned being ₹0 despite meaningful spend) — never repeat a point already made above.
 

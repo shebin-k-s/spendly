@@ -194,6 +194,25 @@ export default function AnalyticsPage() {
                             ))}
                           </ol>
                         )}
+                        {/* Unusual one-off expenses (a rare category, or way
+                            bigger than that category's own normal) — deep
+                            links straight to the expense itself, not just its
+                            day, since this flags one specific transaction. */}
+                        {i === 2 && (analysis.data!.unusualExpenses?.length ?? 0) > 0 && (
+                          <ol className="mt-1.5 space-y-1">
+                            {analysis.data!.unusualExpenses.map((u, ui) => (
+                              <li key={u.id} className="flex items-start gap-1.5 text-sm leading-relaxed">
+                                <span className="text-xs font-semibold text-muted-foreground flex-shrink-0 mt-0.5">{ui + 1}.</span>
+                                <span>
+                                  <Link to={`/expenses/${u.id}/edit`} className="text-primary hover:text-primary/80 transition-colors font-medium">
+                                    {u.description}
+                                  </Link>
+                                  {' '}— ₹{u.amount.toLocaleString('en-IN')} ({u.categoryName}, {u.dayLabel})
+                                </span>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
                       </div>
                     </li>
                   ))}

@@ -200,6 +200,66 @@ export class ExpenseController {
             }
         }
 
+        // Individual one-off expenses worth calling out on their own — a
+        // single hospital bill or a big repair doesn't need to blow up its
+        // whole DAY's total (spikeDays above) to be worth flagging; what
+        // makes it unusual is that it's a category the user almost never
+        // spends in, or a transaction far bigger than that category's own
+        // normal one-off. Reuses the same per-category history already
+        // built for categoryAnomaly, just at transaction- rather than
+        // month-total granularity.
+        const pastCategoryTxnStats = new Map<string, { totalNet: number; totalCount: number; monthsUsed: number }>();
+        for (const { s } of qualifyingPast) {
+            for (const b of s.breakdown) {
+                const net = Math.round((b.total - b.cashbackTotal) * 100) / 100;
+                const cur = pastCategoryTxnStats.get(b.name) ?? { totalNet: 0, totalCount: 0, monthsUsed: 0 };
+                cur.totalNet += net;
+                cur.totalCount += b.count;
+                if (b.count > 0) cur.monthsUsed += 1;
+                pastCategoryTxnStats.set(b.name, cur);
+            }
+        }
+        const UNUSUAL_MIN_AMOUNT = 1000; // floor so small rare-category buys don't qualify
+        const RARE_CATEGORY_MAX_MONTHS_USED = 1; // used in at most 1 of the tracked past months
+        const BIG_FOR_CATEGORY_MULTIPLE = 3; // vs. that category's own historical avg transaction
+        const MAX_UNUSUAL_EXPENSES = 3;
+        let unusualExpenses: { id: string; date: string; dayLabel: string; description: string; amount: number; categoryName: string }[] = [];
+        if (qualifyingPast.length >= 2) {
+            unusualExpenses = monthExpenses
+                .map(e => {
+                    const amount = Number(e.amount);
+                    if (amount < UNUSUAL_MIN_AMOUNT) return null;
+                    const categoryName = e.category?.name ?? 'Uncategorized';
+                    const stats = pastCategoryTxnStats.get(categoryName);
+                    const isRareCategory = !stats || stats.monthsUsed <= RARE_CATEGORY_MAX_MONTHS_USED;
+                    const historicalAvgTxn = stats && stats.totalCount > 0 ? stats.totalNet / stats.totalCount : null;
+                    const isBigForCategory = historicalAvgTxn !== null && historicalAvgTxn > 0 && amount >= historicalAvgTxn * BIG_FOR_CATEGORY_MULTIPLE;
+                    if (!isRareCategory && !isBigForCategory) return null;
+                    // Rare-category hits rank by raw size; "big for its category" hits
+                    // rank by how many multiples over that category's own norm they are
+                    // — keeps a ₹50k rare one-off ahead of a ₹5k rare one-off, and a
+                    // 10x-normal repair ahead of a barely-3x one.
+                    const score = isRareCategory ? amount : amount / (historicalAvgTxn as number);
+                    return { e, categoryName, amount, score };
+                })
+                .filter((x): x is NonNullable<typeof x> => !!x)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, MAX_UNUSUAL_EXPENSES)
+                .map(({ e, categoryName, amount }) => {
+                    const dateObj = new Date(`${e.date}T00:00:00`);
+                    const weekdayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                    const dayNum = dateObj.getDate();
+                    return {
+                        id: e.id,
+                        date: e.date,
+                        dayLabel: `${weekdayName}, the ${dayNum}${ordinalSuffix(dayNum)}`,
+                        description: e.description,
+                        amount: Math.round(amount * 100) / 100,
+                        categoryName,
+                    };
+                });
+        }
+
         // Fewer-but-bigger vs more-but-smaller purchases — a behavior shift
         // that a raw total or category breakdown can't show on its own.
         const transactionSizeShift = prevSummary.count > 0
@@ -310,6 +370,7 @@ export class ExpenseController {
             categoryAnomaly,
             spikeDays,
             transactionSizeShift,
+            unusualExpenses: unusualExpenses.map(u => ({ dayLabel: u.dayLabel, description: u.description, amount: u.amount, categoryName: u.categoryName })),
         };
         const inputHash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
@@ -324,6 +385,18 @@ export class ExpenseController {
             net: d.net,
             spikeMultiple: d.spikeMultiple,
             topDescriptions: d.topDescriptions,
+        }));
+
+        // Same idea as spikeDayLinks, but a deep link straight to the actual
+        // expense (its edit page) rather than just the day it fell on — this
+        // is a single specific transaction, not a day's worth of them.
+        const unusualExpenseLinks = unusualExpenses.map(u => ({
+            id: u.id,
+            date: u.date,
+            dayLabel: u.dayLabel,
+            description: u.description,
+            amount: u.amount,
+            categoryName: u.categoryName,
         }));
 
         // Every category the analysis actually discusses (the anomaly, the
@@ -349,7 +422,7 @@ export class ExpenseController {
         const force = req.query.force === 'true';
         const cached = force ? null : await service.getCachedInsight(year, month, inputHash);
         if (cached) {
-            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt, spikeDays: spikeDayLinks, categories: categoryLinks });
+            res.json({ points: cached.points, cached: true, generatedAt: cached.generatedAt, spikeDays: spikeDayLinks, unusualExpenses: unusualExpenseLinks, categories: categoryLinks });
             return;
         }
 
@@ -361,7 +434,7 @@ export class ExpenseController {
 
         const generated = await aiService.analyzeMonth(input);
         const generatedAt = await service.saveInsight(year, month, inputHash, generated);
-        res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks, categories: categoryLinks });
+        res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks, unusualExpenses: unusualExpenseLinks, categories: categoryLinks });
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {

@@ -88,11 +88,21 @@ export interface AnalysisCategoryLink {
   name: string;
 }
 
+export interface UnusualExpense {
+  id: string;
+  date: string;
+  dayLabel: string;
+  description: string;
+  amount: number;
+  categoryName: string;
+}
+
 export interface MonthAnalysis {
   points: string[];
   cached: boolean;
   generatedAt: string;
   spikeDays: SpikeDay[];
+  unusualExpenses: UnusualExpense[];
   categories: AnalysisCategoryLink[];
 }
 
