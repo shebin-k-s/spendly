@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 // A single forward-only position — (date, time-bucket) — marking
 // "everything at or before this point is resolved." It only ever moves in
@@ -45,3 +45,13 @@ export function advanceMissedCursor(position: MissedCursor): MissedCursor {
 export function todayStr(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
+
+// The cursor must never target today — today isn't over yet, and something
+// can always change (an expense added, or deleted, revealing a new gap), so
+// it always needs a fresh, real check rather than being blocked by a stale
+// position. Only full, closed-out days ever get skipped this way.
+export function yesterdayStr(): string {
+  return format(subDays(new Date(), 1), 'yyyy-MM-dd');
+}
+
+export const LAST_BUCKET = BUCKET_ORDER[BUCKET_ORDER.length - 1];

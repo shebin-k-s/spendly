@@ -507,8 +507,15 @@ export class ExpenseController {
         // The bucket half of the cursor only makes sense paired with its own
         // date — if the date got clamped up to earliestAllowed above, start
         // that date from its first bucket rather than honoring a bucket
-        // index that belonged to a different (older) date.
-        const sinceBucketIndex = since === sinceDateParam
+        // index that belonged to a different (older) date. And NEVER honor
+        // it for today specifically, however it got there (a stale cursor
+        // saved by an older client, a bad request, anything) — today isn't
+        // over yet, so whether a bucket counts as "missed" must only ever
+        // come from the real current time (checked below), never a stored
+        // position. Without this, a cursor pointing at today could
+        // permanently suppress its own afternoon/night checks for the rest
+        // of the day even though nothing about them was actually resolved.
+        const sinceBucketIndex = since === sinceDateParam && since !== today
             ? this.missedCheckBuckets.findIndex(b => b.key === sinceBucketParam)
             : -1;
 

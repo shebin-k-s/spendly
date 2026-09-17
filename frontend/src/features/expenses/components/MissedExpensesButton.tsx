@@ -7,7 +7,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
-import { getMissedCursor, advanceMissedCursor, todayStr, BUCKET_ORDER } from '../utils/missedCursor';
+import { getMissedCursor, advanceMissedCursor, yesterdayStr, LAST_BUCKET } from '../utils/missedCursor';
 import { isMissedExpenseDismissed, dismissMissedExpense } from '../utils/missedDismissals';
 import type { MissedExpenseSuggestion } from '../types';
 
@@ -35,12 +35,15 @@ export default function MissedExpensesButton() {
   // The cursor only ever moves for two reasons: the user explicitly presses
   // "mark everything covered" (below), or — here — the list empties out
   // naturally because every entry that was actually shown got individually
-  // resolved. Advancing it at that point loses nothing (there's nothing
-  // left pending) and just lets old dismissals get pruned instead of
-  // piling up forever.
+  // resolved. It only ever targets yesterday-or-earlier (never today —
+  // today always gets a fresh check against real data every time), so
+  // advancing it here is pure backlog cleanup: nothing currently pending is
+  // affected (everything shown already got individually resolved to reach
+  // this point), it just lets old dismissals get pruned instead of piling
+  // up forever.
   useEffect(() => {
     if ((data?.items.length ?? 0) > 0 && items.length === 0) {
-      setCursor(advanceMissedCursor({ date: todayStr(), bucketKey: BUCKET_ORDER[BUCKET_ORDER.length - 1] }));
+      setCursor(advanceMissedCursor({ date: yesterdayStr(), bucketKey: LAST_BUCKET }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length, data]);
@@ -69,7 +72,12 @@ export default function MissedExpensesButton() {
   };
 
   const handleMarkAllCovered = () => {
-    setCursor(advanceMissedCursor({ date: todayStr(), bucketKey: BUCKET_ORDER[BUCKET_ORDER.length - 1] }));
+    // The cursor only ever reaches yesterday-or-earlier (today always stays
+    // freshly checked), so it alone won't hide anything dated today —
+    // dismiss those individually too, the same as pressing ✕ on each.
+    for (const s of items) dismissMissedExpense(s.date, s.categoryId, s.bucketKey);
+    setDismissVersion((v) => v + 1);
+    setCursor(advanceMissedCursor({ date: yesterdayStr(), bucketKey: LAST_BUCKET }));
     setOpen(false);
   };
 
