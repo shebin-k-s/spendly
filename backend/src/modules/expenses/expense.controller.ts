@@ -624,10 +624,16 @@ export class ExpenseController {
                 });
                 if (!qualifies) continue;
 
-                const amounts = cluster.map(c => c.amount);
                 const descCounts = new Map<string, number>();
                 for (const c of cluster) descCounts.set(c.description, (descCounts.get(c.description) ?? 0) + 1);
                 const typicalDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+                // Average only the amounts from occasions that actually
+                // match the typical description — averaging across the
+                // WHOLE cluster would blend in whatever else shares this
+                // time slot (e.g. an occasional pricier meal at the same
+                // hour), giving a number that doesn't correspond to what
+                // the shown description actually tends to cost.
+                const matchingAmounts = cluster.filter(c => c.description === typicalDescription).map(c => c.amount);
                 // Tighter historical spread → tighter grace before flagging;
                 // looser spread → more slack, within the min/max above.
                 const graceMinutes = Math.min(GRACE_MAX_MINUTES, Math.max(GRACE_MIN_MINUTES, Math.round(spreadMinutes * 1.5)));
@@ -644,7 +650,7 @@ export class ExpenseController {
                     // with new data — the display time above stays exact.
                     slotKey: this.minutesToClockTime(Math.round(avgMinutes / 30) * 30),
                     graceMinutes,
-                    typicalAmount: Math.round((amounts.reduce((a, b) => a + b, 0) / amounts.length) * 100) / 100,
+                    typicalAmount: Math.round((matchingAmounts.reduce((a, b) => a + b, 0) / matchingAmounts.length) * 100) / 100,
                     typicalDescription,
                     frequencyPct: Math.round(frequency * 100),
                 });
