@@ -529,10 +529,10 @@ export class ExpenseController {
             ? sinceDateParam!
             : earliestAllowed;
 
-        // Training window: the 30 days strictly BEFORE `since` — never the
+        // Training window: the 60 days strictly BEFORE `since` — never the
         // days being checked, so backfilling a long gap never erodes the
         // pattern it's being checked against.
-        const TRAINING_DAYS = 30;
+        const TRAINING_DAYS = 60;
         const trainingEnd = new Date(`${since}T00:00:00`);
         trainingEnd.setDate(trainingEnd.getDate() - 1);
         const trainingEndStr = trainingEnd.toISOString().slice(0, 10);
