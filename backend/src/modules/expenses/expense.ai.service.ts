@@ -475,12 +475,28 @@ Write like a friend who actually studied your numbers and is telling you what th
         }
     }
 
+    // Telling the model the exact punctuation rules in the prompt hasn't
+    // reliably stopped it from producing "Dosa,Kattanchaya" or
+    // "Dosa.Kattanchaya" instead of "Dosa, Kattanchaya" — so this fixes it
+    // deterministically after the fact instead of trusting compliance:
+    // any letter/digit directly followed by a period and another letter
+    // (a period used as a wrong item separator, not real punctuation) becomes
+    // ", ", and any comma gets normalized to exactly ", " regardless of
+    // whatever spacing came back.
+    private normalizeDescriptionPunctuation(desc: string): string {
+        return desc
+            .replace(/([a-zA-Z0-9])\.(?=[A-Za-z])/g, '$1, ')
+            .replace(/\s*,\s*/g, ', ')
+            .replace(/[,.]\s*$/, '')
+            .trim();
+    }
+
     private parseAiResponse(raw: Record<string, unknown>, categories: CategoryOption[]): Record<string, unknown> {
         const validCategoryIds = new Set(categories.map(c => c.id));
         const amount = typeof raw.amount === 'string' && /^\d+(\.\d{1,2})?$/.test(raw.amount.trim())
             ? raw.amount.trim() : '';
         const description = typeof raw.description === 'string'
-            ? raw.description.slice(0, 50).trim() : '';
+            ? this.normalizeDescriptionPunctuation(raw.description.slice(0, 50).trim()) : '';
         const date = typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)
             ? raw.date : null;
         const time = typeof raw.time === 'string' && /^\d{2}:\d{2}$/.test(raw.time)
