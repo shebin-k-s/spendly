@@ -138,7 +138,19 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   const [text, setText] = useState(() => isSeededRef.current ? '' : (readBulkDraft()?.text ?? ''));
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() => isSeededRef.current ? 'done' : (readBulkDraft()?.status ?? 'idle'));
   const [items, setItems] = useState<ParsedItem[]>(() => {
-    if (isSeededRef.current) return (draftKey && readSeededDraft(draftKey)) ?? initialItems ?? [];
+    if (isSeededRef.current) {
+      const draft = draftKey ? readSeededDraft(draftKey) : null;
+      if (!draft) return initialItems ?? [];
+      // Merge, don't just override with the draft — initialItems is this
+      // suggestion list's current source of truth (freshly recomputed by
+      // the caller each time this mounts). Keep the draft's edits for any
+      // item that's still in the fresh list (matched by _tag, a stable id
+      // for that exact date+category+time slot), but let a genuinely NEW
+      // suggestion that's appeared since still show up, and let one that's
+      // no longer in the fresh list (already resolved some other way, or
+      // no longer applicable) drop out instead of hanging around forever.
+      return (initialItems ?? []).map(fresh => draft.find(d => d._tag && d._tag === fresh._tag) ?? fresh);
+    }
     return readBulkDraft()?.items ?? [];
   });
   const [searchingPersonIdx, setSearchingPersonIdx] = useState<number | null>(null);
