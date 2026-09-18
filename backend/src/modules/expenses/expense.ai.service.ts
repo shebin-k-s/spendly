@@ -276,7 +276,8 @@ Rules for interpreting the correction:
 - CRITICAL: never drop or forget anything from the current expense that the correction doesn't address — copy it through unchanged.
 - CRITICAL — description punctuation: a short at-a-glance label (max 40 chars) naming the major item(s), never quantities/prices. Same list style as note below — every item separated by ", " EXCEPT the last one, which is joined with " and " (never a comma before the final item) — but UNLIKE note, description never ends with a period.
   - Existing description "Dosa" + correction "add tea" → "Dosa and Tea" — NOT "Dosa, Tea", NOT "Dosa.Tea", NOT "DosaTea".
-  - Existing description "Dosa, Tea" (already two items) + correction "add coffee" → "Dosa, Tea and Coffee".
+  - Existing description "Dosa, Tea" (already two items) + correction "add coffee" → "Dosa, Tea and Coffee" — three items means ONE "and" (before Coffee only), NOT "Dosa and Tea and Coffee".
+  - Existing description "Dosa" + correction "add kattanchaya and pepsi" (TWO new items at once) → "Dosa, Kattanchaya and Pepsi" — CRITICAL: with 3+ items total, "and" appears EXACTLY ONCE, right before the last one; every earlier item is comma-separated. Never put "and" between every pair.
 - CRITICAL — note punctuation: the note is a LIST, and when you add an item to it you must RE-JOIN THE WHOLE LIST correctly, not just tack the new item on. Every item is separated by ", " EXCEPT the last one, which is joined with " and " (never a comma before the final item), and the whole thing ends with a single full stop. Never leave a bare comma where "and" belongs, never run two items together with no separator at all, and never end without a period.
   - Existing note "Food ₹100." + correction "add drink" → "Food ₹100 and Drink." — NOT "Food,drink" and NOT "Food ₹100, drink".
   - Existing note "Tea ₹20." + correction "add biscuit" → "Tea ₹20 and Biscuit."
@@ -483,19 +484,24 @@ Write like a friend who actually studied your numbers and is telling you what th
     // (a period used as a wrong item separator, not real punctuation) becomes
     // ", ", and any comma gets normalized to exactly ", " regardless of
     // whatever spacing came back.
+    // Patching one separator at a time (fix stray periods, fix the last
+    // comma) kept missing new failure shapes — e.g. adding two items in one
+    // go came back as "Dosa and Kattanchaya and Pepsi" (an "and" between
+    // EVERY item, no commas at all to patch). Instead, split on ANY
+    // separator the AI might have used — comma, "and", or a stray period —
+    // to recover the actual list of items, then always rebuild it the same
+    // correct way from scratch: ", " between every item except the last,
+    // " and " before the last one, never a trailing period.
     private normalizeDescriptionPunctuation(desc: string): string {
-        const cleaned = desc
-            .replace(/([a-zA-Z0-9])\.(?=[A-Za-z])/g, '$1, ')
-            .replace(/\s*,\s*/g, ', ')
-            .replace(/[,.]\s*$/, '')
-            .trim();
+        const items = desc
+            .split(/\s*,\s*|\s+and\s+|(?<=[a-zA-Z0-9])\.(?=[A-Za-z])/i)
+            .map(s => s.trim())
+            .filter(Boolean);
 
-        // Match note's list style — "and" before the last item, not a flat
-        // comma list — e.g. "Dosa, Tea" -> "Dosa and Tea", and
-        // "Dosa, Tea, Coffee" -> "Dosa, Tea and Coffee".
-        const lastCommaIdx = cleaned.lastIndexOf(', ');
-        if (lastCommaIdx === -1) return cleaned;
-        return `${cleaned.slice(0, lastCommaIdx)} and ${cleaned.slice(lastCommaIdx + 2)}`;
+        if (items.length <= 1) return (items[0] ?? desc).replace(/[,.]\s*$/, '').trim();
+
+        const last = items[items.length - 1].replace(/[,.]\s*$/, '');
+        return `${items.slice(0, -1).join(', ')} and ${last}`;
     }
 
     private parseAiResponse(raw: Record<string, unknown>, categories: CategoryOption[]): Record<string, unknown> {
