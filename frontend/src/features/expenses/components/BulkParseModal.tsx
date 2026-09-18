@@ -64,6 +64,14 @@ interface Props {
   // seeded caller react to an explicit "discard" (e.g. record it so the
   // same suggestion doesn't come back). Never fired by Save All.
   onRemoveItem?: (item: ParsedItem, idx: number) => void;
+  // Fired once a row's create() call actually succeeds — via either the
+  // per-row Save or Save All. For a seeded caller like missed-expense
+  // suggestions, this is the hook to record "this exact slot is resolved"
+  // even when the category got corrected before saving (e.g. AI-fixed from
+  // "Meals" to "Shake") — the underlying habit-coverage check matches on
+  // the ORIGINAL suggested category, so a saved expense under a different
+  // one wouldn't otherwise stop the same suggestion from reappearing.
+  onItemSaved?: (item: ParsedItem, idx: number) => void;
   // Persists a seeded session's in-progress edits under this localStorage
   // key, so switching pages or going back before saving doesn't silently
   // discard them (this component fully unmounts when its caller does,
@@ -130,7 +138,7 @@ function clearSeededDraft(key: string) {
   try { localStorage.removeItem(key); } catch { /* ignore */ }
 }
 
-export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem, draftKey }: Props) {
+export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem, onItemSaved, draftKey }: Props) {
   // Fixed for this instance's whole lifetime — whether initialItems was
   // passed on the mount that created this component. The caller remounts
   // (rather than this changing) whenever it wants a fresh seed.
@@ -437,6 +445,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
         }
 
         updateItem(idx, { _saved: true, _saving: false });
+        onItemSaved?.(item, idx);
         return true;
       } catch (err) {
         console.error('Failed to save bulk item:', err);

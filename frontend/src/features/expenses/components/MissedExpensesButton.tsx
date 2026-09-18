@@ -77,6 +77,19 @@ export default function MissedExpensesButton() {
     setDismissVersion((v) => v + 1);
   };
 
+  // A save can end up under a different category than what was suggested
+  // (e.g. AI-corrected from "Meals" to "Shake") — the habit-coverage check
+  // on the backend matches the ORIGINAL suggested category, so without
+  // this the exact same "missing Meals" suggestion would keep reappearing
+  // even though the user did account for that time slot, just as something
+  // else. Dismissing it the same way a manual discard already does treats
+  // "I reviewed and saved this" as resolving the suggestion regardless of
+  // what it actually got saved as.
+  const handleItemSaved = (item: ParsedItem) => {
+    const [date, categoryId, slotKey] = (item._tag ?? '').split('::');
+    if (date && categoryId && slotKey) dismissMissedExpense(date, categoryId, slotKey);
+  };
+
   const handleMarkAllCovered = () => {
     // The cursor only ever reaches yesterday-or-earlier (today always stays
     // freshly checked), so it alone won't hide anything dated today —
@@ -123,6 +136,7 @@ export default function MissedExpensesButton() {
             onClick: handleMarkAllCovered,
           }}
           onRemoveItem={handleRemoveItem}
+          onItemSaved={handleItemSaved}
           draftKey="spendly:missed-expenses-draft"
         />
       )}
