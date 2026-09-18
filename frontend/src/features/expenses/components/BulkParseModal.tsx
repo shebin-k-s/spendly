@@ -121,6 +121,25 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   const [fixText, setFixText] = useState<Record<number, string>>({});
   const [fixingIdx, setFixingIdx] = useState<number | null>(null);
   const [fixPopupIdx, setFixPopupIdx] = useState<number | null>(null);
+  // Drives the popup's own slide/fade directly (not Radix/tailwindcss-animate's
+  // animate-in/out, which wasn't visibly animating for this nested-on-top-of-
+  // another-sheet case) — fixPopupMounted keeps it in the DOM through the
+  // close transition, fixPopupVisible is flipped a frame after mount so the
+  // "from" state actually paints before transitioning to "to".
+  const [fixPopupMounted, setFixPopupMounted] = useState(false);
+  const [fixPopupVisible, setFixPopupVisible] = useState(false);
+  const fixPopupCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (fixPopupIdx !== null) {
+      if (fixPopupCloseTimer.current) { clearTimeout(fixPopupCloseTimer.current); fixPopupCloseTimer.current = null; }
+      setFixPopupMounted(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setFixPopupVisible(true)));
+    } else {
+      setFixPopupVisible(false);
+      fixPopupCloseTimer.current = setTimeout(() => setFixPopupMounted(false), 300);
+    }
+    return () => { if (fixPopupCloseTimer.current) clearTimeout(fixPopupCloseTimer.current); };
+  }, [fixPopupIdx]);
   // Tracks open→close transitions so the restore toast can re-fire on every open.
   const prevOpenRef = useRef(false);
   // Keyboard overlap (px). Lifts the sheet above the keyboard even in the
@@ -736,6 +755,12 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       {!isSaved && (
                         <div className="flex items-center gap-4 shrink-0">
                           <button
+                            onClick={() => setFixPopupIdx(idx)}
+                            className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center active:scale-90 transition-all"
+                          >
+                            <Sparkles className="w-4 h-4 text-primary" />
+                          </button>
+                          <button
                             onClick={() => void handleSaveOne(idx)}
                             disabled={item._saving || !item.amount || (!item.description && !item.transfer_person)}
                             className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40"
@@ -937,19 +962,6 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       />
                     </div>
 
-                    {/* Opens the correction in its own popup (below) instead
-                        of an always-visible input row here — that row sat
-                        right above Save All and was an easy mis-tap. */}
-                    {!isSaved && (
-                      <button
-                        type="button"
-                        onClick={() => setFixPopupIdx(idx)}
-                        className="flex items-center gap-1.5 text-xs text-primary font-medium active:opacity-70 transition-opacity self-start"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Fix with AI
-                      </button>
-                    )}
 
                     {item._error && (
                       <p className="text-[10px] text-destructive font-bold flex items-center gap-1">
@@ -1107,45 +1119,74 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
 
         {/* Fix with AI — its own popup, entirely separate from the item
             list and Save All, so there's no risk of mis-tapping either
-            while using the other. */}
-        <BottomSheet
-          open={fixPopupIdx !== null}
-          onOpenChange={open => !open && setFixPopupIdx(null)}
-          title="Fix with AI"
-        >
-          <div className="px-5 pb-6 pt-2 space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Describe what to fix — e.g. "add biscuit" or "43"
-            </p>
-            <input
-              autoFocus
-              value={fixPopupIdx !== null ? (fixText[fixPopupIdx] || '') : ''}
-              onChange={e => { if (fixPopupIdx !== null) setFixText(prev => ({ ...prev, [fixPopupIdx]: e.target.value })); }}
-              disabled={fixingIdx === fixPopupIdx}
-              placeholder='e.g. "add biscuit" or "43"'
-              className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
-              enterKeyHint="done"
-              onKeyDown={e => {
-                if (e.key === 'Enter' && fixPopupIdx !== null) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                  void handleFixWithAi(fixPopupIdx);
-                }
-              }}
+            while using the other. Animates via directly-controlled
+            transform/opacity rather than Radix/tailwindcss-animate's
+            animate-in/out, which wasn't visibly animating for a sheet
+            opened on top of another already-open sheet. */}
+        {fixPopupMounted && (
+          <div
+            data-no-swipe
+            className="fixed inset-0 z-[60] flex items-end justify-center"
+            onClick={() => setFixPopupIdx(null)}
+          >
+            <div
+              className="absolute inset-0 bg-black/60"
+              style={{ opacity: fixPopupVisible ? 1 : 0, transition: 'opacity 300ms ease' }}
             />
-            <button
-              type="button"
-              onClick={() => { if (fixPopupIdx !== null) void handleFixWithAi(fixPopupIdx); }}
-              disabled={fixPopupIdx === null || fixingIdx === fixPopupIdx || !(fixText[fixPopupIdx ?? -1] || '').trim()}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98] transition-all"
+            <div
+              onClick={e => e.stopPropagation()}
+              className="relative w-full sm:max-w-md bg-card border-t border-border rounded-t-3xl px-5 pt-2 pb-6 space-y-3"
+              style={{
+                transform: `translateY(${fixPopupVisible ? '0%' : '100%'})`,
+                transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+              }}
             >
-              {fixingIdx === fixPopupIdx
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <Sparkles className="w-4 h-4" />}
-              {fixingIdx === fixPopupIdx ? 'Applying…' : 'Apply'}
-            </button>
+              <div className="flex justify-center pb-1">
+                <div className="w-9 h-1 rounded-full bg-border" />
+              </div>
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold">Fix with AI</h3>
+                <button
+                  type="button"
+                  onClick={() => setFixPopupIdx(null)}
+                  className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center active:scale-90 transition-all"
+                >
+                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Describe what to fix — e.g. "add biscuit" or "43"
+              </p>
+              <input
+                autoFocus
+                value={fixPopupIdx !== null ? (fixText[fixPopupIdx] || '') : ''}
+                onChange={e => { if (fixPopupIdx !== null) setFixText(prev => ({ ...prev, [fixPopupIdx]: e.target.value })); }}
+                disabled={fixingIdx === fixPopupIdx}
+                placeholder='e.g. "add biscuit" or "43"'
+                className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
+                enterKeyHint="done"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && fixPopupIdx !== null) {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                    void handleFixWithAi(fixPopupIdx);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => { if (fixPopupIdx !== null) void handleFixWithAi(fixPopupIdx); }}
+                disabled={fixPopupIdx === null || fixingIdx === fixPopupIdx || !(fixText[fixPopupIdx ?? -1] || '').trim()}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98] transition-all"
+              >
+                {fixingIdx === fixPopupIdx
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Sparkles className="w-4 h-4" />}
+                {fixingIdx === fixPopupIdx ? 'Applying…' : 'Apply'}
+              </button>
+            </div>
           </div>
-        </BottomSheet>
+        )}
       </div>
     </div>
   );
