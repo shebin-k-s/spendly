@@ -64,6 +64,13 @@ interface Props {
   // seeded caller react to an explicit "discard" (e.g. record it so the
   // same suggestion doesn't come back). Never fired by Save All.
   onRemoveItem?: (item: ParsedItem, idx: number) => void;
+  // Persists a seeded session's in-progress edits under this localStorage
+  // key, so switching pages or going back before saving doesn't silently
+  // discard them (this component fully unmounts when its caller does,
+  // e.g. MissedExpensesButton only lives on ExpensesPage). Deliberately
+  // separate from the free-text flow's own draft key — omit this and a
+  // seeded session just opts out of persistence, as before.
+  draftKey?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -100,14 +107,40 @@ function clearBulkDraft() {
   try { localStorage.removeItem(BULK_DRAFT_KEY); } catch { /* ignore */ }
 }
 
-export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem }: Props) {
+// Seeded sessions (e.g. missed-expense suggestions) get their own draft,
+// scoped by an explicit key the caller provides — never the free-text key
+// above, so editing one flow can never clobber or leak into the other.
+function readSeededDraft(key: string): ParsedItem[] | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const items = JSON.parse(raw);
+    // Never restore transient in-flight flags — a save that was interrupted must be retryable.
+    return Array.isArray(items) ? items.map((it: ParsedItem) => ({ ...it, _saving: false })) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSeededDraft(key: string, items: ParsedItem[]) {
+  try { localStorage.setItem(key, JSON.stringify(items)); } catch { /* ignore quota errors */ }
+}
+
+function clearSeededDraft(key: string) {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem, draftKey }: Props) {
   // Fixed for this instance's whole lifetime — whether initialItems was
   // passed on the mount that created this component. The caller remounts
   // (rather than this changing) whenever it wants a fresh seed.
   const isSeededRef = useRef(!!initialItems);
   const [text, setText] = useState(() => isSeededRef.current ? '' : (readBulkDraft()?.text ?? ''));
   const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>(() => isSeededRef.current ? 'done' : (readBulkDraft()?.status ?? 'idle'));
-  const [items, setItems] = useState<ParsedItem[]>(() => initialItems ?? readBulkDraft()?.items ?? []);
+  const [items, setItems] = useState<ParsedItem[]>(() => {
+    if (isSeededRef.current) return (draftKey && readSeededDraft(draftKey)) ?? initialItems ?? [];
+    return readBulkDraft()?.items ?? [];
+  });
   const [searchingPersonIdx, setSearchingPersonIdx] = useState<number | null>(null);
   const [personSearch, setPersonSearch] = useState('');
   const [searchingCategoryIdx, setSearchingCategoryIdx] = useState<number | null>(null);
@@ -187,7 +220,12 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   // doesn't lose what was typed or the parsed rows being reviewed. Skip the transient
   // 'loading'/'error' parse states — only the stable idle/done content is worth keeping.
   useEffect(() => {
-    if (isSeededRef.current) return; // this session's items aren't the free-text draft — never touch that key
+    if (isSeededRef.current) {
+      if (!draftKey) return; // this seeded session opts out of persistence
+      if (items.length > 0) writeSeededDraft(draftKey, items);
+      else clearSeededDraft(draftKey);
+      return;
+    }
     if (status === 'loading' || status === 'error') return;
     try {
       if (text.trim() || items.length) {
@@ -196,7 +234,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
         localStorage.removeItem(BULK_DRAFT_KEY);
       }
     } catch { /* ignore quota errors */ }
-  }, [text, status, items]);
+  }, [text, status, items, draftKey]);
 
   // Keep the sheet above the on-screen keyboard. `interactive-widget=resizes-content`
   // handles the normal open, but when the app is backgrounded with the keyboard up and

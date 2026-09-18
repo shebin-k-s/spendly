@@ -104,7 +104,11 @@ export default function MissedExpensesButton() {
       {/* Remounted fresh each time it opens (rather than staying mounted
           with open toggled) so initialItems — read only once, on mount —
           always seeds from the current list instead of a stale one from
-          the last time this was open. */}
+          the last time this was open. draftKey means that's only true when
+          there's nothing worth keeping: any in-progress edits are restored
+          from localStorage instead of initialItems, so navigating away (this
+          only lives on ExpensesPage, so switching tabs unmounts it) or just
+          closing and reopening doesn't silently drop unsaved changes. */}
       {open && (
         <BulkParseModal
           open
@@ -119,6 +123,7 @@ export default function MissedExpensesButton() {
             onClick: handleMarkAllCovered,
           }}
           onRemoveItem={handleRemoveItem}
+          draftKey="spendly:missed-expenses-draft"
         />
       )}
     </>
