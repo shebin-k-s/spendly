@@ -61,7 +61,7 @@ export function BottomSheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/70 z-50 animate-in fade-in duration-300" />
+        <Dialog.Overlay data-no-swipe className="fixed inset-0 bg-black/70 z-50 animate-in fade-in duration-300" />
         <Dialog.Content
           ref={modalRef}
           data-no-swipe
