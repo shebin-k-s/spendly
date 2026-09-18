@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigationType } from 'react-router-dom';
 import { LayoutDashboard, Receipt, Users, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AnimatedOutlet from './AnimatedOutlet';
+import { useSwipeGesture } from '@/context/SwipeGestureContext';
 
 const NAV_TABS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -12,13 +13,15 @@ const NAV_TABS = [
   { to: '/categories', icon: Tag, label: 'Categories' },
 ];
 
-// BottomSheet's own drag-to-close handle uses Pointer Events and stops
-// their propagation, but that doesn't stop the separate native Touch
-// Events this pull-to-refresh listens to from also bubbling up for the
-// same physical gesture — so dragging down to close a sheet (e.g. the
-// bulk/missed-expenses modal) was also triggering a page refresh
-// underneath it. BottomSheet already marks its content data-no-swipe
-// (for AnimatedOutlet's tab-swipe gesture); reuse that here too.
+// A DOM-proximity check (closest('[data-no-swipe]')) isn't reliable here:
+// a sheet's nested sub-sheets (Select Category/Contact) render through a
+// Radix Portal, so their actual DOM output isn't nested under whatever
+// wrapper got tagged data-no-swipe — it's a sibling appended elsewhere in
+// the document. Kept as a defensive fallback, but the real signal is the
+// shared swipeEnabled flag every sheet already flips off while open
+// (for AnimatedOutlet's tab-swipe gesture) — checking that instead makes
+// this a blanket "no pull-to-refresh while any sheet is open" rule,
+// regardless of where in the viewport the touch happens to land.
 function isInNoSwipeZone(target: EventTarget | null): boolean {
   return !!(target instanceof Element && target.closest('[data-no-swipe]'));
 }
@@ -26,6 +29,7 @@ function isInNoSwipeZone(target: EventTarget | null): boolean {
 export default function Layout() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const { swipeEnabled } = useSwipeGesture();
   const startY = useRef<number | null>(null);
   const startX = useRef<number | null>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -79,7 +83,7 @@ export default function Layout() {
   }, [location.key, navType]);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
-    if (isInNoSwipeZone(e.target)) return;
+    if (!swipeEnabled.current || isInNoSwipeZone(e.target)) return;
     const scrollEl = currentScrollEl.current ?? mainRef.current;
     if (scrollEl && scrollEl.scrollTop <= 1) {
       if (e.touches[0].clientY < 150) {

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { useBackToClose } from '@/hooks/useBackToClose';
@@ -23,6 +23,14 @@ export function BottomSheet({
   maxHeight = '85vh',
 }: BottomSheetProps) {
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
+  // Tied to open, not proximity — this also gates pull-to-refresh (which
+  // checks the same flag), so it needs to be reliably off the instant the
+  // sheet is open, not dependent on a pointerenter having already fired.
+  useEffect(() => {
+    if (!open) return;
+    disableGlobalSwipe();
+    return () => enableGlobalSwipe();
+  }, [open, disableGlobalSwipe, enableGlobalSwipe]);
   useBackToClose(open, () => onOpenChange(false));
   const modalRef = useRef<HTMLDivElement>(null);
   const handlePointerStartY = useRef<number | null>(null);
@@ -66,8 +74,6 @@ export function BottomSheet({
           ref={modalRef}
           data-no-swipe
           onOpenAutoFocus={(e) => e.preventDefault()}
-          onPointerEnter={disableGlobalSwipe}
-          onPointerLeave={enableGlobalSwipe}
           className={cn(
             "fixed bottom-0 inset-x-0 w-full sm:max-w-md sm:mx-auto z-50 bg-card border-t border-border rounded-t-3xl flex flex-col animate-in slide-in-from-bottom duration-500 ease-in-out sheet-exit",
           )}
