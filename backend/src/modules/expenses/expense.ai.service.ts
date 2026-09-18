@@ -274,10 +274,10 @@ Rules for interpreting the correction:
 - Naming a category corrects category_id to match it.
 - A date, time, merchant, or cashback correction follows the same interpretation as normal expense parsing.
 - CRITICAL: never drop or forget anything from the current expense that the correction doesn't address — copy it through unchanged.
-- CRITICAL — description punctuation (these rules apply ONLY to description, do NOT copy the note rules below onto it): a short at-a-glance label (max 40 chars) naming the major item(s), never quantities/prices. When updating it to add a new item, RE-JOIN THE WHOLE LABEL with ", " between items — comma immediately after the preceding word with NO space before it, then exactly one space, then the next word. NEVER a period, NEVER a space before the comma, and NEVER run two items together with no separator at all. Description never ends with a period, no matter how many items.
-  - Existing description "Dosa" + correction "add kattanchaya" → "Dosa, Kattanchaya" — NOT "Dosa.Kattanchaya", NOT "DosaKattanchaya", and NOT "Dosa , Kattanchaya" (no space before the comma).
-  - Existing description "Food" + correction "add drink" → "Food, Drink".
-- CRITICAL — note punctuation (a DIFFERENT rule from description above — note is a full sentence, description is a comma list): the note is a LIST, and when you add an item to it you must RE-JOIN THE WHOLE LIST correctly, not just tack the new item on. Every item is separated by ", " EXCEPT the last one, which is joined with " and " (never a comma before the final item), and the whole thing ends with a single full stop. Never leave a bare comma where "and" belongs, never run two items together with no separator at all, and never end without a period.
+- CRITICAL — description punctuation: a short at-a-glance label (max 40 chars) naming the major item(s), never quantities/prices. Same list style as note below — every item separated by ", " EXCEPT the last one, which is joined with " and " (never a comma before the final item) — but UNLIKE note, description never ends with a period.
+  - Existing description "Dosa" + correction "add tea" → "Dosa and Tea" — NOT "Dosa, Tea", NOT "Dosa.Tea", NOT "DosaTea".
+  - Existing description "Dosa, Tea" (already two items) + correction "add coffee" → "Dosa, Tea and Coffee".
+- CRITICAL — note punctuation: the note is a LIST, and when you add an item to it you must RE-JOIN THE WHOLE LIST correctly, not just tack the new item on. Every item is separated by ", " EXCEPT the last one, which is joined with " and " (never a comma before the final item), and the whole thing ends with a single full stop. Never leave a bare comma where "and" belongs, never run two items together with no separator at all, and never end without a period.
   - Existing note "Food ₹100." + correction "add drink" → "Food ₹100 and Drink." — NOT "Food,drink" and NOT "Food ₹100, drink".
   - Existing note "Tea ₹20." + correction "add biscuit" → "Tea ₹20 and Biscuit."
   - Existing note "Tea ₹20, Coffee ₹15." + correction "add biscuit" → "Tea ₹20, Coffee ₹15 and Biscuit." (now three items: first two comma-separated, "and" only before the last).
@@ -484,11 +484,18 @@ Write like a friend who actually studied your numbers and is telling you what th
     // ", ", and any comma gets normalized to exactly ", " regardless of
     // whatever spacing came back.
     private normalizeDescriptionPunctuation(desc: string): string {
-        return desc
+        const cleaned = desc
             .replace(/([a-zA-Z0-9])\.(?=[A-Za-z])/g, '$1, ')
             .replace(/\s*,\s*/g, ', ')
             .replace(/[,.]\s*$/, '')
             .trim();
+
+        // Match note's list style — "and" before the last item, not a flat
+        // comma list — e.g. "Dosa, Tea" -> "Dosa and Tea", and
+        // "Dosa, Tea, Coffee" -> "Dosa, Tea and Coffee".
+        const lastCommaIdx = cleaned.lastIndexOf(', ');
+        if (lastCommaIdx === -1) return cleaned;
+        return `${cleaned.slice(0, lastCommaIdx)} and ${cleaned.slice(lastCommaIdx + 2)}`;
     }
 
     private parseAiResponse(raw: Record<string, unknown>, categories: CategoryOption[]): Record<string, unknown> {
