@@ -26,9 +26,23 @@ function isInNoSwipeZone(target: EventTarget | null): boolean {
   return !!(target instanceof Element && target.closest('[data-no-swipe]'));
 }
 
+// How far the indicator can visually travel, and how much resistance builds
+// up along the way — an exponential ease so early movement tracks the
+// finger closely and it progressively stiffens, like a native rubber-band
+// overscroll, instead of a rigid 1:1 drag that just stops dead at a cap.
+const PULL_MAX = 100;
+const PULL_THRESHOLD = 72; // fraction of PULL_MAX to trigger a refresh on release
+const applyPullResistance = (raw: number) => PULL_MAX * (1 - Math.exp(-raw / PULL_MAX));
+
 export default function Layout() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Gates the CSS transition: off while actively dragging (so the indicator
+  // tracks the finger immediately, frame by frame, instead of animating
+  // toward a target it's already past by the time each frame catches up),
+  // on for the release snap-back/settle — that mismatch was the "rigid"/
+  // laggy feel.
+  const [isDragging, setIsDragging] = useState(false);
   const { swipeEnabled } = useSwipeGesture();
   const startY = useRef<number | null>(null);
   const startX = useRef<number | null>(null);
@@ -101,20 +115,19 @@ export default function Layout() {
     const distanceX = currentX - startX.current;
 
     if (distanceY > 0 && distanceY > Math.abs(distanceX) * 1.5) {
-      if (distanceY < 250) {
-        setPullDistance(distanceY);
-      } else {
-        setPullDistance(250);
-      }
+      if (!isDragging) setIsDragging(true);
+      setPullDistance(applyPullResistance(distanceY));
     } else if (Math.abs(distanceX) > 30) {
       startY.current = null;
       startX.current = null;
+      setIsDragging(false);
       setPullDistance(0);
     }
   };
 
   const handleTouchEnd = () => {
-    if (pullDistance > 160 && !isRefreshing) {
+    setIsDragging(false);
+    if (pullDistance > PULL_THRESHOLD && !isRefreshing) {
       setIsRefreshing(true);
       window.location.reload();
     }
@@ -123,20 +136,51 @@ export default function Layout() {
     startX.current = null;
   };
 
+  // 0 → 1 as the pull approaches the release threshold — drives the badge's
+  // scale/color and the icon's rotation, capped so it settles rather than
+  // spinning past what release actually does.
+  const pullProgress = Math.min(1, pullDistance / PULL_THRESHOLD);
+  // No transition while a finger is actively dragging — the value already
+  // updates every touchmove frame, so animating toward each new target too
+  // just makes it perpetually lag behind. Only the release (snap back, or
+  // settle into the spinning height) eases.
+  const pullTransition = isDragging ? 'none' : 'all 320ms cubic-bezier(0.22, 1, 0.36, 1)';
+
   return (
     <div className="h-full flex flex-col bg-background sm:max-w-md sm:mx-auto sm:border-x sm:border-border sm:shadow-2xl relative overflow-hidden">
       {/* Pull To Refresh Indicator */}
       <div
-        className="absolute left-0 right-0 top-0 flex justify-center items-center overflow-hidden transition-all duration-300 z-0 bg-background"
-        style={{ height: pullDistance > 0 ? pullDistance : isRefreshing ? 60 : 0 }}
+        className="absolute left-0 right-0 top-0 flex justify-center items-center overflow-hidden z-0 bg-background"
+        style={{ height: pullDistance > 0 ? pullDistance : isRefreshing ? 60 : 0, transition: pullTransition }}
       >
-        <Loader2 className={`w-6 h-6 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`} style={{ transform: `rotate(${pullDistance * 2}deg)` }} />
+        <div
+          className={cn(
+            'w-9 h-9 rounded-full flex items-center justify-center border shadow-sm',
+            isRefreshing || pullProgress >= 1
+              ? 'bg-primary/10 border-primary/20'
+              : 'bg-card border-border',
+          )}
+          style={{
+            transition: pullTransition,
+            transform: `scale(${isRefreshing ? 1 : 0.6 + pullProgress * 0.4})`,
+            opacity: isRefreshing ? 1 : 0.5 + pullProgress * 0.5,
+          }}
+        >
+          <Loader2
+            className={cn(
+              'w-4 h-4',
+              isRefreshing || pullProgress >= 1 ? 'text-primary' : 'text-muted-foreground',
+              isRefreshing ? 'animate-spin' : '',
+            )}
+            style={isRefreshing ? undefined : { transform: `rotate(${pullProgress * 180}deg)`, transition: pullTransition }}
+          />
+        </div>
       </div>
 
       <main
         ref={mainRef}
-        className="flex-1 overflow-hidden relative z-10 transition-transform duration-200 bg-background"
-        style={{ transform: `translateY(${isRefreshing ? 60 : pullDistance}px)` }}
+        className="flex-1 overflow-hidden relative z-10 bg-background"
+        style={{ transform: `translateY(${isRefreshing ? 60 : pullDistance}px)`, transition: pullTransition }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
