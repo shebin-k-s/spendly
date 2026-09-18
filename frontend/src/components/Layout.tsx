@@ -12,6 +12,17 @@ const NAV_TABS = [
   { to: '/categories', icon: Tag, label: 'Categories' },
 ];
 
+// BottomSheet's own drag-to-close handle uses Pointer Events and stops
+// their propagation, but that doesn't stop the separate native Touch
+// Events this pull-to-refresh listens to from also bubbling up for the
+// same physical gesture — so dragging down to close a sheet (e.g. the
+// bulk/missed-expenses modal) was also triggering a page refresh
+// underneath it. BottomSheet already marks its content data-no-swipe
+// (for AnimatedOutlet's tab-swipe gesture); reuse that here too.
+function isInNoSwipeZone(target: EventTarget | null): boolean {
+  return !!(target instanceof Element && target.closest('[data-no-swipe]'));
+}
+
 export default function Layout() {
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -68,6 +79,7 @@ export default function Layout() {
   }, [location.key, navType]);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLElement>) => {
+    if (isInNoSwipeZone(e.target)) return;
     const scrollEl = currentScrollEl.current ?? mainRef.current;
     if (scrollEl && scrollEl.scrollTop <= 1) {
       if (e.touches[0].clientY < 150) {
