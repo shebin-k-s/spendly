@@ -151,6 +151,14 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   const handleY = useRef<number | null>(null);
   const dragY = useRef(0);
   const lastTextTapRef = useRef(0);
+  // One in-flight save promise per row index — saveOne's own _saving/_saved
+  // guard reads React state, which updates asynchronously, so two calls
+  // fired close together (a double-tap, or the per-row Save and Save All
+  // racing on the same item) could both read "not saving yet" and both
+  // call the create API, producing a duplicate. A ref updates synchronously,
+  // so the second call can see the first's in-flight promise immediately
+  // and await that instead of starting its own.
+  const savingPromisesRef = useRef<Map<number, Promise<boolean>>>(new Map());
 
   // Persist the bulk draft as it changes, so an accidental dismiss / app switch / reload
   // doesn't lose what was typed or the parsed rows being reviewed. Skip the transient
@@ -305,57 +313,69 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
 
   // Saves a single item. Returns true on success. Does NOT show a toast or
   // invalidate expense queries — the caller does that once for the whole batch.
-  const saveOne = async (idx: number): Promise<boolean> => {
+  // Concurrent calls for the SAME idx (double-tap, or Save One and Save All
+  // landing together) share one in-flight promise instead of each racing
+  // their own create() call — see savingPromisesRef above.
+  const saveOne = (idx: number): Promise<boolean> => {
     const item = items[idx];
-    if (!item.amount || (!item.description && !item.transfer_person)) return !!item._saved;
-    if (item._saving || item._saved) return !!item._saved;
+    if (!item.amount || (!item.description && !item.transfer_person)) return Promise.resolve(!!item._saved);
+    if (item._saved) return Promise.resolve(true);
 
-    updateItem(idx, { _saving: true, _error: false });
+    const inFlight = savingPromisesRef.current.get(idx);
+    if (inFlight) return inFlight;
 
-    try {
-      if (item.suggested_flow === 'transfer') {
-        const personName = item.transfer_person?.trim();
-        if (!personName) throw new Error('Person name required for transfer');
+    const promise = (async () => {
+      updateItem(idx, { _saving: true, _error: false });
+      try {
+        if (item.suggested_flow === 'transfer') {
+          const personName = item.transfer_person?.trim();
+          if (!personName) throw new Error('Person name required for transfer');
 
-        // 1. Find or Create Person
-        let person = people.find(p => p.name.toLowerCase() === personName.toLowerCase());
-        if (!person) {
-          person = await peopleApi.createPerson({
-            name: personName,
-            phoneNumber: item.transfer_phone?.trim() || undefined
+          // 1. Find or Create Person
+          let person = people.find(p => p.name.toLowerCase() === personName.toLowerCase());
+          if (!person) {
+            person = await peopleApi.createPerson({
+              name: personName,
+              phoneNumber: item.transfer_phone?.trim() || undefined
+            });
+            // Invalidate people so next item can find this one
+            await queryClient.invalidateQueries({ queryKey: ['people'] });
+          }
+
+          // 2. Add Transaction
+          await peopleApi.addTransaction(person.id, {
+            amount: parseFloat(item.amount),
+            type: item.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN',
+            date: item.date || today(),
+            note: (item.description || item.note || '').trim() || undefined
           });
-          // Invalidate people so next item can find this one
-          await queryClient.invalidateQueries({ queryKey: ['people'] });
+        } else {
+          // Normal Expense — call the API directly so the per-item success toast
+          // from useCreateExpense doesn't fire once per row.
+          await expensesApi.create({
+            amount: parseFloat(item.amount),
+            description: item.description.trim(),
+            date: item.date || today(),
+            time: item.time || undefined,
+            note: item.note?.trim() || undefined,
+            categoryId: item.category_id || undefined,
+            cashback: item.cashback ? parseFloat(item.cashback) : undefined,
+          });
         }
 
-        // 2. Add Transaction
-        await peopleApi.addTransaction(person.id, {
-          amount: parseFloat(item.amount),
-          type: item.transfer_direction === 'received' ? 'RETURNED' : 'GIVEN',
-          date: item.date || today(),
-          note: (item.description || item.note || '').trim() || undefined
-        });
-      } else {
-        // Normal Expense — call the API directly so the per-item success toast
-        // from useCreateExpense doesn't fire once per row.
-        await expensesApi.create({
-          amount: parseFloat(item.amount),
-          description: item.description.trim(),
-          date: item.date || today(),
-          time: item.time || undefined,
-          note: item.note?.trim() || undefined,
-          categoryId: item.category_id || undefined,
-          cashback: item.cashback ? parseFloat(item.cashback) : undefined,
-        });
+        updateItem(idx, { _saved: true, _saving: false });
+        return true;
+      } catch (err) {
+        console.error('Failed to save bulk item:', err);
+        updateItem(idx, { _saving: false, _error: true });
+        return false;
+      } finally {
+        savingPromisesRef.current.delete(idx);
       }
+    })();
 
-      updateItem(idx, { _saved: true, _saving: false });
-      return true;
-    } catch (err) {
-      console.error('Failed to save bulk item:', err);
-      updateItem(idx, { _saving: false, _error: true });
-      return false;
-    }
+    savingPromisesRef.current.set(idx, promise);
+    return promise;
   };
 
   const saveAll = async () => {
