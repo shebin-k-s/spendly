@@ -203,10 +203,12 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
 
   // Swipe-to-dismiss
   const onDragStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
     handleY.current = e.clientY;
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onDragMove = (e: React.PointerEvent) => {
+    e.stopPropagation();
     if (handleY.current === null || !sheetRef.current) return;
     let d = e.clientY - handleY.current;
     if (d < 0) d = 0;
@@ -215,6 +217,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
     sheetRef.current.style.transform = `translateY(${d}px)`;
   };
   const onDragEnd = (e: React.PointerEvent) => {
+    e.stopPropagation();
     e.currentTarget.releasePointerCapture(e.pointerId);
     if (!sheetRef.current) return;
     if (dragY.current > 120) {
@@ -464,6 +467,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
 
   return (
     <div
+      data-no-swipe
       className="fixed inset-0 z-50 flex flex-col justify-end"
       style={kbInset ? { paddingBottom: kbInset } : undefined}
     >
