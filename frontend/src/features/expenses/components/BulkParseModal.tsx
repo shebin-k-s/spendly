@@ -470,6 +470,14 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
       data-no-swipe
       className="fixed inset-0 z-50 flex flex-col justify-end"
       style={kbInset ? { paddingBottom: kbInset } : undefined}
+      // Belt-and-suspenders on top of the swipeEnabled flag: stops the
+      // touch events Layout's pull-to-refresh listens for from ever
+      // reaching it in the first place, at the DOM/React-synthetic-event
+      // level — independent of any effect-timing or context-propagation
+      // subtlety in how/when swipeEnabled actually gets flipped.
+      onTouchStart={e => e.stopPropagation()}
+      onTouchMove={e => e.stopPropagation()}
+      onTouchEnd={e => e.stopPropagation()}
     >
       {/* Backdrop */}
       <div
