@@ -115,8 +115,12 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   // A quick natural-language correction per row ("add biscuit", "43rs")
   // instead of manually editing fields — keyed by index rather than living
   // on ParsedItem, since it's transient input, not part of the expense.
+  // Lives in its own popup sheet (fixPopupIdx) rather than an always-visible
+  // inline row — that sat right above Save All and was an easy mis-tap
+  // while reaching for the keyboard's own action key.
   const [fixText, setFixText] = useState<Record<number, string>>({});
   const [fixingIdx, setFixingIdx] = useState<number | null>(null);
+  const [fixPopupIdx, setFixPopupIdx] = useState<number | null>(null);
   // Tracks open→close transitions so the restore toast can re-fire on every open.
   const prevOpenRef = useRef(false);
   // Keyboard overlap (px). Lifts the sheet above the keyboard even in the
@@ -488,6 +492,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
         cashback: typeof raw.cashback === 'string' ? stripTrailingZeros(raw.cashback) : item.cashback,
       });
       setFixText(prev => ({ ...prev, [idx]: '' }));
+      setFixPopupIdx(null);
     } catch {
       toast.error('Could not apply that correction — try rephrasing');
     } finally {
@@ -932,38 +937,18 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       />
                     </div>
 
-                    {/* Quick natural-language correction — "add biscuit" or
-                        "43rs" — instead of manually editing the fields above. */}
+                    {/* Opens the correction in its own popup (below) instead
+                        of an always-visible input row here — that row sat
+                        right above Save All and was an easy mis-tap. */}
                     {!isSaved && (
-                      <div className="flex items-center gap-2">
-                        <div className="relative flex-1">
-                          <Sparkles className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-primary/60" />
-                          <input
-                            value={fixText[idx] || ''}
-                            onChange={e => setFixText(prev => ({ ...prev, [idx]: e.target.value }))}
-                            disabled={fixingIdx === idx}
-                            placeholder='e.g. "add biscuit" or "43"'
-                            className="w-full bg-primary/5 border border-primary/10 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
-                            enterKeyHint="done"
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                e.currentTarget.blur();
-                                void handleFixWithAi(idx);
-                              }
-                            }}
-                          />
-                        </div>
-                        <button
-                          onClick={() => void handleFixWithAi(idx)}
-                          disabled={fixingIdx === idx || !(fixText[idx] || '').trim()}
-                          className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 shrink-0"
-                        >
-                          {fixingIdx === idx
-                            ? <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                            : <Sparkles className="w-4 h-4 text-primary" />}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFixPopupIdx(idx)}
+                        className="flex items-center gap-1.5 text-xs text-primary font-medium active:opacity-70 transition-opacity self-start"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Fix with AI
+                      </button>
                     )}
 
                     {item._error && (
@@ -1119,6 +1104,48 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
           }}
           title="Select Category"
         />
+
+        {/* Fix with AI — its own popup, entirely separate from the item
+            list and Save All, so there's no risk of mis-tapping either
+            while using the other. */}
+        <BottomSheet
+          open={fixPopupIdx !== null}
+          onOpenChange={open => !open && setFixPopupIdx(null)}
+          title="Fix with AI"
+        >
+          <div className="px-5 pb-6 pt-2 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Describe what to fix — e.g. "add biscuit" or "43"
+            </p>
+            <input
+              autoFocus
+              value={fixPopupIdx !== null ? (fixText[fixPopupIdx] || '') : ''}
+              onChange={e => { if (fixPopupIdx !== null) setFixText(prev => ({ ...prev, [fixPopupIdx]: e.target.value })); }}
+              disabled={fixingIdx === fixPopupIdx}
+              placeholder='e.g. "add biscuit" or "43"'
+              className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:opacity-50"
+              enterKeyHint="done"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && fixPopupIdx !== null) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                  void handleFixWithAi(fixPopupIdx);
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => { if (fixPopupIdx !== null) void handleFixWithAi(fixPopupIdx); }}
+              disabled={fixPopupIdx === null || fixingIdx === fixPopupIdx || !(fixText[fixPopupIdx ?? -1] || '').trim()}
+              className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40 active:scale-[0.98] transition-all"
+            >
+              {fixingIdx === fixPopupIdx
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Sparkles className="w-4 h-4" />}
+              {fixingIdx === fixPopupIdx ? 'Applying…' : 'Apply'}
+            </button>
+          </div>
+        </BottomSheet>
       </div>
     </div>
   );
