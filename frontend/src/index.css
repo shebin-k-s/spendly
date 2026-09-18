@@ -113,6 +113,15 @@ input[type=number] {
     height: 100%;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
+    /* The browser's own native pull-to-refresh is tied to the document
+       root's (html's) overscroll behavior, not body's — and since #root is
+       height:100% with all real scrolling happening in nested
+       overflow-y-auto containers, body itself never scrolls, so setting
+       this on body alone never actually suppressed it. That's a separate
+       mechanism from Layout.tsx's own custom pull-to-refresh (which is
+       correctly gated per-sheet elsewhere) — this was firing regardless,
+       for any touch that didn't have its own touch-action: none. */
+    overscroll-behavior-y: none;
   }
 
   #root {
@@ -121,7 +130,6 @@ input[type=number] {
 
   body {
     @apply bg-background text-foreground;
-    overscroll-behavior-y: none;
   }
 
   input[type='number']::-webkit-inner-spin-button,
