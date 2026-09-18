@@ -401,9 +401,12 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
 
   // Saving one item on its own (as opposed to via Save All) still needs the
   // same query invalidation so the dashboard/lists pick it up immediately —
-  // just scoped to a single toast instead of a batch summary, and without
-  // closing the sheet or resetting the draft (the other items are still
-  // pending review).
+  // scoped to a single toast instead of a batch summary, and it leaves the
+  // sheet open since other items are usually still pending review. But if
+  // every OTHER item was already saved, this one completing finishes the
+  // whole batch (this is also just what happens with a single-item sheet,
+  // e.g. one missed-expense suggestion) — close out exactly like Save All
+  // does instead of leaving a fully-green, nothing-left-to-do sheet open.
   const handleSaveOne = async (idx: number) => {
     const ok = await saveOne(idx);
     if (!ok) {
@@ -417,6 +420,19 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
       }),
       queryClient.invalidateQueries({ queryKey: ['people'], refetchType: 'all' }),
     ]);
+
+    const isLastRemaining = items.every((it, i) => i === idx || it._saved);
+    if (isLastRemaining) {
+      toast.success(items.length === 1 ? 'Saved!' : `${items.length} items saved!`);
+      onAllSaved?.();
+      if (!isSeededRef.current) clearBulkDraft();
+      setText('');
+      setStatus('idle');
+      setItems([]);
+      onClose();
+      return;
+    }
+
     toast.success('Saved');
   };
 
