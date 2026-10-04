@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 // A single shared stack + one popstate listener coordinates every overlay, so a
 // Back press closes only the top-most one, and an overlay closing via the UI can
@@ -26,29 +26,57 @@ function ensureListener() {
   });
 }
 
+// Removes an overlay's pushed history entry after it closes via the UI.
+function removeEntry(entry: Entry, hrefAtOpen: string) {
+  const idx = stack.findIndex((e) => e.id === entry.id);
+  if (idx === -1) return; // already removed by a Back press — nothing to undo
+  stack.splice(idx, 1);
+  // If the app navigated away (URL changed), that navigation already replaced/
+  // consumed our entry — calling back() here would undo the navigation.
+  if (window.location.href !== hrefAtOpen) return;
+  // Same page → remove our pushed entry, flagged so the listener closes nothing.
+  ignoreNextPop = true;
+  window.history.back();
+}
+
 /**
  * Makes the hardware / browser Back button close an open overlay instead of
  * navigating the page. While `open`, a throwaway history entry is pushed; Back
  * pops it and calls `onClose`. Closing via the UI removes that entry quietly.
  */
 export function useBackToClose(open: boolean, onClose: () => void) {
+  // React StrictMode (dev only) mounts → unmounts → remounts on first render.
+  // Removing the entry immediately there fires an async history.back() that
+  // lands AFTER the remount's pushState, leaving the overlay's entry "forward"
+  // of the current one — so the eventual close's back() leaves the page
+  // entirely. Deferring removal one tick lets a remount reclaim the entry
+  // that's still in history instead.
+  const pendingRemovalRef = useRef<{ entry: Entry; hrefAtOpen: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+
   useEffect(() => {
     if (!open) return;
     ensureListener();
-    const id = ++seq;
-    const hrefAtOpen = window.location.href;
-    stack.push({ id, onClose });
-    window.history.pushState({ ...window.history.state, __overlay: id }, '');
+
+    let entry: Entry;
+    let hrefAtOpen: string;
+    const pending = pendingRemovalRef.current;
+    if (pending) {
+      clearTimeout(pending.timer);
+      pendingRemovalRef.current = null;
+      ({ entry, hrefAtOpen } = pending);
+    } else {
+      entry = { id: ++seq, onClose };
+      hrefAtOpen = window.location.href;
+      stack.push(entry);
+      window.history.pushState({ ...window.history.state, __overlay: entry.id }, '');
+    }
+
     return () => {
-      const idx = stack.findIndex((e) => e.id === id);
-      if (idx === -1) return; // already removed by a Back press — nothing to undo
-      stack.splice(idx, 1);
-      // If the app navigated away (URL changed), that navigation already replaced/
-      // consumed our entry — calling back() here would undo the navigation.
-      if (window.location.href !== hrefAtOpen) return;
-      // Same page → remove our pushed entry, flagged so the listener closes nothing.
-      ignoreNextPop = true;
-      window.history.back();
+      const timer = setTimeout(() => {
+        pendingRemovalRef.current = null;
+        removeEntry(entry, hrefAtOpen);
+      }, 0);
+      pendingRemovalRef.current = { entry, hrefAtOpen, timer };
     };
     // onClose is captured at open time on purpose.
     // eslint-disable-next-line react-hooks/exhaustive-deps
