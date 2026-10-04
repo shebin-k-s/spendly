@@ -138,6 +138,40 @@ function clearSeededDraft(key: string) {
   try { localStorage.removeItem(key); } catch { /* ignore */ }
 }
 
+// Scrolls a textarea so its caret line is fully visible with one line of
+// breathing room below it. Measures the real caret position (including wrapped
+// lines) by laying the text out in an invisible mirror with identical styling.
+function scrollCaretIntoView(textarea: HTMLTextAreaElement) {
+  const style = getComputedStyle(textarea);
+  const mirror = document.createElement('div');
+  for (const prop of ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'fontFamily', 'fontSize', 'fontWeight', 'letterSpacing', 'lineHeight', 'tabSize'] as const) {
+    mirror.style[prop] = style[prop];
+  }
+  mirror.style.position = 'absolute';
+  mirror.style.visibility = 'hidden';
+  mirror.style.whiteSpace = 'pre-wrap';
+  mirror.style.overflowWrap = 'break-word';
+  mirror.textContent = textarea.value.substring(0, textarea.selectionEnd);
+  const marker = document.createElement('span');
+  marker.textContent = '\u200b';
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+  const caretTop = marker.offsetTop;
+  const lineHeight = marker.offsetHeight || parseFloat(style.lineHeight) || 20;
+  document.body.removeChild(mirror);
+
+  const paddingBottom = parseFloat(style.paddingBottom) || 0;
+  const visibleBottom = textarea.scrollTop + textarea.clientHeight - paddingBottom;
+  const wantedBottom = caretTop + lineHeight * 2; // caret line + one line of room
+  if (wantedBottom > visibleBottom) {
+    textarea.scrollTop = Math.min(textarea.scrollHeight, wantedBottom - textarea.clientHeight + paddingBottom);
+  } else if (caretTop < textarea.scrollTop) {
+    textarea.scrollTop = caretTop;
+  }
+  // And keep the textarea's caret area on screen within the sheet itself.
+  textarea.scrollIntoView({ block: 'nearest' });
+}
+
 export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem, onItemSaved, draftKey }: Props) {
   // Fixed for this instance's whole lifetime — whether initialItems was
   // passed on the mount that created this component. The caller remounts
@@ -675,13 +709,24 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                       nextPrefix = `\n${lines.length + 1}. `;
                     }
 
-                    const newText = text.substring(0, start) + nextPrefix + text.substring(end);
-                    setText(newText);
-
-                    // Set cursor after the new prefix
-                    setTimeout(() => {
-                      target.selectionStart = target.selectionEnd = start + nextPrefix.length;
-                    }, 0);
+                    // Insert as if typed: the browser then places the caret and
+                    // scrolls it into view itself (a programmatic value + caret
+                    // change doesn't scroll, so once the list outgrew the box the
+                    // new numbered line was left hidden below it), it fires a
+                    // normal input event for onChange, and undo still works.
+                    // Also avoids the old deferred caret move landing after the
+                    // next keystrokes and scrambling fast typing.
+                    const inserted = document.execCommand?.('insertText', false, nextPrefix);
+                    if (!inserted) {
+                      const newText = text.substring(0, start) + nextPrefix + text.substring(end);
+                      setText(newText);
+                    }
+                    // Mobile browsers don't reliably scroll to a caret moved by
+                    // code, so do it explicitly once the new line has rendered.
+                    requestAnimationFrame(() => {
+                      if (!inserted) target.selectionStart = target.selectionEnd = start + nextPrefix.length;
+                      scrollCaretIntoView(target);
+                    });
                   } else if (e.key === 'Enter' && e.ctrlKey) {
                     e.preventDefault();
                     void handleParse();
