@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
-import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields } from './expense.ai.service';
+import { MerchantRuleService } from '../merchants/merchant-rule.service';
+import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
 
 const log = {
@@ -15,6 +16,21 @@ const log = {
 const service = new ExpenseService();
 const categoryService = new CategoryService();
 const aiService = new ExpenseAiService();
+const merchantRuleService = new MerchantRuleService();
+
+// Categories + shop rules for the AI parse prompts. A failed lookup only
+// degrades the parse (no category / no shop rules), never fails it.
+async function loadAiContext(caller: string): Promise<{ categories: CategoryOption[]; merchantRules: MerchantRuleOption[] }> {
+    const [categories, merchantRules] = await Promise.all([
+        categoryService.getAll()
+            .then(cats => cats.map(c => ({ id: c.id, name: c.name, icon: c.icon })))
+            .catch(err => { log.error(`${caller}: failed to fetch categories`, { error: String(err) }); return [] as CategoryOption[]; }),
+        merchantRuleService.getAll()
+            .then(rules => rules.map(r => ({ name: r.name, aliases: r.aliases, categoryId: r.category.id })))
+            .catch(err => { log.error(`${caller}: failed to fetch shop rules`, { error: String(err) }); return [] as MerchantRuleOption[]; }),
+    ]);
+    return { categories, merchantRules };
+}
 
 function ordinalSuffix(n: number): string {
     if (n % 10 === 1 && n % 100 !== 11) return 'st';
@@ -817,14 +833,9 @@ export class ExpenseController {
             res.status(503).json({ message: 'AI parsing not configured' });
             return;
         }
-        let categories: { id: string; name: string; icon: string }[] = [];
-        try {
-            categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
-        } catch (err) {
-            log.error('parseText: failed to fetch categories', { error: String(err) });
-        }
+        const { categories, merchantRules } = await loadAiContext('parseText');
         const debug = req.query.debug === 'true';
-        res.json(await aiService.parseText(text, categories, debug));
+        res.json(await aiService.parseText(text, categories, merchantRules, debug));
     };
 
     reviseExpense = async (req: Request, res: Response) => {
@@ -834,14 +845,9 @@ export class ExpenseController {
             res.status(503).json({ message: 'AI analysis not configured' });
             return;
         }
-        let categories: { id: string; name: string; icon: string }[] = [];
-        try {
-            categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
-        } catch (err) {
-            log.error('reviseExpense: failed to fetch categories', { error: String(err) });
-        }
+        const { categories, merchantRules } = await loadAiContext('reviseExpense');
         const debug = req.query.debug === 'true';
-        res.json(await aiService.reviseExpense(current, instruction, categories, debug));
+        res.json(await aiService.reviseExpense(current, instruction, categories, merchantRules, debug));
     };
 
 
@@ -852,14 +858,9 @@ export class ExpenseController {
             res.status(503).json({ message: 'AI parsing not configured' });
             return;
         }
-        let categories: { id: string; name: string; icon: string }[] = [];
-        try {
-            categories = (await categoryService.getAll()).map(c => ({ id: c.id, name: c.name, icon: c.icon }));
-        } catch (err) {
-            log.error('parseBulkText: failed to fetch categories', { error: String(err) });
-        }
+        const { categories, merchantRules } = await loadAiContext('parseBulkText');
         const debug = req.query.debug === 'true';
-        res.json(await aiService.parseBulkText(text, categories, debug));
+        res.json(await aiService.parseBulkText(text, categories, merchantRules, debug));
     };
 
 
@@ -877,16 +878,10 @@ export class ExpenseController {
         const base64 = file.buffer.toString('base64');
         const mimeType = file.mimetype || 'image/jpeg';
 
-        let categories: { id: string; name: string; icon: string }[] = [];
-        try {
-            const cats = await categoryService.getAll();
-            categories = cats.map(c => ({ id: c.id, name: c.name, icon: c.icon }));
-        } catch (err) {
-            log.error('parseImage: failed to fetch categories', { error: String(err) });
-        }
+        const { categories, merchantRules } = await loadAiContext('parseImage');
 
         const debug = req.query.debug === 'true';
-        const parsed = await aiService.parseReceipt(base64, mimeType, categories, debug);
+        const parsed = await aiService.parseReceipt(base64, mimeType, categories, merchantRules, debug);
         res.json(parsed);
     };
 }

@@ -29,6 +29,7 @@ import PeoplePage from '@/features/people/pages/PeoplePage';
 import PersonDetailsPage from '@/features/people/pages/PersonDetailsPage';
 import EditPersonPage from '@/features/people/pages/EditPersonPage';
 import ShareToPeoplePage from '@/features/people/pages/ShareToPeoplePage';
+import MerchantRulesPage from '@/features/merchants/pages/MerchantRulesPage';
 
 const CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // Keep cache for 7 days
 
@@ -80,6 +81,7 @@ export default function App() {
               <Route path="categories/new" element={<AddCategoryPage />} />
               <Route path="categories/:id" element={<CategoryDetailsPage />} />
               <Route path="categories/:id/edit" element={<EditCategoryPage />} />
+              <Route path="categories/shops" element={<MerchantRulesPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="people" element={<PeoplePage />} />
               <Route path="people/:id" element={<PersonDetailsPage />} />

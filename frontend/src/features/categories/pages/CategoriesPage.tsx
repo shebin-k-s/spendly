@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, Tag, X } from 'lucide-react';
+import { Plus, Search, Store, Tag, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCategoriesQuery, useSeedCategories } from '../hooks/useCategories';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
@@ -36,6 +36,13 @@ export default function CategoriesPage() {
             {isLoading ? 'Loading...' : `${categories.length} categories`}
           </p>
         </div>
+        <Link
+          to="/categories/shops"
+          aria-label="Shops"
+          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center"
+        >
+          <Store className="w-4 h-4" />
+        </Link>
         <Link
           to="/categories/new"
           className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center"

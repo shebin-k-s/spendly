@@ -6,7 +6,7 @@ dotenv.config();
 async function test() {
   try {
     const service = new ExpenseAiService();
-    const result = await service.parseText("Zomato 350 UPI", [], true);
+    const result = await service.parseText("Zomato 350 UPI", [], [], true);
     console.log(result);
   } catch (err) {
     console.error("ERROR HAPPENED:", err);

@@ -10,6 +10,7 @@ import authRoutes from './modules/auth/auth.routes';
 import categoryRoutes from './modules/categories/category.routes';
 import expenseRoutes from './modules/expenses/expense.routes';
 import peopleRoutes from './modules/people/people.routes';
+import merchantRuleRoutes from './modules/merchants/merchant-rule.routes';
 import webauthnRoutes from './modules/webauthn/webauthn.routes';
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/categories', protect, categoryRoutes);
 app.use('/api/v1/expenses', protect, expenseRoutes);
 app.use('/api/v1/people', protect, peopleRoutes);
+app.use('/api/v1/merchant-rules', protect, merchantRuleRoutes);
 app.use('/api/v1/webauthn', protect, webauthnRoutes);
 
 // Health check

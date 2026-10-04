@@ -4,6 +4,8 @@ import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils
 
 export interface CategoryOption { id: string; name: string; icon: string; }
 
+export interface MerchantRuleOption { name: string; aliases: string[]; categoryId: string; }
+
 export interface CurrentExpenseFields {
     amount: string | null;
     description: string | null;
@@ -57,10 +59,6 @@ export class ExpenseAiService {
         'gemini-2.0-flash-lite',
     ];
 
-    private readonly merchantCategoryHints = [
-        { merchant: 'Ayaans Mart', aliases: ['Ayaans', "Ayaan's", 'Ayaan'], category: 'Chanthavila Grocery' },
-    ];
-
     private readonly itemCategoryHints = [
         { items: 'Hot malt/health drinks (Horlicks, Boost, Bournvita, Complan) and Coffee — but NOT cold/iced versions or shakes/milkshakes (e.g. "Boost Shake", "cold coffee" stay a drink, not this)', category: 'Tea' },
     ];
@@ -76,20 +74,29 @@ export class ExpenseAiService {
         return this.genAI;
     }
 
-    private buildCommonBlocks(categories: CategoryOption[]) {
+    private buildCommonBlocks(categories: CategoryOption[], merchantRules: MerchantRuleOption[]) {
         const categoryBlock = categories.length
             ? `Available categories — pick the best fit from this exact list (use the "id").\n${JSON.stringify(categories.map(c => ({ id: c.id, name: c.name, icon: c.icon })))}`
             : 'No categories available — use null for category_id.';
 
-        const merchantHintBlock = `Merchant → category RULES (CRITICAL — these OVERRIDE every other category_id rule): if the input mentions one of these shops — under ANY of its names, in any case or spelling, with or without "from" / "at" / "'s" (e.g. "from ayaans", "at Ayaan's") — category_id MUST be that shop's category, no matter what items were bought (milk, snacks, vegetables etc. bought there still go to the shop's category, NOT a generic one like "Grocery" or "Food"). Only if that category is missing from the list below, choose the best fit yourself:\n${this.merchantCategoryHints.map(h => `- "${h.merchant}" (also written: ${h.aliases.map(a => `"${a}"`).join(', ')}) → category: "${h.category}"`).join('\n')}`;
+        // Only rules whose category still exists — the id is what the model must return.
+        const categoryById = new Map(categories.map(c => [c.id, c]));
+        const activeRules = merchantRules.filter(r => categoryById.has(r.categoryId));
+        const merchantHintBlock = activeRules.length
+            ? `Merchant → category RULES (CRITICAL — these OVERRIDE every other category_id rule): if the input mentions one of these shops — under ANY of its names, in any case or spelling, with or without "from" / "at" / "'s" (e.g. "from ayaans", "at Ayaan's") — category_id MUST be that shop's category id, no matter what items were bought (milk, snacks, vegetables etc. bought there still go to the shop's category, NOT a generic one like "Grocery" or "Food"):\n${activeRules.map(r => {
+                const category = categoryById.get(r.categoryId)!;
+                const aka = r.aliases.length ? ` (also written: ${r.aliases.map(a => `"${a}"`).join(', ')})` : '';
+                return `- "${r.name}"${aka} → category "${category.name}" (id: ${category.id})`;
+            }).join('\n')}`
+            : '';
 
         const itemHintBlock = `Item → preferred category hints (use these if a matching category exists in the list below; otherwise choose the best fit yourself):\n${this.itemCategoryHints.map(h => `- ${h.items} → prefer category: "${h.category}"`).join('\n')}`;
 
         return { categoryBlock, merchantHintBlock, itemHintBlock };
     }
 
-    private buildImagePrompt(categories: CategoryOption[]): string {
-        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories);
+    private buildImagePrompt(categories: CategoryOption[], merchantRules: MerchantRuleOption[]): string {
+        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories, merchantRules);
 
         return `You are an expense parsing assistant. Analyze this payment screenshot and extract expense details.
 
@@ -136,8 +143,8 @@ ${categoryBlock}`;
 - ${h.lastByWeekday.join('\n- ')}`;
     }
 
-    private buildBulkTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
-        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories);
+    private buildBulkTextPrompt(text: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], today: string, currentTime: string): string {
+        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories, merchantRules);
 
         return `You are an expense parsing assistant. A user typed multiple expenses in one go. Split them into individual expenses and return a JSON ARRAY.
 
@@ -199,8 +206,8 @@ ${itemHintBlock}
 ${categoryBlock}`;
     }
 
-    private buildTextPrompt(text: string, categories: CategoryOption[], today: string, currentTime: string): string {
-        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories);
+    private buildTextPrompt(text: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], today: string, currentTime: string): string {
+        const { categoryBlock, merchantHintBlock, itemHintBlock } = this.buildCommonBlocks(categories, merchantRules);
 
         return `You are an expense parsing assistant. A user typed a natural language description of something they spent money on. Extract the expense details.
 
@@ -245,8 +252,8 @@ ${itemHintBlock}
 ${categoryBlock}`;
     }
 
-    private buildRevisePrompt(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], today: string, currentTime: string): string {
-        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
+    private buildRevisePrompt(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], today: string, currentTime: string): string {
+        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories, merchantRules);
         const categoryName = current.category_id ? categories.find(c => c.id === current.category_id)?.name : null;
 
         return `You are an expense correction assistant. The user already has this expense entered — they just gave a follow-up correction or addition, not a brand new expense. Update ONLY what the correction implies and leave every other field exactly as given below; this is an edit, not a rewrite from scratch.
@@ -532,8 +539,8 @@ Write like a friend who actually studied your numbers and is telling you what th
         return { amount, description, date, time, cashback, category_id, category_name, note, transfer_person, transfer_phone, transfer_direction, suggested_flow };
     }
 
-    async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], debug = false) {
-        const prompt = this.buildImagePrompt(categories);
+    async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {
+        const prompt = this.buildImagePrompt(categories, merchantRules);
         const rawText = await this.runModel([prompt, { inlineData: { data: imageBase64, mimeType } }]);
         const raw = this.extractJson(rawText);
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
@@ -541,9 +548,9 @@ Write like a friend who actually studied your numbers and is telling you what th
         return payload;
     }
 
-    async parseText(text: string, categories: CategoryOption[], debug = false) {
+    async parseText(text: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {
         const { dateString, timeString } = getISTParts();
-        const prompt = this.buildTextPrompt(text, categories, dateString, timeString);
+        const prompt = this.buildTextPrompt(text, categories, merchantRules, dateString, timeString);
         const rawText = await this.runModel([prompt]);
         const raw = this.extractJson(rawText);
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
@@ -551,9 +558,9 @@ Write like a friend who actually studied your numbers and is telling you what th
         return payload;
     }
 
-    async reviseExpense(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], debug = false) {
+    async reviseExpense(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {
         const { dateString, timeString } = getISTParts();
-        const prompt = this.buildRevisePrompt(current, instruction, categories, dateString, timeString);
+        const prompt = this.buildRevisePrompt(current, instruction, categories, merchantRules, dateString, timeString);
         const rawText = await this.runModel([prompt]);
         const raw = this.extractJson(rawText);
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
@@ -561,9 +568,9 @@ Write like a friend who actually studied your numbers and is telling you what th
         return payload;
     }
 
-    async parseBulkText(text: string, categories: CategoryOption[], debug = false) {
+    async parseBulkText(text: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {
         const { dateString, timeString } = getISTParts();
-        const prompt = this.buildBulkTextPrompt(text, categories, dateString, timeString);
+        const prompt = this.buildBulkTextPrompt(text, categories, merchantRules, dateString, timeString);
         const rawText = await this.runModel([prompt]);
 
         // Extract JSON array from the model output
