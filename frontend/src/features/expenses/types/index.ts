@@ -125,3 +125,8 @@ export interface MissedExpensesResult {
   since: string;
 }
 
+export interface ResolveMissedPayload {
+  items: { date: string; categoryId: string; slotKey: string }[];
+  cursorDate?: string;
+}
+

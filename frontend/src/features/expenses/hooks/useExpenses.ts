@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { monthLabel } from '@/lib/utils';
-import type { CreateExpensePayload, UpdateExpensePayload, CategorySpendRange } from '../types';
+import type { CreateExpensePayload, UpdateExpensePayload, CategorySpendRange, ResolveMissedPayload } from '../types';
 
 const EXPENSES_KEY = ['expenses'] as const;
 const SUMMARY_KEY = ['expenses', 'summary'] as const;
@@ -44,11 +44,19 @@ export function useAnalytics(months = 6) {
   });
 }
 
-export function useMissedExpenses(sinceDate?: string) {
+export function useMissedExpenses() {
   return useQuery({
-    queryKey: [...MISSED_KEY, sinceDate],
-    queryFn: () => expensesApi.getMissed(sinceDate),
+    queryKey: MISSED_KEY,
+    queryFn: () => expensesApi.getMissed(),
     staleTime: 30_000,
+  });
+}
+
+export function useResolveMissed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ResolveMissedPayload) => expensesApi.resolveMissed(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MISSED_KEY }),
   });
 }
 

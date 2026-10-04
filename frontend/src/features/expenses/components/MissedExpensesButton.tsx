@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCheck } from 'lucide-react';
-import { useMissedExpenses } from '../hooks/useExpenses';
+import { format, subDays } from 'date-fns';
+import { toast } from 'sonner';
+import { useMissedExpenses, useResolveMissed } from '../hooks/useExpenses';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 import { BulkParseModal, type ParsedItem } from './BulkParseModal';
-import { getMissedCursorDate, advanceMissedCursor, yesterdayStr } from '../utils/missedCursor';
-import { isMissedExpenseDismissed, dismissMissedExpense } from '../utils/missedDismissals';
-import type { MissedExpenseSuggestion } from '../types';
+import { readLegacyMissedState, clearLegacyMissedState } from '../utils/legacyMissedStorage';
+import type { MissedExpenseSuggestion, ResolveMissedPayload } from '../types';
 
 // slotKey rides along as an opaque tag so a removal (onRemoveItem below) can
-// be written back to the dismiss ledger — BulkParseModal never looks inside it.
+// be written back to the server as resolved — BulkParseModal never looks inside it.
 //
 // BulkParseModal's card has no field of its own for "why was this
 // suggested" — pre-filling the note covers that context instead of leaving
@@ -34,47 +36,64 @@ function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
   };
 }
 
+function suggestionKey(s: { date: string; categoryId: string; slotKey: string }): string {
+  return `${s.date}::${s.categoryId}::${s.slotKey}`;
+}
+
+function tagToItem(tag: string | undefined): ResolveMissedPayload['items'][number] | null {
+  const [date, categoryId, slotKey] = (tag ?? '').split('::');
+  return date && categoryId && slotKey ? { date, categoryId, slotKey } : null;
+}
+
 export default function MissedExpensesButton() {
-  const [cursorDate] = useState(() => getMissedCursorDate() ?? undefined);
-  const missedQuery = useMissedExpenses(cursorDate);
+  const missedQuery = useMissedExpenses();
   const { data } = missedQuery;
   useRefetchOnFocus(missedQuery);
+  const resolveMissed = useResolveMissed();
   const [open, setOpen] = useState(false);
-  // Dismissal lives in localStorage, not React state — bump this after
-  // every discard to force the filter below to re-run.
-  const [dismissVersion, setDismissVersion] = useState(0);
+  // Discards and "mark everything covered" are stored server-side, so every
+  // device sees the same list. These keys hide a resolved entry right away,
+  // before the refetch that follows the save comes back without it.
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(() => new Set());
 
-  // Individually discarding one entry only ever removes that one entry —
-  // it never touches the cursor or any other entry. Saving (via
-  // BulkParseModal's own Save All) also only affects the items actually
-  // saved, but via real data (the next fetch sees each as covered) rather
-  // than this ledger.
-  const items = useMemo(
-    () => (data?.items ?? []).filter((s) => !isMissedExpenseDismissed(s.date, s.categoryId, s.slotKey)),
-    [data, dismissVersion],
-  );
-
-  // The cursor only ever moves for two reasons: the user explicitly presses
-  // "mark everything covered" (below), or — here — the list empties out
-  // naturally because every entry that was actually shown got individually
-  // resolved. It only ever targets yesterday-or-earlier (never today —
-  // today always gets a fresh check against real data every time), so
-  // advancing it here is pure backlog cleanup: nothing currently pending is
-  // affected (everything shown already got individually resolved to reach
-  // this point), it just lets old dismissals get pruned instead of piling
-  // up forever.
+  // One-time upload of discards / cursor an older version kept only in this
+  // device's localStorage — cleared only once the server has them.
+  const legacySyncedRef = useRef(false);
   useEffect(() => {
-    if ((data?.items.length ?? 0) > 0 && items.length === 0) {
-      advanceMissedCursor(yesterdayStr());
-    }
-  }, [items.length, data]);
+    if (legacySyncedRef.current) return;
+    legacySyncedRef.current = true;
+    const legacy = readLegacyMissedState();
+    if (!legacy) return;
+    resolveMissed.mutate(legacy, { onSuccess: clearLegacyMissedState });
+  }, [resolveMissed]);
+
+  const items = useMemo(
+    () => (data?.items ?? []).filter((s) => !pendingKeys.has(suggestionKey(s))),
+    [data, pendingKeys],
+  );
 
   if (items.length === 0) return null;
 
+  const resolve = (payload: ResolveMissedPayload) => {
+    const keys = payload.items.map(suggestionKey);
+    setPendingKeys((prev) => new Set([...prev, ...keys]));
+    resolveMissed.mutate(payload, {
+      onError: (err) => {
+        setPendingKeys((prev) => {
+          const next = new Set(prev);
+          keys.forEach((k) => next.delete(k));
+          return next;
+        });
+        toast.error(getErrorMessage(err));
+      },
+    });
+  };
+
+  // Individually discarding one entry only ever removes that one entry —
+  // it never touches the cursor or any other entry.
   const handleRemoveItem = (item: ParsedItem) => {
-    const [date, categoryId, slotKey] = (item._tag ?? '').split('::');
-    if (date && categoryId && slotKey) dismissMissedExpense(date, categoryId, slotKey);
-    setDismissVersion((v) => v + 1);
+    const resolved = tagToItem(item._tag);
+    if (resolved) resolve({ items: [resolved] });
   };
 
   // A save can end up under a different category than what was suggested
@@ -82,21 +101,22 @@ export default function MissedExpensesButton() {
   // on the backend matches the ORIGINAL suggested category, so without
   // this the exact same "missing Meals" suggestion would keep reappearing
   // even though the user did account for that time slot, just as something
-  // else. Dismissing it the same way a manual discard already does treats
-  // "I reviewed and saved this" as resolving the suggestion regardless of
+  // else. Resolving it the same way a manual discard does treats "I
+  // reviewed and saved this" as resolving the suggestion regardless of
   // what it actually got saved as.
   const handleItemSaved = (item: ParsedItem) => {
-    const [date, categoryId, slotKey] = (item._tag ?? '').split('::');
-    if (date && categoryId && slotKey) dismissMissedExpense(date, categoryId, slotKey);
+    const resolved = tagToItem(item._tag);
+    if (resolved) resolve({ items: [resolved] });
   };
 
   const handleMarkAllCovered = () => {
     // The cursor only ever reaches yesterday-or-earlier (today always stays
     // freshly checked), so it alone won't hide anything dated today —
-    // dismiss those individually too, the same as removing each row.
-    for (const s of items) dismissMissedExpense(s.date, s.categoryId, s.slotKey);
-    setDismissVersion((v) => v + 1);
-    advanceMissedCursor(yesterdayStr());
+    // resolve those individually too, the same as removing each row.
+    resolve({
+      items: items.map((s) => ({ date: s.date, categoryId: s.categoryId, slotKey: s.slotKey })),
+      cursorDate: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
+    });
     setOpen(false);
   };
 

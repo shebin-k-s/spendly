@@ -1,12 +1,19 @@
 import { AppDataSource } from '../../config/data.source';
 import { Expense } from './expense.entity';
 import { MonthlyAiInsight } from './monthly-ai-insight.entity';
+import { MissedDismissal } from './missed-dismissal.entity';
+import { MissedCursor } from './missed-cursor.entity';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { getISTParts } from '../../common/utils/date.utils';
+
+// Module-level so it's shared even if ExpenseService is instantiated more than once.
+let lastMissedPruneDate: string | null = null;
 
 export class ExpenseService {
     private repo = AppDataSource.getRepository(Expense);
     private insightRepo = AppDataSource.getRepository(MonthlyAiInsight);
+    private dismissalRepo = AppDataSource.getRepository(MissedDismissal);
+    private cursorRepo = AppDataSource.getRepository(MissedCursor);
 
     async getByMonth(year: number, month: number, categoryId?: string) {
         // month is 1-indexed
@@ -214,6 +221,60 @@ export class ExpenseService {
         row.points = JSON.stringify(points);
         const saved = await this.insightRepo.save(row);
         return saved.generatedAt;
+    }
+
+    async getMissedCursor(): Promise<string | null> {
+        const row = await this.cursorRepo.findOneBy({ id: 'default' });
+        return row?.date ?? null;
+    }
+
+    async getMissedDismissalKeys(sinceDate: string): Promise<Set<string>> {
+        const rows = await this.dismissalRepo
+            .createQueryBuilder('d')
+            .where('d.date >= :sinceDate', { sinceDate })
+            .getMany();
+        return new Set(rows.map(r => `${r.date}::${r.categoryId}::${r.slotKey}`));
+    }
+
+    // Records resolved suggestions and optionally moves the cursor — never
+    // backwards, and never to today or later (today always gets a fresh check).
+    async resolveMissed(items: { date: string; categoryId: string; slotKey: string }[], cursorDate?: string) {
+        const { dateString: today } = getISTParts();
+        if (items.length) {
+            await this.dismissalRepo
+                .createQueryBuilder()
+                .insert()
+                .values(items)
+                .orIgnore()
+                .execute();
+        }
+
+        if (cursorDate && cursorDate < today) {
+            const current = await this.getMissedCursor();
+            if (!current || cursorDate > current) {
+                await this.cursorRepo.save({ id: 'default', date: cursorDate });
+            }
+        }
+
+        await this.pruneMissedDismissals(today);
+
+        return { cursorDate: await this.getMissedCursor() };
+    }
+
+    // Dismissals older than the controller's 14-day backfill cap can never be
+    // shown again, so they're dropped — but at most once per day, not on
+    // every discard.
+    private async pruneMissedDismissals(today: string) {
+        if (lastMissedPruneDate === today) return;
+        lastMissedPruneDate = today;
+        const KEEP_DAYS = 15;
+        const cutoff = new Date(`${today}T00:00:00Z`);
+        cutoff.setUTCDate(cutoff.getUTCDate() - KEEP_DAYS);
+        await this.dismissalRepo
+            .createQueryBuilder()
+            .delete()
+            .where('date < :cutoff', { cutoff: cutoff.toISOString().slice(0, 10) })
+            .execute();
     }
 
     async getAnalytics(months: number = 6) {

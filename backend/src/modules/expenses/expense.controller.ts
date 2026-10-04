@@ -522,12 +522,19 @@ export class ExpenseController {
         const { yesterday } = getRelativeDateHints();
 
         const MAX_BACKFILL_DAYS = 14;
-        const earliestAllowedDate = new Date(`${today}T00:00:00`);
-        earliestAllowedDate.setDate(earliestAllowedDate.getDate() - MAX_BACKFILL_DAYS);
+        const earliestAllowedDate = new Date(`${today}T00:00:00Z`);
+        earliestAllowedDate.setUTCDate(earliestAllowedDate.getUTCDate() - MAX_BACKFILL_DAYS);
         const earliestAllowed = earliestAllowedDate.toISOString().slice(0, 10);
 
         const isValidIsoDate = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
-        const sinceDateParam = req.query.sinceDate as string | undefined;
+        // The cursor lives server-side (shared by every device); a ?sinceDate
+        // from an older client that still keeps its own is honored only if
+        // it's further ahead.
+        const queryCursor = req.query.sinceDate as string | undefined;
+        const storedCursor = await service.getMissedCursor();
+        const sinceDateParam = isValidIsoDate(queryCursor) && (!storedCursor || queryCursor! > storedCursor)
+            ? queryCursor
+            : storedCursor ?? undefined;
         // Never honor a cursor date of today, however it got there (a stale
         // cursor saved by an older client, a bad request, anything) — today
         // isn't over yet, so it must always come from a fresh check against
@@ -540,11 +547,11 @@ export class ExpenseController {
         // days being checked, so backfilling a long gap never erodes the
         // pattern it's being checked against.
         const TRAINING_DAYS = 60;
-        const trainingEnd = new Date(`${since}T00:00:00`);
-        trainingEnd.setDate(trainingEnd.getDate() - 1);
+        const trainingEnd = new Date(`${since}T00:00:00Z`);
+        trainingEnd.setUTCDate(trainingEnd.getUTCDate() - 1);
         const trainingEndStr = trainingEnd.toISOString().slice(0, 10);
-        const trainingStart = new Date(`${trainingEndStr}T00:00:00`);
-        trainingStart.setDate(trainingStart.getDate() - TRAINING_DAYS);
+        const trainingStart = new Date(`${trainingEndStr}T00:00:00Z`);
+        trainingStart.setUTCDate(trainingStart.getUTCDate() - TRAINING_DAYS);
         const trainingStartStr = trainingStart.toISOString().slice(0, 10);
 
         const [trainingExpenses, checkRangeExpenses] = trainingEndStr >= trainingStartStr
@@ -568,7 +575,7 @@ export class ExpenseController {
         // frequency diluted by 20 days of no data at all.
         const earliestTrainingDate = trainingExpenses.reduce((min, e) => (e.date < min ? e.date : min), trainingExpenses[0].date);
         const totalTrainingDays = Math.round(
-            (new Date(`${trainingEndStr}T00:00:00`).getTime() - new Date(`${earliestTrainingDate}T00:00:00`).getTime()) / 86_400_000,
+            (new Date(`${trainingEndStr}T00:00:00Z`).getTime() - new Date(`${earliestTrainingDate}T00:00:00Z`).getTime()) / 86_400_000,
         ) + 1;
 
         // Group by category only — the time-of-day split happens per
@@ -698,10 +705,12 @@ export class ExpenseController {
             });
 
         const checkDates: string[] = [];
-        for (let d = new Date(`${since}T00:00:00`); d <= new Date(`${today}T00:00:00`); d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(`${since}T00:00:00Z`); d <= new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
             checkDates.push(d.toISOString().slice(0, 10));
         }
         const currentMinutesToday = (currentHour < 5 ? currentHour + 24 : currentHour) * 60 + currentMinute;
+
+        const dismissedKeys = await service.getMissedDismissalKeys(since);
 
         const suggestions = checkDates.flatMap(date => {
             const isToday = date === today;
@@ -712,6 +721,7 @@ export class ExpenseController {
                 // "skipped".
                 .filter(h => (isToday ? currentMinutesToday >= h.expectedMinutes + h.graceMinutes : true))
                 .filter(h => !isCoveredOnDate(date, h.categoryId, h.expectedMinutes))
+                .filter(h => !dismissedKeys.has(`${date}::${h.categoryId}::${h.slotKey}`))
                 .map(h => ({
                     date,
                     dayLabel: this.dayLabelFor(date, today, yesterday),
@@ -746,6 +756,13 @@ export class ExpenseController {
                 },
             } : {}),
         });
+    };
+
+    // Discarding a suggestion, saving it under another category, or "mark
+    // everything covered" — stored server-side so every device agrees.
+    resolveMissedExpenses = async (req: Request, res: Response) => {
+        const { items, cursorDate } = req.body as { items: { date: string; categoryId: string; slotKey: string }[]; cursorDate?: string };
+        res.json(await service.resolveMissed(items, cursorDate));
     };
 
     getByCategoryYear = async (req: Request, res: Response) => {

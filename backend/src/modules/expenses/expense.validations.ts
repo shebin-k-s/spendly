@@ -47,3 +47,12 @@ export const updateExpenseSchema = Joi.object({
     note: Joi.string().max(500).allow('', null).optional(),
     categoryId: Joi.string().uuid().allow(null).optional(),
 });
+
+export const resolveMissedSchema = Joi.object({
+    items: Joi.array().items(Joi.object({
+        date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
+        categoryId: Joi.string().required(),
+        slotKey: Joi.string().required(),
+    })).max(500).required(),
+    cursorDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
