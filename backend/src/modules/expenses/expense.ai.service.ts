@@ -58,7 +58,7 @@ export class ExpenseAiService {
     ];
 
     private readonly merchantCategoryHints = [
-        { merchant: 'Ayaans Mart', category: 'Chanthavila Grocery' },
+        { merchant: 'Ayaans Mart', aliases: ['Ayaans', "Ayaan's", 'Ayaan'], category: 'Chanthavila Grocery' },
     ];
 
     private readonly itemCategoryHints = [
@@ -81,7 +81,7 @@ export class ExpenseAiService {
             ? `Available categories — pick the best fit from this exact list (use the "id").\n${JSON.stringify(categories.map(c => ({ id: c.id, name: c.name, icon: c.icon })))}`
             : 'No categories available — use null for category_id.';
 
-        const merchantHintBlock = `Merchant → preferred category hints (use these if a matching category exists in the list below; otherwise choose the best fit yourself):\n${this.merchantCategoryHints.map(h => `- "${h.merchant}" → prefer category: "${h.category}"`).join('\n')}`;
+        const merchantHintBlock = `Merchant → category RULES (CRITICAL — these OVERRIDE every other category_id rule): if the input mentions one of these shops — under ANY of its names, in any case or spelling, with or without "from" / "at" / "'s" (e.g. "from ayaans", "at Ayaan's") — category_id MUST be that shop's category, no matter what items were bought (milk, snacks, vegetables etc. bought there still go to the shop's category, NOT a generic one like "Grocery" or "Food"). Only if that category is missing from the list below, choose the best fit yourself:\n${this.merchantCategoryHints.map(h => `- "${h.merchant}" (also written: ${h.aliases.map(a => `"${a}"`).join(', ')}) → category: "${h.category}"`).join('\n')}`;
 
         const itemHintBlock = `Item → preferred category hints (use these if a matching category exists in the list below; otherwise choose the best fit yourself):\n${this.itemCategoryHints.map(h => `- ${h.items} → prefer category: "${h.category}"`).join('\n')}`;
 
@@ -246,7 +246,7 @@ ${categoryBlock}`;
     }
 
     private buildRevisePrompt(current: CurrentExpenseFields, instruction: string, categories: CategoryOption[], today: string, currentTime: string): string {
-        const { categoryBlock } = this.buildCommonBlocks(categories);
+        const { categoryBlock, merchantHintBlock } = this.buildCommonBlocks(categories);
         const categoryName = current.category_id ? categories.find(c => c.id === current.category_id)?.name : null;
 
         return `You are an expense correction assistant. The user already has this expense entered — they just gave a follow-up correction or addition, not a brand new expense. Update ONLY what the correction implies and leave every other field exactly as given below; this is an edit, not a rewrite from scratch.
@@ -272,7 +272,7 @@ Rules for interpreting the correction:
 - A bare number or amount-like phrase (e.g. "43", "43rs", "₹43") means the AMOUNT was wrong — replace it with this new value entirely. Never treat a bare number as a new item to add.
 - Naming an item not already reflected in the note (e.g. "add biscuit", "also had a coffee") means append it to the note — and fold it into the description too if it's now one of the major items — but do NOT change the amount unless the user also gave a new total or explicit per-item price to add.
 - Naming a category corrects category_id to match it.
-- A date, time, merchant, or cashback correction follows the same interpretation as normal expense parsing.
+- A date, time, merchant, or cashback correction follows the same interpretation as normal expense parsing. Naming a shop from the merchant rules below (e.g. "from ayaans") sets category_id to that shop's category.
 - CRITICAL: never drop or forget anything from the current expense that the correction doesn't address — copy it through unchanged.
 - CRITICAL — description punctuation: a short at-a-glance label (max 40 chars) naming the major item(s), never quantities/prices. Same list style as note below — every item separated by ", " EXCEPT the last one, which is joined with " and " (never a comma before the final item) — but UNLIKE note, description never ends with a period.
   - Existing description "Dosa" + correction "add tea" → "Dosa and Tea" — NOT "Dosa, Tea", NOT "Dosa.Tea", NOT "DosaTea".
@@ -294,6 +294,8 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
   "note": "<detailed breakdown, or null>",
   "cashback": "<number as string, or null>"
 }
+
+${merchantHintBlock}
 
 ${categoryBlock}`;
     }
