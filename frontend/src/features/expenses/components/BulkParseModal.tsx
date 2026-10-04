@@ -138,6 +138,39 @@ function clearSeededDraft(key: string) {
   try { localStorage.removeItem(key); } catch { /* ignore */ }
 }
 
+// Renumbers every line that starts with "N. " to 1, 2, 3… in order, keeping
+// the caret on the same character even when a number's length changes (10 → 9).
+function renumberList(value: string, caret: number): { value: string; caret: number } {
+  const lines = value.split('\n');
+  let n = 0;
+  let offset = 0; // start index of the current line in the ORIGINAL value
+  let caretShift = 0;
+  const out = lines.map((line) => {
+    const lineStart = offset;
+    offset += line.length + 1;
+    const match = line.match(/^(\d+)\.(\s?)/);
+    if (!match) return line;
+    n += 1;
+    const oldPrefix = match[0];
+    const newPrefix = `${n}.${match[2]}`;
+    // Shift the caret only for changes that happen before it.
+    if (caret >= lineStart + oldPrefix.length) caretShift += newPrefix.length - oldPrefix.length;
+    else if (caret > lineStart) caretShift += Math.min(caret - lineStart, newPrefix.length) - (caret - lineStart);
+    return newPrefix + line.substring(oldPrefix.length);
+  });
+  return { value: out.join('\n'), caret: caret + caretShift };
+}
+
+// Selects the line the caret is on, minus any leading "N. " list number.
+function selectLineAtCaret(textarea: HTMLTextAreaElement) {
+  const { value, selectionStart } = textarea;
+  const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+  const newlineIdx = value.indexOf('\n', selectionStart);
+  const lineEnd = newlineIdx === -1 ? value.length : newlineIdx;
+  const prefix = value.substring(lineStart, lineEnd).match(/^\d+\.\s*/)?.[0] ?? '';
+  textarea.setSelectionRange(lineStart + prefix.length, lineEnd);
+}
+
 // Scrolls a textarea so its caret line is fully visible with one line of
 // breathing room below it. Measures the real caret position (including wrapped
 // lines) by laying the text out in an invisible mirror with identical styling.
@@ -680,12 +713,23 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
               <textarea
                 value={text}
                 onChange={e => {
-                  let val = e.target.value;
+                  const target = e.currentTarget;
+                  let val = target.value;
+                  let caret = target.selectionEnd;
                   // If starting a fresh input, auto-prefix with "1. "
                   if (val.length === 1 && !val.includes('.')) {
                     val = `1. ${val}`;
+                    caret += 3;
                   }
-                  setText(val);
+                  // Deleting or inserting a line mid-list leaves gaps/duplicates
+                  // (1, 2, 4…) — renumber so the list always reads 1, 2, 3…
+                  const renumbered = renumberList(val, caret);
+                  setText(renumbered.value);
+                  if (renumbered.value !== target.value) {
+                    // React re-renders the new value with the caret at the end —
+                    // put it back where the user was typing.
+                    requestAnimationFrame(() => target.setSelectionRange(renumbered.caret, renumbered.caret));
+                  }
                   if (status !== 'idle') setStatus('idle');
                 }}
                 onKeyDown={e => {
@@ -734,13 +778,14 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                 }}
                 // Double-tap to select-a-word is handled natively by the OS on mobile,
                 // which was occasionally getting misread as a page-swipe gesture.
-                // Intercept it ourselves: a second tap within 300ms selects everything
-                // instead, so the native gesture never gets a chance to fire.
+                // Intercept it ourselves: a second tap within 300ms selects the
+                // tapped line (without its "N. " number) so it can be retyped,
+                // and the native gesture never gets a chance to fire.
                 onTouchEnd={e => {
                   const now = Date.now();
                   if (now - lastTextTapRef.current < 300) {
                     e.preventDefault();
-                    e.currentTarget.select();
+                    selectLineAtCaret(e.currentTarget);
                     lastTextTapRef.current = 0;
                   } else {
                     lastTextTapRef.current = now;
@@ -748,7 +793,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                 }}
                 onDoubleClick={e => {
                   e.preventDefault();
-                  e.currentTarget.select();
+                  selectLineAtCaret(e.currentTarget);
                 }}
                 placeholder={'Each line is a new transaction. AI will ignore labels like 1., 2.\n\n1. Coffee 20\n2. Lunch 200, tea 10\n3. Dinner 500'}
                 rows={8}
