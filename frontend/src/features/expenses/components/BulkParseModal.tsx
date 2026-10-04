@@ -10,6 +10,7 @@ import { peopleApi } from '@/features/people/api/peopleApi';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Dialog from '@radix-ui/react-dialog';
 import { cn, formatINR, stripTrailingZeros } from '@/lib/utils';
+import { showDraftRestoredToast } from '@/components/DraftRestoredToast';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
 import { useBackToClose } from '@/hooks/useBackToClose';
@@ -408,9 +409,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
     prevOpenRef.current = open;
     if (!justOpened) return;
     if (text.trim() || items.length) {
-      toast('Restored your unsaved entry', {
-        action: { label: 'Discard', onClick: discardAll },
-      });
+      showDraftRestoredToast(discardAll);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

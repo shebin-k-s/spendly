@@ -1,3 +1,4 @@
+import type React from 'react';
 import { QueryClient, defaultShouldDehydrateQuery } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
@@ -106,6 +107,10 @@ function AppToaster() {
       theme={theme}
       position="bottom-center"
       gap={8}
+      // On wider screens the app lives in a centered max-w-md (448px) window —
+      // match toasts to its content width (448 − 2×16px gutter) instead of
+      // Sonner's default 356px, so they line up with the app, not the page.
+      style={{ '--width': '416px' } as React.CSSProperties}
       toastOptions={{
         style: {
           background: 'hsl(var(--card))',

@@ -19,6 +19,7 @@ import { cn, formatINR, stripTrailingZeros } from '@/lib/utils';
 import { toast } from 'sonner';
 import { BulkParseModal } from '../components/BulkParseModal';
 import { useBackToClose } from '@/hooks/useBackToClose';
+import { showDraftRestoredToast } from '@/components/DraftRestoredToast';
 
 
 type AiStatus = 'idle' | 'loading' | 'done' | 'error';
@@ -346,16 +347,11 @@ export default function AddExpensePage() {
       if (d.time !== undefined) setTime(d.time);
       if (d.categoryId != null) setCategoryId(d.categoryId);
       if (d.note != null) setNote(d.note);
-      toast('Restored your unsaved entry', {
-        action: {
-          label: 'Discard',
-          onClick: () => {
-            localStorage.removeItem(DRAFT_KEY);
-            setAmount(''); setCashback(''); setDescription('');
-            setDate(format(new Date(), 'yyyy-MM-dd')); setTime(format(new Date(), 'HH:mm'));
-            setCategoryId(''); setNote('');
-          },
-        },
+      showDraftRestoredToast(() => {
+        localStorage.removeItem(DRAFT_KEY);
+        setAmount(''); setCashback(''); setDescription('');
+        setDate(format(new Date(), 'yyyy-MM-dd')); setTime(format(new Date(), 'HH:mm'));
+        setCategoryId(''); setNote('');
       });
     } catch { /* ignore malformed draft */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
