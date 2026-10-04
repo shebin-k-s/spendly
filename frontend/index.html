@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="hsl(0 0% 4%)" />
+    <meta name="theme-color" content="#0a0a0a" />
 
     <!-- PWA / iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,9 +14,11 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Spendly</title>
     <script>
-      // Keep these two hsl(...) values in sync with --background in index.css.
+      // Keep these two colors in sync with --background in index.css. Hex, not
+      // hsl(): Android's status bar ignores space-separated hsl() and falls back
+      // to the manifest's dark theme_color, leaving a black bar in light mode.
       if (localStorage.getItem('spendly_theme') === 'light') {
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', 'hsl(0 0% 100%)');
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
       } else {
         document.documentElement.classList.add('dark');
       }
