@@ -14,11 +14,14 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Spendly</title>
     <script>
-      // Keep these two colors in sync with --background in index.css. Hex, not
-      // hsl(): Android's status bar ignores space-separated hsl() and falls back
-      // to the manifest's dark theme_color, leaving a black bar in light mode.
+      // Keep these two colors in sync with --background in index.css.
+      // The installed (standalone) app keeps the dark color in light mode too:
+      // Android paints its status bar from the manifest's fixed dark color and
+      // only uses theme-color to pick light vs dark icons — a light theme-color
+      // there means dark icons on a black bar, i.e. invisible. See ThemeContext.
+      var standalone = window.matchMedia('(display-mode: standalone)').matches;
       if (localStorage.getItem('spendly_theme') === 'light') {
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
+        if (!standalone) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
       } else {
         document.documentElement.classList.add('dark');
       }

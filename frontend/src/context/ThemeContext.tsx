@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 export type Theme = 'light' | 'dark';
 
 const STORAGE_KEY = 'spendly_theme';
+const MANIFEST_THEME_COLOR = '#0a0a0a'; // keep in sync with theme_color in vite.config.ts
 
 interface ThemeContextValue {
   theme: Theme;
@@ -36,12 +37,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem(STORAGE_KEY, theme);
 
-    // Read the actual --background value rather than hardcoding a guess, so
-    // the mobile status/address bar always matches the real page color. Set as
-    // hex — Android's status bar ignores space-separated hsl() (the format
-    // --background is in) and falls back to the manifest's dark theme_color.
+    // In a browser tab, match the address bar to the real page color (read
+    // from --background rather than hardcoded). The installed app is different:
+    // Android paints its status bar from the manifest's fixed dark color and
+    // only uses theme-color to pick light vs dark status icons — so a light
+    // theme-color there gives dark icons on a black bar (unreadable). Keep it
+    // dark in standalone so the icons stay white in both themes.
+    const standalone = window.matchMedia('(display-mode: standalone)').matches;
     const bg = getComputedStyle(document.documentElement).getPropertyValue('--background').trim();
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', hslVarToHex(bg));
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', standalone ? MANIFEST_THEME_COLOR : hslVarToHex(bg));
   }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
