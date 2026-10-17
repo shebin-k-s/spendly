@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
@@ -123,6 +123,18 @@ export default function ExpensesPage() {
     }
   };
 
+  const filterCloseRef = useRef<{ height: number; scroller: HTMLElement; panel: Element } | null>(null);
+  useLayoutEffect(() => {
+    const pending = filterCloseRef.current;
+    if (!pending || isFilterOpen) return;
+    filterCloseRef.current = null;
+    pending.scroller.scrollTop = Math.max(0, pending.scroller.scrollTop - pending.height);
+    requestAnimationFrame(() => {
+      pending.panel.removeAttribute('data-instant');
+      pending.scroller.style.overflowAnchor = '';
+    });
+  }, [isFilterOpen]);
+
   // The filter panel sits in the list (below the sticky header), so scrolling carries it
   // away at the finger's speed. Once it is fully out of sight, mark it closed so the toggle
   // matches: the collapse is invisible by then, and the browser's scroll anchoring keeps the
@@ -135,6 +147,11 @@ export default function ExpensesPage() {
     if (!panel || !scroller || !header) return;
     const onScroll = () => {
       if (panel.getBoundingClientRect().bottom <= header.getBoundingClientRect().bottom) {
+        // Collapse it instantly and shift the scroll position by its height in the same
+        // frame (see the layout effect below), so no visible row moves.
+        filterCloseRef.current = { height: panel.getBoundingClientRect().height, scroller: scroller as HTMLElement, panel };
+        panel.setAttribute('data-instant', '');
+        (scroller as HTMLElement).style.overflowAnchor = 'none';
         dispatch(setFilterOpen(false));
       }
     };

@@ -220,3 +220,9 @@ input[type=number] {
     animation: slideDownExit 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards !important;
   }
 }
+
+/* Set briefly by the expenses page when the filter panel closes while scrolled out of
+   sight, so it collapses in one frame (together with a scroll-position shift). */
+[data-filter-panel][data-instant] {
+  transition: none !important;
+}
