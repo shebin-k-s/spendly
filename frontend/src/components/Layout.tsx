@@ -1,5 +1,6 @@
 import { useState, useRef, useLayoutEffect } from 'react';
 import { NavLink, useLocation, useNavigationType } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard, Receipt, Users, Tag, BarChart3, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import AnimatedOutlet from './AnimatedOutlet';
@@ -44,6 +45,7 @@ export default function Layout() {
   // laggy feel.
   const [isDragging, setIsDragging] = useState(false);
   const { swipeEnabled } = useSwipeGesture();
+  const queryClient = useQueryClient();
   const startY = useRef<number | null>(null);
   const startX = useRef<number | null>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -125,15 +127,31 @@ export default function Layout() {
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = async () => {
     setIsDragging(false);
-    if (pullDistance > PULL_THRESHOLD && !isRefreshing) {
-      setIsRefreshing(true);
-      window.location.reload();
-    }
+    const shouldRefresh = pullDistance > PULL_THRESHOLD && !isRefreshing;
     setPullDistance(0);
     startY.current = null;
     startX.current = null;
+    if (!shouldRefresh) return;
+
+    setIsRefreshing(true);
+    try {
+      // Refetch data in place instead of reloading the page: a reload just
+      // re-serves the service worker's cached shell and the persisted query
+      // cache, so stale names/amounts could survive it. The AI analysis query
+      // is excluded — it must only run when the user taps "Analyze".
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (q) => q.queryKey[1] !== 'analyze',
+        }),
+        // Also check for a newer app version while we're at it.
+        navigator.serviceWorker?.getRegistration().then((r) => r?.update()).catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, 600)), // keep the spinner visible
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // 0 → 1 as the pull approaches the release threshold — drives the badge's

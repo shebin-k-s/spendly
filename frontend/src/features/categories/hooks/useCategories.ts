@@ -41,6 +41,9 @@ export function useUpdateCategory() {
     mutationFn: (payload: UpdateCategoryPayload) => categoriesApi.update(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: CATEGORIES_KEY });
+      // Expense lists, summaries and the category-details page all embed the
+      // category's name/icon/color, so they go stale on rename too.
+      qc.invalidateQueries({ queryKey: ['expenses'] });
       toast.success('Category updated');
     },
     onError: (error) => toast.error(getErrorMessage(error)),
