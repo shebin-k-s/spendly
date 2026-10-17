@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search, ChevronDown } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
 import { formatINR, monthLabel, currentYearMonth, cn } from '@/lib/utils';
-import { useLongPress } from '@/hooks/useLongPress';
 import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
 import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
@@ -24,7 +23,7 @@ import MonthNavigator from '../components/MonthNavigator';
 import YearNavigator from '../components/YearNavigator';
 import EmptyState from '@/components/EmptyState';
 
-// A month's heading in the year view. Press and hold to hide or show that month's expenses.
+// A month's heading in the year view. Tap to hide or show that month's expenses.
 function MonthHeading({ label, total, hiddenCount, collapsed, onToggle }: {
   label: string;
   total: number;
@@ -32,14 +31,12 @@ function MonthHeading({ label, total, hiddenCount, collapsed, onToggle }: {
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const press = useLongPress({ onLongPress: onToggle, delay: 450 });
   return (
-    <div
-      {...press}
-      // A scroll that starts on the heading cancels the pointer; make sure that also cancels the hold.
-      onPointerCancel={press.onPointerLeave}
-      onContextMenu={(e) => e.preventDefault()}
-      className="flex items-center justify-between mb-3 pb-2 border-b border-border select-none"
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      className="w-full text-left flex items-center justify-between mb-3 pb-2 border-b border-border select-none active:opacity-60 transition-opacity"
     >
       <div className="flex items-center gap-1.5 min-w-0">
         <ChevronDown className={cn('w-4 h-4 text-muted-foreground shrink-0 transition-transform', collapsed && '-rotate-90')} />
@@ -49,7 +46,7 @@ function MonthHeading({ label, total, hiddenCount, collapsed, onToggle }: {
         )}
       </div>
       <p className="text-sm font-bold text-primary">{formatINR(total)}</p>
-    </div>
+    </button>
   );
 }
 
@@ -241,6 +238,12 @@ export default function ExpensesPage() {
     for (const e of filteredExpenses) counts[e.date.slice(0, 7)] = (counts[e.date.slice(0, 7)] ?? 0) + 1;
     return counts;
   }, [filteredExpenses]);
+  // Hold the year to hide every month; if they're all hidden already, show them all.
+  const toggleAllMonths = () =>
+    setCollapsedMonths((prev) => {
+      const keys = Object.keys(monthTotals);
+      return keys.length > 0 && keys.every((k) => prev.has(k)) ? new Set() : new Set(keys);
+    });
   const monthNet = totalAmount(filteredExpenses);
   const monthGross = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
@@ -305,6 +308,7 @@ export default function ExpensesPage() {
           {isYear ? (
             <YearNavigator
               year={year}
+              onLongPress={toggleAllMonths}
               onChange={(y) => {
                 // Keep the month valid for when you switch back (no future months).
                 const now = currentYearMonth();

@@ -1,13 +1,17 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { currentYearMonth } from '@/lib/utils';
+import { useLongPress } from '@/hooks/useLongPress';
 
 interface YearNavigatorProps {
   year: number;
   onChange: (year: number) => void;
+  // Press and hold the year label.
+  onLongPress?: () => void;
 }
 
-export default function YearNavigator({ year, onChange }: YearNavigatorProps) {
+export default function YearNavigator({ year, onChange, onLongPress }: YearNavigatorProps) {
   const isCurrentYear = year >= currentYearMonth().year;
+  const press = useLongPress({ onLongPress: () => onLongPress?.(), delay: 450 });
 
   return (
     <div className="flex items-center gap-2">
@@ -17,7 +21,15 @@ export default function YearNavigator({ year, onChange }: YearNavigatorProps) {
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
-      <span className="text-sm font-semibold min-w-[110px] text-center px-2 py-1">{year}</span>
+      <span
+        {...press}
+        // A scroll or drag that starts here cancels the pointer; that must cancel the hold too.
+        onPointerCancel={press.onPointerLeave}
+        onContextMenu={(e) => e.preventDefault()}
+        className="text-sm font-semibold min-w-[110px] text-center px-2 py-1 rounded-lg select-none active:bg-secondary transition-colors"
+      >
+        {year}
+      </span>
       <button
         onClick={() => onChange(year + 1)}
         disabled={isCurrentYear}
