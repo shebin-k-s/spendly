@@ -75,7 +75,9 @@ export function BottomSheet({
           data-no-swipe
           onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
-            "fixed bottom-0 inset-x-0 w-full sm:max-w-md sm:mx-auto z-50 bg-card border-t border-border rounded-t-3xl flex flex-col animate-in slide-in-from-bottom duration-500 ease-in-out sheet-exit",
+            // transition-none: duration-500 would otherwise also animate max-height, so every
+            // keyboard-driven viewport resize made the sheet visibly slide to its new size.
+            "fixed bottom-0 inset-x-0 w-full sm:max-w-md sm:mx-auto z-50 bg-card border-t border-border rounded-t-3xl flex flex-col animate-in slide-in-from-bottom duration-500 ease-in-out transition-none sheet-exit",
           )}
           // The viewport resizes when the keyboard opens (interactive-widget=resizes-content),
           // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
