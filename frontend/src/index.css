@@ -29,28 +29,28 @@ input[type=number] {
   :root {
     --radius: 0.75rem;
 
-    /* Crisp minimal: pure white, near-black text, no color tint. Depth
-       comes from borders, not a background/card split. */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 7%;
+    /* Cool sky: a pale blue page with white cards, so cards lift off the page
+       instead of relying on borders alone. Indigo accent, blue-tinted greys. */
+    --background: 214 60% 95.5%;
+    --foreground: 222 40% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 7%;
+    --card-foreground: 222 40% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 7%;
+    --popover-foreground: 222 40% 11%;
 
-    --primary: 262 83% 58%;
+    --primary: 246 88% 58%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 215 28% 17%;
+    --secondary: 214 50% 92%;
+    --secondary-foreground: 222 30% 22%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 214 50% 92%;
+    --muted-foreground: 218 16% 38%;
 
-    --accent: 220 14% 96%;
-    --accent-foreground: 0 0% 7%;
+    --accent: 214 50% 92%;
+    --accent-foreground: 222 40% 11%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -61,9 +61,9 @@ input[type=number] {
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 89%;
-    --ring: 262 83% 58%;
+    --border: 214 35% 86%;
+    --input: 214 35% 82%;
+    --ring: 246 88% 58%;
   }
 
   .dark {
