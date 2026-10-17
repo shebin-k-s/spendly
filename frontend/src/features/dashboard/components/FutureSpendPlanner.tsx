@@ -283,7 +283,7 @@ export default function FutureSpendPlanner({
       {savingsAmount > 0 && Math.round(savingsAmount) !== 0 && !isNaN(savingsAmount) && (
         <div className="bg-success/5 border border-success/10 rounded-xl p-3 flex items-start gap-3">
           <TrendingDown className="w-4 h-4 text-success shrink-0 mt-0.5" />
-          <p className="text-[11px] leading-relaxed text-success-foreground/80">
+          <p className="text-[11px] leading-relaxed text-foreground/80">
             Great plan! Cutting back for the next {simulatedDays} days reduces your monthly projection by <span className="font-bold">{formatINR(Math.round(savingsAmount))}</span> and keeps your average low.
           </p>
         </div>
