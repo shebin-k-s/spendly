@@ -29,7 +29,7 @@ interface VirtualKeyboardLike extends EventTarget {
 // clipped and re-slid the sheet. Returns the keyboard height in px, or null if the
 // browser doesn't support it. Decreases are delayed so the keyboard briefly hiding
 // while focus moves between inputs doesn't dip the sheet.
-function useVirtualKeyboardInset(active: boolean): number | null {
+function useVirtualKeyboardInset(active: boolean, getSheet: () => HTMLElement | null): number | null {
   const [inset, setInset] = useState<number | null>(null);
   useEffect(() => {
     const vk = (navigator as unknown as { virtualKeyboard?: VirtualKeyboardLike }).virtualKeyboard;
@@ -53,6 +53,17 @@ function useVirtualKeyboardInset(active: boolean): number | null {
         current = h;
         setInset(h);
       } else {
+        // Only wait if a field in THIS sheet is focused (the keyboard may just be
+        // restarting for the next field). If not — e.g. a sheet on top of this one
+        // closed and took the keyboard with it — follow the keyboard down right away,
+        // otherwise this sheet hangs in the air over an empty gap for the delay.
+        const el = document.activeElement;
+        const typingHere = !!el && !!getSheet()?.contains(el) && /^(INPUT|TEXTAREA)$/.test(el.tagName);
+        if (!typingHere) {
+          current = h;
+          setInset(h);
+          return;
+        }
         timer = setTimeout(() => {
           current = h;
           setInset(h);
@@ -65,6 +76,7 @@ function useVirtualKeyboardInset(active: boolean): number | null {
       vk.removeEventListener('geometrychange', onChange);
       vk.overlaysContent = previous;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
   return inset;
 }
@@ -83,7 +95,7 @@ export function BottomSheet({
   // raised position and height for a moment, so a quick hide→show is invisible; a real
   // close settles after the delay. Sizes are in measured px, not vh/dvh, so they
   // don't depend on how the browser treats viewport units while the keyboard moves.
-  const keyboardInset = useVirtualKeyboardInset(open && holdKeyboard);
+  const keyboardInset = useVirtualKeyboardInset(open && holdKeyboard, () => modalRef.current);
   // The maxHeight prop is a vh string (e.g. '75vh'); keyboard mode works in px.
   const maxFraction = /^\d+(\.\d+)?vh$/.test(maxHeight) ? parseFloat(maxHeight) / 100 : 0.85;
   const useResizeFallback = holdKeyboard && !('virtualKeyboard' in navigator);
