@@ -8,6 +8,7 @@ import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import EmptyState from '@/components/EmptyState';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 export default function PeoplePage() {
   const navigate = useNavigate();
@@ -87,6 +88,8 @@ export default function PeoplePage() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="Name"
+                enterKeyHint="next"
+                onKeyDown={focusNextOnEnter}
                 className="form-input"
                 autoFocus
               />
@@ -94,6 +97,8 @@ export default function PeoplePage() {
                 value={newPhone}
                 onChange={(e) => setNewPhone(e.target.value)}
                 placeholder="Phone (Optional)"
+                enterKeyHint="done"
+                onKeyDown={blurOnEnter}
                 className="form-input"
               />
             </div>

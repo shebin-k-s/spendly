@@ -7,6 +7,7 @@ import { CategoryPicker } from '@/features/categories/components/CategoryPicker'
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useCreateMerchantRule, useDeleteMerchantRule, useUpdateMerchantRule } from '../hooks/useMerchantRules';
 import type { MerchantRule } from '../types';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 interface Props {
   open: boolean;
@@ -74,6 +75,7 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
               disabled={isPending}
               placeholder="e.g. Ayaans Mart"
               enterKeyHint="next"
+              onKeyDown={focusNextOnEnter}
               className="form-input"
             />
           </div>
@@ -86,6 +88,7 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
               disabled={isPending}
               placeholder="e.g. Ayaans, Ayaan's"
               enterKeyHint="done"
+              onKeyDown={blurOnEnter}
               className="form-input"
             />
             <p className="text-[11px] text-muted-foreground mt-1.5">

@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 export default function PersonDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -215,6 +216,8 @@ export default function PersonDetailsPage() {
                 onChange={(e) => setNote(e.target.value)}
                 disabled={isBlocking}
                 placeholder="What was this for?"
+                enterKeyHint="done"
+                onKeyDown={blurOnEnter}
                 className="form-input"
               />
             </div>

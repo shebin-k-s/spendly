@@ -11,6 +11,7 @@ import type { Person } from '../types';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { DateTimePicker } from '@/components/DateTimePicker';
+import { blurOnEnter } from '@/utils/keyboard';
 
 interface ShareState {
   amount?: string;
@@ -514,6 +515,8 @@ export default function ShareToPeoplePage() {
               value={note}
               onChange={e => setNote(e.target.value)}
               placeholder="What was this for?"
+              enterKeyHint="done"
+              onKeyDown={blurOnEnter}
               className="form-input"
             />
           </div>

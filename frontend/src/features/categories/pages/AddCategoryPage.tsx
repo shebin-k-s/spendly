@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { useCreateCategory, useCategoriesQuery } from '../hooks/useCategories';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
 const PRESET_COLORS = [
@@ -95,6 +96,8 @@ export default function AddCategoryPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Coffee & Snacks"
+            enterKeyHint="done"
+            onKeyDown={blurOnEnter}
             className="form-input"
           />
         </div>
@@ -122,6 +125,8 @@ export default function AddCategoryPage() {
               value={!PRESET_ICONS.includes(icon) ? icon : ''}
               onChange={(e) => setIcon(e.target.value)}
               placeholder="+"
+              enterKeyHint="done"
+              onKeyDown={blurOnEnter}
             />
           </div>
         </div>

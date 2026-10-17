@@ -7,6 +7,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DateTimePicker } from '@/components/DateTimePicker';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { stripTrailingZeros } from '@/lib/utils';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 export default function EditExpensePage() {
   const { id } = useParams<{ id: string }>();
@@ -151,13 +152,15 @@ export default function EditExpensePage() {
             onChange={(e) => setAmount(e.target.value)}
             disabled={isBlocking}
             onWheel={(e) => e.currentTarget.blur()}
+            enterKeyHint="done"
+            onKeyDown={blurOnEnter}
             className="form-input text-2xl font-bold"
           />
         </div>
 
         <div>
           <label className="form-label">Description</label>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} disabled={isBlocking} className="form-input" />
+          <input value={description} onChange={(e) => setDescription(e.target.value)} disabled={isBlocking} enterKeyHint="done" onKeyDown={blurOnEnter} className="form-input" />
         </div>
 
         <div>
@@ -172,6 +175,8 @@ export default function EditExpensePage() {
             disabled={isBlocking}
             onWheel={(e) => e.currentTarget.blur()}
             placeholder="0.00"
+            enterKeyHint="done"
+            onKeyDown={blurOnEnter}
             className="form-input"
           />
           {cashback && parseFloat(cashback) > 0 && amount && parseFloat(amount) > 0 && (
@@ -219,7 +224,7 @@ export default function EditExpensePage() {
 
         <div>
           <label className="form-label">Note (Optional)</label>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={isBlocking} rows={2} className="form-input resize-none" />
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={isBlocking} rows={2} enterKeyHint="done" onKeyDown={blurOnEnter} className="form-input resize-none" />
         </div>
 
         <button onClick={handleUpdate} disabled={!canSubmit} className="btn-primary">

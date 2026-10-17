@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Trash2, Loader2, Check } from 'lucide-react';
 import { usePerson, useUpdatePerson, useDeletePerson } from '../hooks/usePeople';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 export default function EditPersonPage() {
   const { id } = useParams<{ id: string }>();
@@ -106,6 +107,8 @@ export default function EditPersonPage() {
             onChange={(e) => setName(e.target.value)}
             disabled={isBlocking}
             placeholder="Name"
+            enterKeyHint="next"
+            onKeyDown={focusNextOnEnter}
             className="form-input"
           />
         </div>
@@ -118,6 +121,8 @@ export default function EditPersonPage() {
             disabled={isBlocking}
             placeholder="+91 98765 43210"
             inputMode="tel"
+            enterKeyHint="done"
+            onKeyDown={blurOnEnter}
             className="form-input"
           />
         </div>

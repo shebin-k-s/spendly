@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import { useCategoryById, useUpdateCategory, useDeleteCategory, useCategoriesQuery } from '../hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
 
@@ -137,6 +138,8 @@ export default function EditCategoryPage() {
             onChange={(e) => setName(e.target.value)}
             disabled={isBlocking}
             placeholder="e.g. Coffee & Snacks"
+            enterKeyHint="done"
+            onKeyDown={blurOnEnter}
             className="form-input"
           />
         </div>
@@ -166,6 +169,8 @@ export default function EditCategoryPage() {
               value={!PRESET_ICONS.includes(icon) ? icon : ''}
               onChange={(e) => setIcon(e.target.value)}
               placeholder="+"
+              enterKeyHint="done"
+              onKeyDown={blurOnEnter}
             />
           </div>
         </div>
