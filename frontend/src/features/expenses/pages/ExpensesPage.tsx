@@ -123,65 +123,23 @@ export default function ExpensesPage() {
     }
   };
 
-  // Close filter panel on vertical scroll
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-
+  // The filter panel sits in the list (below the sticky header), so scrolling carries it
+  // away at the finger's speed. Once it is fully out of sight, mark it closed so the toggle
+  // matches: the collapse is invisible by then, and the browser's scroll anchoring keeps the
+  // rows where they are. (Collapsing it while still visible yanked the whole list up.)
   useEffect(() => {
     if (!isFilterOpen) return;
-    
-    // Small grace period so the filter open animation doesn't immediately trigger close
-    let armed = false;
-    const armTimer = setTimeout(() => { armed = true; }, 350);
-
-    const onTouchStart = (e: TouchEvent) => {
-      const target = e.target as HTMLElement;
-      // Ignore touches that start inside the filter panel / chip row / radix portal
-      if (typeof target.closest === 'function' && (target.closest('[data-no-swipe]') || target.closest('[data-filter-panel]') || target.closest('[data-radix-portal]'))) return;
-      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!armed || !touchStartRef.current) return;
-      const target = e.target as HTMLElement;
-      if (typeof target.closest === 'function' && (target.closest('[data-no-swipe]') || target.closest('[data-filter-panel]') || target.closest('[data-radix-portal]'))) return;
-
-      const dx = Math.abs(e.touches[0].clientX - touchStartRef.current.x);
-      // When scrolling down the page, finger moves UP, meaning clientY decreases.
-      const dy = touchStartRef.current.y - e.touches[0].clientY;
-
-      // Only close on clearly downward scroll (dy > 30px, heavily vertical)
-      if (dy > 30 && dy > dx * 1.5) {
-        dispatch(setFilterOpen(false));
-        touchStartRef.current = null;
-      }
-    };
-
-    const onWheel = (e: WheelEvent) => {
-      if (!armed) return;
-      const target = e.target as HTMLElement;
-      if (typeof target.closest === 'function' && (target.closest('[data-no-swipe]') || target.closest('[data-filter-panel]') || target.closest('[data-radix-portal]'))) return;
-
-      // Only close on clearly downward scroll (e.deltaY > positive threshold)
-      if (e.deltaY > 15 && e.deltaY > Math.abs(e.deltaX) * 1.5) {
+    const panel = document.querySelector('[data-filter-panel]');
+    const scroller = panel?.closest('[data-location-key]');
+    const header = document.querySelector('[data-expenses-header]');
+    if (!panel || !scroller || !header) return;
+    const onScroll = () => {
+      if (panel.getBoundingClientRect().bottom <= header.getBoundingClientRect().bottom) {
         dispatch(setFilterOpen(false));
       }
     };
-
-    const onTouchEnd = () => { touchStartRef.current = null; };
-
-    // Use passive capture to ensure we read touches before any preventDefault
-    window.addEventListener('touchstart', onTouchStart, { passive: true, capture: true });
-    window.addEventListener('touchmove', onTouchMove, { passive: true, capture: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
-    window.addEventListener('wheel', onWheel, { passive: true, capture: true });
-
-    return () => {
-      clearTimeout(armTimer);
-      window.removeEventListener('touchstart', onTouchStart, true);
-      window.removeEventListener('touchmove', onTouchMove, true);
-      window.removeEventListener('touchend', onTouchEnd, true);
-      window.removeEventListener('wheel', onWheel, true);
-    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
   }, [isFilterOpen, dispatch]);
 
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
@@ -211,7 +169,7 @@ export default function ExpensesPage() {
   return (
     <div className="animate-fade-in">
       {/* Sticky header */}
-      <div className="sticky top-0 z-20 bg-background border-b border-border flex flex-col w-full">
+      <div data-expenses-header className="sticky top-0 z-20 bg-background border-b border-border flex flex-col w-full">
 
         {/* Title row */}
         <div className="px-4 pt-4 pb-3 flex items-center justify-between w-full">
@@ -228,7 +186,13 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-2">
             <MissedExpensesButton />
             <button
-              onClick={() => dispatch(setFilterOpen(!isFilterOpen))}
+              onClick={() => {
+                if (!isFilterOpen) {
+                  // The panel is at the top of the list; make sure it's on screen when opened.
+                  document.querySelector('[data-expenses-header]')?.closest('[data-location-key]')?.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                dispatch(setFilterOpen(!isFilterOpen));
+              }}
               className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors
                 ${isFilterOpen || activeFilterCount > 0
                   ? 'bg-secondary text-secondary-foreground'
@@ -273,18 +237,6 @@ export default function ExpensesPage() {
             </div>
           )}
         </div>
-
-        {/* Collapsible filter panel */}
-        <ExpenseFilter
-          isOpen={isFilterOpen}
-          onClose={() => dispatch(setFilterOpen(false))}
-          searchTerm={searchTerm}
-          onSearchChange={(v) => dispatch(setSearchTerm(v))}
-          selectedCategoryIds={selectedCategoryIds}
-          onCategoryToggle={(id) => dispatch(toggleCategoryId(id))}
-          onClearFilters={() => dispatch(clearFilters())}
-          onClearCategories={() => dispatch(clearCategories())}
-        />
 
         {/* Active filter chip row — always visible when filters are on */}
         <div
@@ -351,6 +303,18 @@ export default function ExpensesPage() {
           </div>
         </div>
       </div>
+
+      {/* Collapsible filter panel — part of the list, so it scrolls away with it */}
+      <ExpenseFilter
+        isOpen={isFilterOpen}
+        onClose={() => dispatch(setFilterOpen(false))}
+        searchTerm={searchTerm}
+        onSearchChange={(v) => dispatch(setSearchTerm(v))}
+        selectedCategoryIds={selectedCategoryIds}
+        onCategoryToggle={(id) => dispatch(toggleCategoryId(id))}
+        onClearFilters={() => dispatch(clearFilters())}
+        onClearCategories={() => dispatch(clearCategories())}
+      />
 
       {/* Content */}
       <div className="page-content">
