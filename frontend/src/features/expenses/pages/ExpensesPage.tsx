@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
@@ -123,40 +123,44 @@ export default function ExpensesPage() {
     }
   };
 
-  const filterCloseRef = useRef<{ height: number; scroller: HTMLElement; panel: Element } | null>(null);
-  useLayoutEffect(() => {
-    const pending = filterCloseRef.current;
-    if (!pending || isFilterOpen) return;
-    filterCloseRef.current = null;
-    pending.scroller.scrollTop = Math.max(0, pending.scroller.scrollTop - pending.height);
-    requestAnimationFrame(() => {
-      pending.panel.removeAttribute('data-instant');
-      pending.scroller.style.overflowAnchor = '';
-    });
-  }, [isFilterOpen]);
-
-  // The filter panel sits in the list (below the sticky header), so scrolling carries it
-  // away at the finger's speed. Once it is fully out of sight, mark it closed so the toggle
-  // matches: the collapse is invisible by then, and the browser's scroll anchoring keeps the
-  // rows where they are. (Collapsing it while still visible yanked the whole list up.)
+  // Close the filter panel when the list is scrolled. The panel is part of the sticky header,
+  // so collapsing it shortens the header and would drag every row up with it, on top of the
+  // user's own slow scroll. While it collapses, give back the same amount of scroll position
+  // each frame, so the rows stay where they are for as long as there is scroll position to give.
   useEffect(() => {
     if (!isFilterOpen) return;
-    const panel = document.querySelector('[data-filter-panel]');
-    const scroller = panel?.closest('[data-location-key]');
-    const header = document.querySelector('[data-expenses-header]');
-    if (!panel || !scroller || !header) return;
+    const panel = document.querySelector('[data-filter-panel]') as HTMLElement | null;
+    const scroller = panel?.closest('[data-location-key]') as HTMLElement | null;
+    if (!panel || !scroller) return;
+
+    let armed = false;
+    let baseTop = scroller.scrollTop;
+    const armTimer = setTimeout(() => { armed = true; baseTop = scroller.scrollTop; }, 350);
+
     const onScroll = () => {
-      if (panel.getBoundingClientRect().bottom <= header.getBoundingClientRect().bottom) {
-        // Collapse it instantly and shift the scroll position by its height in the same
-        // frame (see the layout effect below), so no visible row moves.
-        filterCloseRef.current = { height: panel.getBoundingClientRect().height, scroller: scroller as HTMLElement, panel };
-        panel.setAttribute('data-instant', '');
-        (scroller as HTMLElement).style.overflowAnchor = 'none';
-        dispatch(setFilterOpen(false));
-      }
+      if (!armed || scroller.scrollTop - baseTop <= 24) return;
+      armed = false;
+      scroller.removeEventListener('scroll', onScroll);
+      scroller.style.overflowAnchor = 'none';
+      let prev = panel.getBoundingClientRect().height;
+      const start = performance.now();
+      const follow = () => {
+        const h = panel.getBoundingClientRect().height;
+        const delta = prev - h;
+        if (delta > 0) scroller.scrollTop = Math.max(0, scroller.scrollTop - delta);
+        prev = h;
+        if (performance.now() - start < 450) requestAnimationFrame(follow);
+        else scroller.style.overflowAnchor = '';
+      };
+      dispatch(setFilterOpen(false));
+      requestAnimationFrame(follow);
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
-    return () => scroller.removeEventListener('scroll', onScroll);
+
+    return () => {
+      clearTimeout(armTimer);
+      scroller.removeEventListener('scroll', onScroll);
+    };
   }, [isFilterOpen, dispatch]);
 
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
@@ -186,7 +190,7 @@ export default function ExpensesPage() {
   return (
     <div className="animate-fade-in">
       {/* Sticky header */}
-      <div data-expenses-header className="sticky top-0 z-20 bg-background border-b border-border flex flex-col w-full">
+      <div className="sticky top-0 z-20 bg-background border-b border-border flex flex-col w-full">
 
         {/* Title row */}
         <div className="px-4 pt-4 pb-3 flex items-center justify-between w-full">
@@ -203,13 +207,7 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-2">
             <MissedExpensesButton />
             <button
-              onClick={() => {
-                if (!isFilterOpen) {
-                  // The panel is at the top of the list; make sure it's on screen when opened.
-                  document.querySelector('[data-expenses-header]')?.closest('[data-location-key]')?.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-                dispatch(setFilterOpen(!isFilterOpen));
-              }}
+              onClick={() => dispatch(setFilterOpen(!isFilterOpen))}
               className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors
                 ${isFilterOpen || activeFilterCount > 0
                   ? 'bg-secondary text-secondary-foreground'
@@ -254,6 +252,18 @@ export default function ExpensesPage() {
             </div>
           )}
         </div>
+
+        {/* Collapsible filter panel */}
+        <ExpenseFilter
+          isOpen={isFilterOpen}
+          onClose={() => dispatch(setFilterOpen(false))}
+          searchTerm={searchTerm}
+          onSearchChange={(v) => dispatch(setSearchTerm(v))}
+          selectedCategoryIds={selectedCategoryIds}
+          onCategoryToggle={(id) => dispatch(toggleCategoryId(id))}
+          onClearFilters={() => dispatch(clearFilters())}
+          onClearCategories={() => dispatch(clearCategories())}
+        />
 
         {/* Active filter chip row — always visible when filters are on */}
         <div
@@ -320,18 +330,6 @@ export default function ExpensesPage() {
           </div>
         </div>
       </div>
-
-      {/* Collapsible filter panel — part of the list, so it scrolls away with it */}
-      <ExpenseFilter
-        isOpen={isFilterOpen}
-        onClose={() => dispatch(setFilterOpen(false))}
-        searchTerm={searchTerm}
-        onSearchChange={(v) => dispatch(setSearchTerm(v))}
-        selectedCategoryIds={selectedCategoryIds}
-        onCategoryToggle={(id) => dispatch(toggleCategoryId(id))}
-        onClearFilters={() => dispatch(clearFilters())}
-        onClearCategories={() => dispatch(clearCategories())}
-      />
 
       {/* Content */}
       <div className="page-content">
