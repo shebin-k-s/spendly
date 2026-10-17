@@ -33,10 +33,14 @@ function useVirtualKeyboardInset(active: boolean): number | null {
   const [inset, setInset] = useState<number | null>(null);
   useEffect(() => {
     const vk = (navigator as unknown as { virtualKeyboard?: VirtualKeyboardLike }).virtualKeyboard;
-    if (!active || !vk) {
+    if (!vk) {
       setInset(null);
       return;
     }
+    // On close, leave the last inset in place: the sheet keeps its raised position through
+    // its exit animation instead of dropping by the keyboard's height first. It's reset
+    // to 0 the next time the sheet opens.
+    if (!active) return;
     const previous = vk.overlaysContent;
     vk.overlaysContent = true;
     let current = 0;
