@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { ChevronRight, Loader2, Store, Trash2 } from 'lucide-react';
 import { BottomSheet } from '@/components/ui/BottomSheet';
-import { KeyboardDebug } from '@/components/KeyboardDebug';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
@@ -55,7 +54,6 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
 
   return (
     <>
-      <KeyboardDebug open={open} />
       <BottomSheet
         open={open}
         onOpenChange={onOpenChange}

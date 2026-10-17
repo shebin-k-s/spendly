@@ -37,6 +37,7 @@ export function CategoryPicker({
       open={open}
       onOpenChange={onOpenChange}
       maxHeight="75vh"
+      holdKeyboard
       header={(
         <div className="flex items-center justify-between w-full pr-8">
           <div className="flex items-center gap-3">
@@ -59,7 +60,7 @@ export function CategoryPicker({
         </div>
       )}
     >
-      <div className="px-4 pb-10 space-y-4 h-[min(60vh,calc(100dvh-140px))] flex flex-col">
+      <div className="px-4 pb-10 space-y-4 h-[min(60vh,calc(100dvh-140px-var(--kb,0px)))] flex flex-col">
         <form
           onSubmit={(e) => {
             e.preventDefault();

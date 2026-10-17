@@ -1167,6 +1167,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
           open={searchingPersonIdx !== null}
           onOpenChange={open => !open && setSearchingPersonIdx(null)}
           maxHeight="75vh"
+          holdKeyboard
           header={(
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">

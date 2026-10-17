@@ -80,6 +80,8 @@ export function BottomSheet({
   // close settles after the delay. Sizes are in measured px, not vh/dvh, so they
   // don't depend on how the browser treats viewport units while the keyboard moves.
   const keyboardInset = useVirtualKeyboardInset(open && holdKeyboard);
+  // The maxHeight prop is a vh string (e.g. '75vh'); keyboard mode works in px.
+  const maxFraction = /^\d+(\.\d+)?vh$/.test(maxHeight) ? parseFloat(maxHeight) / 100 : 0.85;
   const useResizeFallback = holdKeyboard && !('virtualKeyboard' in navigator);
   const [hold, setHold] = useState<{ lift: number; fullHeight: number; avail: number } | null>(null);
   // The page resizes in steps (the keyboard, then its suggestion bar), not frame by
@@ -202,8 +204,10 @@ export function BottomSheet({
           // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
           style={keyboardInset !== null
             ? {
-                maxHeight: `${Math.round(Math.min(window.innerHeight * 0.85, window.innerHeight - keyboardInset - 16))}px`,
+                maxHeight: `${Math.round(Math.min(window.innerHeight * maxFraction, window.innerHeight - keyboardInset - 16))}px`,
                 bottom: `${keyboardInset}px`,
+                // Lets content size itself against the space above the keyboard.
+                ['--kb' as string]: `${keyboardInset}px`,
                 transition: 'bottom 280ms cubic-bezier(0.22, 1, 0.36, 1), max-height 280ms cubic-bezier(0.22, 1, 0.36, 1)',
               }
             : hold
