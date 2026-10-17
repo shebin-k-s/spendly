@@ -139,6 +139,9 @@ export default function ExpensesPage() {
 
     const onScroll = () => {
       if (!armed || scroller.scrollTop - baseTop <= 24) return;
+      // Near the top there isn't enough scroll position to give back, so closing now would
+      // visibly drag the rows up. Wait until the list has scrolled at least the panel's height.
+      if (scroller.scrollTop < panel.getBoundingClientRect().height) return;
       armed = false;
       scroller.removeEventListener('scroll', onScroll);
       scroller.style.overflowAnchor = 'none';
