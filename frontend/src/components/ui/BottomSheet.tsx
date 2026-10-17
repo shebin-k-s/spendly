@@ -33,9 +33,25 @@ export function BottomSheet({
   // close settles after the delay. Sizes are in measured px, not vh/dvh, so they
   // don't depend on how the browser treats viewport units while the keyboard moves.
   const [hold, setHold] = useState<{ lift: number; fullHeight: number; avail: number } | null>(null);
-  // The page resizes in one step (not frame by frame) when the keyboard opens or closes,
-  // so the sheet would snap. Offset it back by the jump, then ease that offset to zero.
+  // The page resizes in steps (the keyboard, then its suggestion bar), not frame by
+  // frame, and a step can move the sheet's top edge, its bottom edge, or both. So each
+  // time, measure where the sheet visibly was, re-apply that as an offset (it stays put
+  // for that frame), then ease the offset to zero.
   const [shift, setShift] = useState({ y: 0, anim: false });
+  const lastTop = useRef(0);
+  const anchorTop = useRef<number | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout>>();
+  useLayoutEffect(() => {
+    const anchor = anchorTop.current;
+    const el = modalRef.current;
+    if (anchor === null || !el) return;
+    anchorTop.current = null;
+    const current = parseFloat((getComputedStyle(el).translate || '').split(' ')[1] ?? '0') || 0;
+    const layoutTop = el.getBoundingClientRect().top - current;
+    setShift({ y: anchor - layoutTop, anim: false });
+    clearTimeout(settleTimer.current);
+    settleTimer.current = setTimeout(() => setShift({ y: 0, anim: true }), 50);
+  }, [hold]);
   useLayoutEffect(() => {
     if (!open || !holdKeyboard) {
       setHold(null);
@@ -43,53 +59,36 @@ export function BottomSheet({
     }
     const base = window.innerHeight;
     let held = 0;
-    let lastKb = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let settleTimer: ReturnType<typeof setTimeout> | undefined;
-    let firstEventAt = 0;
-    const ease = (jump: number) => {
-      // jump > 0: sheet snapped up by that much, so start `jump` lower; < 0: snapped down.
-      // The keyboard can report its size in several steps. Keep the sheet visually where
-      // it was while they arrive (offset accumulates), then glide once to the final
-      // position — gliding per step looks like stair-steps.
-      const raw = modalRef.current ? getComputedStyle(modalRef.current).translate : 'none';
-      const current = parseFloat(raw.split(' ')[1] ?? '0') || 0;
-      setShift({ y: current + jump, anim: false });
-      const now = performance.now();
-      if (!firstEventAt) firstEventAt = now;
-      clearTimeout(settleTimer);
-      // Wait for the steps to stop, but never hold the sheet longer than ~300ms in total.
-      const wait = Math.max(0, Math.min(140, firstEventAt + 300 - now));
-      settleTimer = setTimeout(() => {
-        firstEventAt = 0;
-        setShift({ y: 0, anim: true });
-      }, wait);
+    let raf = 0;
+    const track = () => {
+      if (modalRef.current) lastTop.current = modalRef.current.getBoundingClientRect().top;
+      raf = requestAnimationFrame(track);
     };
+    track();
+    setHold({ lift: 0, fullHeight: base, avail: base });
     const onResize = () => {
       const kb = Math.max(0, base - window.innerHeight);
       clearTimeout(timer);
       if (kb >= held) {
-        const jump = kb - lastKb;
+        anchorTop.current = lastTop.current;
         held = kb;
-        lastKb = kb;
         setHold({ lift: 0, fullHeight: base, avail: base - held });
-        if (jump > 0) ease(jump);
       } else {
-        // Sheet is held in place, so its on-screen position (lastKb) doesn't change.
+        // Held in place, so nothing visibly moves.
         setHold({ lift: held - kb, fullHeight: base, avail: base - held });
         timer = setTimeout(() => {
-          const dropped = held - Math.max(0, base - window.innerHeight);
+          anchorTop.current = lastTop.current;
           held = Math.max(0, base - window.innerHeight);
-          lastKb = held;
           setHold({ lift: 0, fullHeight: base, avail: base - held });
-          if (dropped > 0) ease(-dropped);
         }, 300);
       }
     };
     window.addEventListener('resize', onResize);
     return () => {
+      cancelAnimationFrame(raf);
       clearTimeout(timer);
-      clearTimeout(settleTimer);
+      clearTimeout(settleTimer.current);
       window.removeEventListener('resize', onResize);
     };
   }, [open, holdKeyboard]);
