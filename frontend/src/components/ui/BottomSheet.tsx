@@ -23,6 +23,36 @@ interface VirtualKeyboardLike extends EventTarget {
   boundingRect: { height: number };
 }
 
+// Several sheets can be open at once (a picker over a form), and a sheet that closes with
+// the keyboard still up must NOT switch the page back to "resize" mode straight away: the
+// page would shrink by the keyboard's height while the sheet is still offset by it, lifting
+// the sheet twice as high for a moment. So the mode is shared, and only put back once no
+// sheet needs it, the keyboard is gone, and the exit animation has played.
+let overlayUsers = 0;
+let overlayOriginal = false;
+function acquireOverlay(vk: VirtualKeyboardLike) {
+  if (overlayUsers++ === 0) overlayOriginal = vk.overlaysContent;
+  vk.overlaysContent = true;
+}
+function releaseOverlay(vk: VirtualKeyboardLike) {
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    vk.removeEventListener('geometrychange', onChange);
+    clearTimeout(safety);
+    setTimeout(() => {
+      if (--overlayUsers === 0) vk.overlaysContent = overlayOriginal;
+    }, 450); // let the exit animation finish
+  };
+  const onChange = () => {
+    if (vk.boundingRect.height === 0) done();
+  };
+  const safety = setTimeout(done, 2500);
+  if (vk.boundingRect.height === 0) done();
+  else vk.addEventListener('geometrychange', onChange);
+}
+
 // Chrome's VirtualKeyboard API: with overlaysContent on, the page is NOT resized when
 // the keyboard opens — the keyboard just covers it, and we raise the sheet by its height.
 // That avoids the page shrinking in steps (keyboard, then its autofill bar), which
@@ -41,8 +71,7 @@ function useVirtualKeyboardInset(active: boolean, getSheet: () => HTMLElement | 
     // its exit animation instead of dropping by the keyboard's height first. It's reset
     // to 0 the next time the sheet opens.
     if (!active) return;
-    const previous = vk.overlaysContent;
-    vk.overlaysContent = true;
+    acquireOverlay(vk);
     let current = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     setInset(0);
@@ -74,7 +103,7 @@ function useVirtualKeyboardInset(active: boolean, getSheet: () => HTMLElement | 
     return () => {
       clearTimeout(timer);
       vk.removeEventListener('geometrychange', onChange);
-      vk.overlaysContent = previous;
+      releaseOverlay(vk);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
