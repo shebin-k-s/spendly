@@ -18,6 +18,53 @@ interface BottomSheetProps {
   holdKeyboard?: boolean;
 }
 
+interface VirtualKeyboardLike extends EventTarget {
+  overlaysContent: boolean;
+  boundingRect: { height: number };
+}
+
+// Chrome's VirtualKeyboard API: with overlaysContent on, the page is NOT resized when
+// the keyboard opens — the keyboard just covers it, and we raise the sheet by its height.
+// That avoids the page shrinking in steps (keyboard, then its autofill bar), which
+// clipped and re-slid the sheet. Returns the keyboard height in px, or null if the
+// browser doesn't support it. Decreases are delayed so the keyboard briefly hiding
+// while focus moves between inputs doesn't dip the sheet.
+function useVirtualKeyboardInset(active: boolean): number | null {
+  const [inset, setInset] = useState<number | null>(null);
+  useEffect(() => {
+    const vk = (navigator as unknown as { virtualKeyboard?: VirtualKeyboardLike }).virtualKeyboard;
+    if (!active || !vk) {
+      setInset(null);
+      return;
+    }
+    const previous = vk.overlaysContent;
+    vk.overlaysContent = true;
+    let current = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setInset(0);
+    const onChange = () => {
+      const h = Math.round(vk.boundingRect.height);
+      clearTimeout(timer);
+      if (h >= current) {
+        current = h;
+        setInset(h);
+      } else {
+        timer = setTimeout(() => {
+          current = h;
+          setInset(h);
+        }, 300);
+      }
+    };
+    vk.addEventListener('geometrychange', onChange);
+    return () => {
+      clearTimeout(timer);
+      vk.removeEventListener('geometrychange', onChange);
+      vk.overlaysContent = previous;
+    };
+  }, [active]);
+  return inset;
+}
+
 export function BottomSheet({
   open,
   onOpenChange,
@@ -32,6 +79,8 @@ export function BottomSheet({
   // raised position and height for a moment, so a quick hide→show is invisible; a real
   // close settles after the delay. Sizes are in measured px, not vh/dvh, so they
   // don't depend on how the browser treats viewport units while the keyboard moves.
+  const keyboardInset = useVirtualKeyboardInset(open && holdKeyboard);
+  const useResizeFallback = holdKeyboard && !('virtualKeyboard' in navigator);
   const [hold, setHold] = useState<{ lift: number; fullHeight: number; avail: number } | null>(null);
   // The page resizes in steps (the keyboard, then its suggestion bar), not frame by
   // frame, and a step can move the sheet's top edge, its bottom edge, or both. So each
@@ -53,7 +102,7 @@ export function BottomSheet({
     settleTimer.current = setTimeout(() => setShift({ y: 0, anim: true }), 50);
   }, [hold]);
   useLayoutEffect(() => {
-    if (!open || !holdKeyboard) {
+    if (!open || !useResizeFallback) {
       setHold(null);
       return;
     }
@@ -91,7 +140,7 @@ export function BottomSheet({
       clearTimeout(settleTimer.current);
       window.removeEventListener('resize', onResize);
     };
-  }, [open, holdKeyboard]);
+  }, [open, useResizeFallback]);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
   // Tied to open, not proximity — this also gates pull-to-refresh (which
   // checks the same flag), so it needs to be reliably off the instant the
@@ -151,7 +200,13 @@ export function BottomSheet({
           )}
           // The viewport resizes when the keyboard opens (interactive-widget=resizes-content),
           // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
-          style={hold
+          style={keyboardInset !== null
+            ? {
+                maxHeight: `${Math.round(Math.min(window.innerHeight * 0.85, window.innerHeight - keyboardInset - 16))}px`,
+                bottom: `${keyboardInset}px`,
+                transition: 'bottom 280ms cubic-bezier(0.22, 1, 0.36, 1), max-height 280ms cubic-bezier(0.22, 1, 0.36, 1)',
+              }
+            : hold
             ? {
                 maxHeight: `${Math.round(Math.min(hold.fullHeight * 0.85, hold.avail - 16))}px`,
                 ...(hold.lift > 0 ? { bottom: `${hold.lift}px` } : null),
