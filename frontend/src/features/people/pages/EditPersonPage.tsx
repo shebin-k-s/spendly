@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Loader2, Check } from 'lucide-react';
 import { usePerson, useUpdatePerson, useDeletePerson } from '../hooks/usePeople';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
+import { leaveDeletedItem } from '@/utils/navigation';
 
 export default function EditPersonPage() {
   const { id } = useParams<{ id: string }>();
@@ -143,7 +144,7 @@ export default function EditPersonPage() {
         title="Delete Person"
         description={`Delete ${person.name} and all their transaction history? This cannot be undone.`}
         onConfirm={() =>
-          deletePerson.mutate(id!, { onSuccess: () => navigate(-1) })
+          deletePerson.mutate(id!, { onSuccess: () => leaveDeletedItem(navigate, '/people') })
         }
         isLoading={deletePerson.isPending}
       />

@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { BulkParseModal } from '../components/BulkParseModal';
 import { useBackToClose } from '@/hooks/useBackToClose';
 import { showDraftRestoredToast } from '@/components/DraftRestoredToast';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 
 type AiStatus = 'idle' | 'loading' | 'done' | 'error';
@@ -1010,8 +1011,8 @@ export default function AddExpensePage() {
 
               {showAddPersonForm && (
                 <div className="bg-card border border-primary/20 rounded-2xl p-4 space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                  <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void handleCreateLendingPerson(); }} placeholder="Name *" autoFocus className="form-input text-sm" />
-                  <input value={newPersonPhone} onChange={e => setNewPersonPhone(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void handleCreateLendingPerson(); }} placeholder="Phone (optional)" inputMode="tel" className="form-input text-sm" />
+                  <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} enterKeyHint="next" onKeyDown={focusNextOnEnter} placeholder="Name *" autoFocus className="form-input text-sm" />
+                  <input value={newPersonPhone} onChange={e => setNewPersonPhone(e.target.value)} enterKeyHint="done" onKeyDown={blurOnEnter} placeholder="Phone (optional)" inputMode="tel" className="form-input text-sm" />
                   <button onClick={() => void handleCreateLendingPerson()} disabled={!newPersonName.trim() || addingLendingPerson} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 active:scale-95 transition-all">
                     {addingLendingPerson ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                     Add & Select

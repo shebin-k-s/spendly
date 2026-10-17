@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import { useCategoryById, useUpdateCategory, useDeleteCategory, useCategoriesQuery } from '../hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
+import { leaveDeletedItem } from '@/utils/navigation';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
 
@@ -213,7 +214,7 @@ export default function EditCategoryPage() {
           title="Delete Category"
           description={`Delete "${category?.name}"? Expenses using it won't be deleted.`}
           onConfirm={() =>
-            deleteCategory.mutate(id!, { onSuccess: () => navigate(-1) })
+            deleteCategory.mutate(id!, { onSuccess: () => leaveDeletedItem(navigate, '/categories') })
           }
           isLoading={deleteCategory.isPending}
         />

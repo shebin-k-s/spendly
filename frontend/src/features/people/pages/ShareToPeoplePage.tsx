@@ -11,7 +11,7 @@ import type { Person } from '../types';
 import { formatINR } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { DateTimePicker } from '@/components/DateTimePicker';
-import { blurOnEnter } from '@/utils/keyboard';
+import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 interface ShareState {
   amount?: string;
@@ -402,7 +402,8 @@ export default function ShareToPeoplePage() {
               <input
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void handleCreateNewPerson(); }}
+                enterKeyHint="next"
+                onKeyDown={focusNextOnEnter}
                 placeholder="Name *"
                 autoFocus
                 className="form-input text-sm"
@@ -410,7 +411,8 @@ export default function ShareToPeoplePage() {
               <input
                 value={newPhone}
                 onChange={e => setNewPhone(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') void handleCreateNewPerson(); }}
+                enterKeyHint="done"
+                onKeyDown={blurOnEnter}
                 placeholder="Phone (optional)"
                 inputMode="tel"
                 className="form-input text-sm"
