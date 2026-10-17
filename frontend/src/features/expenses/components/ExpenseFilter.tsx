@@ -173,7 +173,7 @@ export default function ExpenseFilter({
               >
                 All
               </button>
-              {categories.map((cat) => {
+              {[...categories].sort((a, b) => a.name.localeCompare(b.name)).map((cat) => {
                 const active = selectedCategoryIds.includes(cat.id);
                 return (
                   <button
