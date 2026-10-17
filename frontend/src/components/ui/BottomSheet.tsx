@@ -12,11 +12,10 @@ interface BottomSheetProps {
   children: React.ReactNode;
   header?: React.ReactNode;
   maxHeight?: string;
-  // Keep the sheet where it opened instead of riding the keyboard. The page
-  // shrinks when the keyboard shows (and briefly flickers when focus moves
-  // between inputs), so a bottom-anchored sheet visibly drops and rises again.
-  // Pinned sheets get a fixed height and the keyboard just covers their lower part.
-  pinned?: boolean;
+  // Keep the sheet raised through the keyboard's brief hide/show when focus moves
+  // between inputs. Android restarts the keyboard on that switch, which resizes the
+  // page; a bottom-anchored sheet would visibly drop and rise again.
+  holdKeyboard?: boolean;
 }
 
 export function BottomSheet({
@@ -26,13 +25,43 @@ export function BottomSheet({
   children,
   header,
   maxHeight = '85vh',
-  pinned = false,
+  holdKeyboard = false,
 }: BottomSheetProps) {
-  const [openHeight, setOpenHeight] = useState(0);
+  // The keyboard height is measured against the page height at open. When the page
+  // briefly grows back (keyboard hiding during a field switch) the sheet keeps its
+  // raised position and height for a moment, so a quick hide→show is invisible; a real
+  // close settles after the delay. Sizes are in measured px, not vh/dvh, so they
+  // don't depend on how the browser treats viewport units while the keyboard moves.
+  const [hold, setHold] = useState<{ lift: number; fullHeight: number; avail: number } | null>(null);
   useLayoutEffect(() => {
-    if (open && pinned) setOpenHeight(window.innerHeight);
-  }, [open, pinned]);
-  const pin = pinned && openHeight > 0;
+    if (!open || !holdKeyboard) {
+      setHold(null);
+      return;
+    }
+    const base = window.innerHeight;
+    let held = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setHold({ lift: 0, fullHeight: base, avail: base });
+    const onResize = () => {
+      const kb = Math.max(0, base - window.innerHeight);
+      clearTimeout(timer);
+      if (kb >= held) {
+        held = kb;
+        setHold({ lift: 0, fullHeight: base, avail: base - held });
+      } else {
+        setHold({ lift: held - kb, fullHeight: base, avail: base - held });
+        timer = setTimeout(() => {
+          held = Math.max(0, base - window.innerHeight);
+          setHold({ lift: 0, fullHeight: base, avail: base - held });
+        }, 300);
+      }
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open, holdKeyboard]);
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
   // Tied to open, not proximity — this also gates pull-to-refresh (which
   // checks the same flag), so it needs to be reliably off the instant the
@@ -92,13 +121,10 @@ export function BottomSheet({
           )}
           // The viewport resizes when the keyboard opens (interactive-widget=resizes-content),
           // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
-          style={pin
+          style={hold
             ? {
-                height: `${Math.round(openHeight * 0.8)}px`,
-                maxHeight: 'none',
-                // 100dvh tracks the shrinking viewport, so this offset cancels it out
-                // and the sheet stays at its opening position.
-                bottom: `calc(100dvh - ${openHeight}px)`,
+                maxHeight: `${Math.round(Math.min(hold.fullHeight * 0.85, hold.avail - 16))}px`,
+                ...(hold.lift > 0 ? { bottom: `${hold.lift}px` } : null),
               }
             : { maxHeight: `min(${maxHeight}, calc(100dvh - 16px))` }}
         >
