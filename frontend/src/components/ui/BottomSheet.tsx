@@ -33,6 +33,9 @@ export function BottomSheet({
   // close settles after the delay. Sizes are in measured px, not vh/dvh, so they
   // don't depend on how the browser treats viewport units while the keyboard moves.
   const [hold, setHold] = useState<{ lift: number; fullHeight: number; avail: number } | null>(null);
+  // The page resizes in one step (not frame by frame) when the keyboard opens or closes,
+  // so the sheet would snap. Offset it back by the jump, then ease that offset to zero.
+  const [shift, setShift] = useState({ y: 0, anim: false });
   useLayoutEffect(() => {
     if (!open || !holdKeyboard) {
       setHold(null);
@@ -40,19 +43,32 @@ export function BottomSheet({
     }
     const base = window.innerHeight;
     let held = 0;
+    let lastKb = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const ease = (jump: number) => {
+      // jump > 0: sheet snapped up by that much, so start `jump` lower; < 0: snapped down.
+      setShift({ y: jump, anim: false });
+      requestAnimationFrame(() => requestAnimationFrame(() => setShift({ y: 0, anim: true })));
+    };
     setHold({ lift: 0, fullHeight: base, avail: base });
     const onResize = () => {
       const kb = Math.max(0, base - window.innerHeight);
       clearTimeout(timer);
       if (kb >= held) {
+        const jump = kb - lastKb;
         held = kb;
+        lastKb = kb;
         setHold({ lift: 0, fullHeight: base, avail: base - held });
+        if (jump > 0) ease(jump);
       } else {
+        // Sheet is held in place, so its on-screen position (lastKb) doesn't change.
         setHold({ lift: held - kb, fullHeight: base, avail: base - held });
         timer = setTimeout(() => {
+          const dropped = held - Math.max(0, base - window.innerHeight);
           held = Math.max(0, base - window.innerHeight);
+          lastKb = held;
           setHold({ lift: 0, fullHeight: base, avail: base - held });
+          if (dropped > 0) ease(-dropped);
         }, 300);
       }
     };
@@ -125,6 +141,10 @@ export function BottomSheet({
             ? {
                 maxHeight: `${Math.round(Math.min(hold.fullHeight * 0.85, hold.avail - 16))}px`,
                 ...(hold.lift > 0 ? { bottom: `${hold.lift}px` } : null),
+                // `translate` is separate from `transform`, which the open animation and
+                // the drag handle already use.
+                translate: `0 ${shift.y}px`,
+                transition: shift.anim ? 'translate 300ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
               }
             : { maxHeight: `min(${maxHeight}, calc(100dvh - 16px))` }}
         >
