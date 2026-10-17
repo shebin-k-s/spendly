@@ -52,6 +52,10 @@ export class ExpenseController {
         const year = parseInt(req.query.year as string) || istYear;
         const month = parseInt(req.query.month as string) || istMonth;
         const categoryId = req.query.categoryId as string | undefined;
+        if (req.query.scope === 'year') {
+            res.json(await service.getByYear(year, categoryId));
+            return;
+        }
         res.json(await service.getByMonth(year, month, categoryId));
     };
 

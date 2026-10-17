@@ -4,9 +4,14 @@ import type { Expense, CreateExpensePayload, UpdateExpensePayload, MonthlySummar
 const URL = '/expenses';
 
 export const expensesApi = {
-  async getByMonth(year: number, month: number, categoryId?: string): Promise<Expense[]> {
+  // month === null → every expense of the year.
+  async getByMonth(year: number, month: number | null, categoryId?: string): Promise<Expense[]> {
     const { data } = await apiClient.get<Expense[]>(URL, {
-      params: { year, month, ...(categoryId ? { categoryId } : {}) },
+      params: {
+        year,
+        ...(month === null ? { scope: 'year' } : { month }),
+        ...(categoryId ? { categoryId } : {}),
+      },
     });
     return data;
   },

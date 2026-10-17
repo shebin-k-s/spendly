@@ -22,6 +22,14 @@ export class ExpenseService {
         const start = `${year}-${monthStr}-01`;
         const end = `${year}-${monthStr}-${lastDay.toString().padStart(2, '0')}`;
 
+        return this.getByRange(start, end, categoryId);
+    }
+
+    async getByYear(year: number, categoryId?: string) {
+        return this.getByRange(`${year}-01-01`, `${year}-12-31`, categoryId);
+    }
+
+    private async getByRange(start: string, end: string, categoryId?: string) {
         const qb = this.repo
             .createQueryBuilder('expense')
             .leftJoinAndSelect('expense.category', 'category')

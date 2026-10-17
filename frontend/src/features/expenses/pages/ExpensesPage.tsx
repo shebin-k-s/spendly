@@ -2,12 +2,12 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
-import { formatINR } from '@/lib/utils';
+import { formatINR, monthLabel, currentYearMonth } from '@/lib/utils';
 import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
 import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { setDate } from '@/store/dateSlice';
+import { setDate, setView } from '@/store/dateSlice';
 import { setSearchTerm, toggleCategoryId, setCategoryIds, setFilterOpen, clearFilters, clearCategories } from '@/store/filterSlice';
 import { useCategoriesQuery } from '@/features/categories/hooks/useCategories';
 import { useToggleCashback } from '@/features/webauthn/hooks/useToggleCashback';
@@ -20,13 +20,15 @@ import MissedExpensesButton from '../components/MissedExpensesButton';
 import ExpenseFilter from '../components/ExpenseFilter';
 import ExpenseListSkeleton from '../components/ExpenseListSkeleton';
 import MonthNavigator from '../components/MonthNavigator';
+import YearNavigator from '../components/YearNavigator';
 import EmptyState from '@/components/EmptyState';
 
 export default function ExpensesPage() {
-  const { year, month } = useAppSelector((state) => state.date);
+  const { year, month, view } = useAppSelector((state) => state.date);
+  const isYear = view === 'year';
   const dispatch = useAppDispatch();
 
-  const expensesQuery = useExpensesQuery(year, month);
+  const expensesQuery = useExpensesQuery(year, isYear ? null : month);
   const { data: expenses = [], isLoading, isSuccess } = expensesQuery;
   const freshness = useQueryFreshness(expensesQuery);
   useRefetchOnFocus(expensesQuery);
@@ -75,6 +77,7 @@ export default function ExpensesPage() {
     // target hidden.
     dispatch(clearFilters());
     dispatch(setFilterOpen(false));
+    dispatch(setView('month')); // deep links point at a specific month
     if (jumpCategoryId) dispatch(setCategoryIds([jumpCategoryId]));
 
     if (targetYear !== year || targetMonth !== month) {
@@ -187,6 +190,14 @@ export default function ExpensesPage() {
 
   const grouped = groupByDate(filteredExpenses);
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const monthTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const e of filteredExpenses) {
+      const key = e.date.slice(0, 7);
+      totals[key] = (totals[key] ?? 0) + Number(e.amount) - Number(e.cashback || 0);
+    }
+    return totals;
+  }, [filteredExpenses]);
   const monthNet = totalAmount(filteredExpenses);
   const monthGross = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
@@ -198,7 +209,21 @@ export default function ExpensesPage() {
         {/* Title row */}
         <div className="px-4 pt-4 pb-3 flex items-center justify-between w-full">
           <div>
-            <p className="text-xs text-muted-foreground">Monthly</p>
+            <div className="inline-flex rounded-lg bg-secondary p-0.5 mb-1" role="tablist" aria-label="Period">
+              {(['month', 'year'] as const).map((v) => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={view === v}
+                  onClick={() => view !== v && dispatch(setView(v))}
+                  className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                    view === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  {v === 'month' ? 'Month' : 'Year'}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">Expenses</h1>
               <DataFreshnessIndicator
@@ -234,7 +259,18 @@ export default function ExpensesPage() {
 
         {/* Month nav + total */}
         <div className="px-4 pb-3 flex items-center justify-between w-full">
-          <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+          {isYear ? (
+            <YearNavigator
+              year={year}
+              onChange={(y) => {
+                // Keep the month valid for when you switch back (no future months).
+                const now = currentYearMonth();
+                dispatch(setDate({ year: y, month: y === now.year ? Math.min(month, now.month) : month }));
+              }}
+            />
+          ) : (
+            <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+          )}
           {!isLoading && expenses.length > 0 && (
             <div className="text-right">
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide flex items-center justify-end gap-1">
@@ -341,7 +377,7 @@ export default function ExpensesPage() {
         ) : isSuccess && filteredExpenses.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title={expenses.length === 0 ? 'No expenses this month' : 'No matching expenses'}
+            title={expenses.length === 0 ? `No expenses this ${isYear ? 'year' : 'month'}` : 'No matching expenses'}
             description={
               expenses.length === 0
                 ? 'Tap + to record your first expense.'
@@ -360,13 +396,21 @@ export default function ExpensesPage() {
           />
         ) : (
           <div className="space-y-5">
-            {sortedDates.map((dateStr) => {
+            {sortedDates.map((dateStr, i) => {
               const dayExpenses = grouped[dateStr];
+              const monthKey = dateStr.slice(0, 7);
+              const startsMonth = isYear && (i === 0 || sortedDates[i - 1].slice(0, 7) !== monthKey);
               const dayNet = totalAmount(dayExpenses);
               const dayGross = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
               return (
                 <div key={dateStr} id={`date-${dateStr}`} className="scroll-mt-36">
+                  {startsMonth && (
+                    <div className="flex items-baseline justify-between mb-3 pb-2 border-b border-border">
+                      <p className="text-sm font-bold">{monthLabel(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)))}</p>
+                      <p className="text-sm font-bold text-primary">{formatINR(monthTotals[monthKey] ?? 0)}</p>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
                     <div className="flex flex-col items-end">

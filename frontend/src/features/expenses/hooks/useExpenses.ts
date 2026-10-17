@@ -11,9 +11,9 @@ const ANALYTICS_KEY = ['expenses', 'analytics'] as const;
 const CATEGORY_SPEND_KEY = ['expenses', 'by-category'] as const;
 const MISSED_KEY = ['expenses', 'missed'] as const;
 
-export function useExpensesQuery(year: number, month: number, categoryId?: string) {
+export function useExpensesQuery(year: number, month: number | null, categoryId?: string) {
   return useQuery({
-    queryKey: [...EXPENSES_KEY, year, month, categoryId],
+    queryKey: [...EXPENSES_KEY, year, month ?? 'year', categoryId],
     queryFn: () => expensesApi.getByMonth(year, month, categoryId),
     staleTime: 30_000,
   });
