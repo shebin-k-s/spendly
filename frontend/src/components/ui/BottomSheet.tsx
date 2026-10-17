@@ -266,6 +266,12 @@ export function BottomSheet({
               }
             : { maxHeight: `min(${maxHeight}, calc(100dvh - 16px))` }}
         >
+          {/* The sheet reaches its raised position slightly before the keyboard finishes sliding
+              in (and slightly after it starts leaving), which exposed the dimmed page in the gap.
+              This foot continues the sheet's background down underneath it. */}
+          {keyboardInset !== null && (
+            <div aria-hidden className="absolute inset-x-0 top-full h-[100dvh] bg-card pointer-events-none" />
+          )}
           {/* Drag handle */}
           <div
             onPointerDown={onHandlePointerDown}
