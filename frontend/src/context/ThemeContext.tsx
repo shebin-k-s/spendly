@@ -1,9 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-// 'light' is Cool sky (kept as 'light' so a saved preference keeps working); 'cream' is the
-// warm light theme. Only 'dark' gets the .dark class — both others are light.
-export type Theme = 'light' | 'cream' | 'dark';
-export const THEMES: Theme[] = ['dark', 'light', 'cream'];
+// dark = the original black theme; dim = a softer dark; light = Catppuccin Latte;
+// dawn = Rosé Pine Dawn (warm paper). dark and dim get the .dark class.
+export type Theme = 'dark' | 'dim' | 'light' | 'dawn';
+export const THEMES: Theme[] = ['dark', 'dim', 'light', 'dawn'];
+export const isDarkTheme = (t: Theme) => t === 'dark' || t === 'dim';
 
 const STORAGE_KEY = 'spendly_theme';
 const MANIFEST_THEME_COLOR = '#0a0a0a'; // keep in sync with theme_color in vite.config.ts
@@ -18,7 +19,8 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getInitialTheme(): Theme {
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'light' || saved === 'cream' ? saved : 'dark';
+  if (saved === 'cream') return 'dawn'; // renamed
+  return saved === 'light' || saved === 'dawn' || saved === 'dim' ? saved : 'dark';
 }
 
 // "0 0% 100%" (a shadcn-style HSL CSS variable) → "#ffffff".
@@ -39,7 +41,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.classList.toggle('dark', isDarkTheme(theme));
     document.documentElement.dataset.theme = theme;
     localStorage.setItem(STORAGE_KEY, theme);
 

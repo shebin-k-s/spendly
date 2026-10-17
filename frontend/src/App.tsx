@@ -7,7 +7,7 @@ import { Toaster } from 'sonner';
 import { Provider } from 'react-redux';
 
 import { SwipeGestureProvider } from '@/context/SwipeGestureContext';
-import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { ThemeProvider, useTheme, isDarkTheme } from '@/context/ThemeContext';
 import { store } from '@/store/store';
 import ProtectedRoute from '@/routes/ProtectedRoute';
 import PublicRoute from '@/routes/PublicRoute';
@@ -104,7 +104,7 @@ function AppToaster() {
 
   return (
     <Toaster
-      theme={theme === 'dark' ? 'dark' : 'light'}
+      theme={isDarkTheme(theme) ? 'dark' : 'light'}
       position="bottom-center"
       gap={8}
       // On wider screens the app lives in a centered max-w-md (448px) window —

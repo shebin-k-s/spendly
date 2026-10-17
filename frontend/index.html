@@ -14,20 +14,22 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Spendly</title>
     <script>
-      // Keep these colors in sync with --background in index.css (light = :root, cream =
-      // :root[data-theme='cream']). Themes: 'dark' (default), 'light' (Cool sky), 'cream'.
-      // The installed (standalone) app keeps the dark color in light themes too:
-      // Android paints its status bar from the manifest's fixed dark color and
-      // only uses theme-color to pick light vs dark icons — a light theme-color
-      // there means dark icons on a black bar, i.e. invisible. See ThemeContext.
+      // Keep these colors in sync with --background in index.css. Themes: 'dark' (default),
+      // 'dim' (soft dark), 'light' (Latte, :root) and 'dawn' (warm paper). dark and dim get the
+      // .dark class. The installed (standalone) app keeps the dark status-bar color in every
+      // theme: Android paints its status bar from the manifest's fixed dark color and only uses
+      // theme-color to pick light vs dark icons — a light theme-color there means dark icons on a
+      // black bar, i.e. invisible. See ThemeContext.
       var standalone = window.matchMedia('(display-mode: standalone)').matches;
       var theme = localStorage.getItem('spendly_theme');
-      if (theme !== 'light' && theme !== 'cream') theme = 'dark';
+      if (theme === 'cream') theme = 'dawn'; // renamed
+      if (theme !== 'light' && theme !== 'dawn' && theme !== 'dim') theme = 'dark';
       document.documentElement.dataset.theme = theme;
-      if (theme === 'dark') {
+      if (theme === 'dark' || theme === 'dim') {
         document.documentElement.classList.add('dark');
-      } else if (!standalone) {
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'cream' ? '#f5f4f1' : '#f6f4f8');
+      }
+      if (!standalone && theme !== 'dark') {
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', { light: '#e6e9ef', dawn: '#f2e9e1', dim: '#232634' }[theme]);
       }
     </script>
   </head>
