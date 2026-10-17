@@ -45,18 +45,25 @@ export function BottomSheet({
     let held = 0;
     let lastKb = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let easeId = 0;
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let firstEventAt = 0;
     const ease = (jump: number) => {
       // jump > 0: sheet snapped up by that much, so start `jump` lower; < 0: snapped down.
-      // If an earlier ease is still running (the keyboard can report its size in
-      // several steps), continue from where the sheet visibly is, not from zero.
+      // The keyboard can report its size in several steps. Keep the sheet visually where
+      // it was while they arrive (offset accumulates), then glide once to the final
+      // position — gliding per step looks like stair-steps.
       const raw = modalRef.current ? getComputedStyle(modalRef.current).translate : 'none';
       const current = parseFloat(raw.split(' ')[1] ?? '0') || 0;
-      const id = ++easeId;
       setShift({ y: current + jump, anim: false });
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (id === easeId) setShift({ y: 0, anim: true });
-      }));
+      const now = performance.now();
+      if (!firstEventAt) firstEventAt = now;
+      clearTimeout(settleTimer);
+      // Wait for the steps to stop, but never hold the sheet longer than ~300ms in total.
+      const wait = Math.max(0, Math.min(140, firstEventAt + 300 - now));
+      settleTimer = setTimeout(() => {
+        firstEventAt = 0;
+        setShift({ y: 0, anim: true });
+      }, wait);
     };
     const onResize = () => {
       const kb = Math.max(0, base - window.innerHeight);
@@ -82,6 +89,7 @@ export function BottomSheet({
     window.addEventListener('resize', onResize);
     return () => {
       clearTimeout(timer);
+      clearTimeout(settleTimer);
       window.removeEventListener('resize', onResize);
     };
   }, [open, holdKeyboard]);
