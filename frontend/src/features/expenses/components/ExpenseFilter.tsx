@@ -97,12 +97,19 @@ export default function ExpenseFilter({
           e.stopPropagation();
           enableGlobalSwipe();
         }}
-        className="overflow-hidden border-b border-border transition-all duration-300 ease-in-out"
+        // Animating max-height to a fixed cap made the height finish in a fraction of the
+        // transition (content is ~180px, cap was 400px) while the fade was still running,
+        // so the panel opened as an empty gap and closed as a blank one. A grid row going
+        // 0fr <-> 1fr animates to the real content height, in step with the fade.
+        // Hidden when closed so its fields can't be focused.
+        className="grid border-b border-border transition-[grid-template-rows,opacity,visibility] duration-300 ease-in-out"
         style={{
-          maxHeight: isOpen ? '400px' : '0',
+          gridTemplateRows: isOpen ? '1fr' : '0fr',
           opacity: isOpen ? 1 : 0,
+          visibility: isOpen ? 'visible' : 'hidden',
         }}
       >
+        <div className="overflow-hidden min-h-0">
         <div className="bg-card/50 px-4 py-4 space-y-4">
           {/* Header row with label + clear */}
           <div className="flex items-center justify-between">
@@ -190,6 +197,7 @@ export default function ExpenseFilter({
               })}
             </div>
           </div>
+        </div>
         </div>
       </div>
 
