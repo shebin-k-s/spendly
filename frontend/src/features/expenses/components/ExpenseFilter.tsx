@@ -110,7 +110,7 @@ export default function ExpenseFilter({
         }}
       >
         <div className="overflow-hidden min-h-0">
-        <div className="bg-card/50 px-4 py-4 space-y-4">
+        <div className="bg-card px-4 py-4 space-y-4">
           {/* Header row with label + clear */}
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
@@ -138,7 +138,7 @@ export default function ExpenseFilter({
               placeholder="Search description or note..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-secondary text-secondary-foreground rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
+              className="w-full bg-secondary text-foreground border border-input rounded-xl py-2 pl-9 pr-10 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors [&::-webkit-search-cancel-button]:hidden"
             />
             {searchTerm && (
               <button
@@ -175,8 +175,8 @@ export default function ExpenseFilter({
                 onClick={() => selectedCategoryIds.length > 0 && onClearCategories()}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap
                   ${selectedCategoryIds.length === 0
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground'}`}
+                    ? 'bg-primary border border-primary text-primary-foreground'
+                    : 'bg-secondary border border-border text-secondary-foreground'}`}
               >
                 All
               </button>
@@ -188,7 +188,7 @@ export default function ExpenseFilter({
                     id={`category-filter-${cat.id}`}
                     onClick={() => onCategoryToggle(cat.id)}
                     className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap
-                      ${active ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground'}`}
+                      ${active ? 'bg-primary border border-primary text-primary-foreground' : 'bg-secondary border border-border text-secondary-foreground'}`}
                   >
                     <span>{cat.icon}</span>
                     <span>{cat.name}</span>
