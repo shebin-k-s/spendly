@@ -74,7 +74,10 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
               onChange={(e) => setName(e.target.value)}
               disabled={isPending}
               placeholder="e.g. Ayaans Mart"
-              enterKeyHint="next"
+              // Same key label as the field below it: switching between inputs with
+              // different enterKeyHint makes Android restart the keyboard, which
+              // resizes the viewport and makes this sheet drop and slide back up.
+              enterKeyHint="done"
               onKeyDown={focusNextOnEnter}
               className="form-input"
             />
