@@ -11,7 +11,7 @@ interface YearNavigatorProps {
 
 export default function YearNavigator({ year, onChange, onLongPress }: YearNavigatorProps) {
   const isCurrentYear = year >= currentYearMonth().year;
-  const press = useLongPress({ onLongPress: () => onLongPress?.(), delay: 450 });
+  const press = useLongPress({ onLongPress: () => onLongPress?.(), delay: 380 });
 
   return (
     <div className="flex items-center gap-2">
