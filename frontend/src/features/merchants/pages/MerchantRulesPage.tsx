@@ -107,7 +107,8 @@ export default function MerchantRulesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search shops..."
-              enterKeyHint="search"
+              enterKeyHint="done"
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
               className="w-full bg-card border border-border rounded-xl pl-10 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
             {query && (

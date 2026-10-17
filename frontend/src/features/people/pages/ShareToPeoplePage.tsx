@@ -432,6 +432,8 @@ export default function ShareToPeoplePage() {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search..."
+                enterKeyHint="done"
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                 className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
               />
             </div>

@@ -60,7 +60,7 @@ export default function CategoriesPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search categories..."
-              enterKeyHint="search"
+              enterKeyHint="done"
               className="w-full bg-card border border-border rounded-2xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
             {query && (

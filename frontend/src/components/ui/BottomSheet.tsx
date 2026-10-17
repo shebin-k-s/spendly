@@ -77,7 +77,9 @@ export function BottomSheet({
           className={cn(
             "fixed bottom-0 inset-x-0 w-full sm:max-w-md sm:mx-auto z-50 bg-card border-t border-border rounded-t-3xl flex flex-col animate-in slide-in-from-bottom duration-500 ease-in-out sheet-exit",
           )}
-          style={{ maxHeight }}
+          // The viewport resizes when the keyboard opens (interactive-widget=resizes-content),
+          // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
+          style={{ maxHeight: `min(${maxHeight}, calc(100dvh - 16px))` }}
         >
           {/* Drag handle */}
           <div

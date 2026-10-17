@@ -1022,7 +1022,7 @@ export default function AddExpensePage() {
               {people.length >= 3 && (
                 <div className="relative">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <input value={personSearch} onChange={e => setPersonSearch(e.target.value)} placeholder="Search..." className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" enterKeyHint="search" onKeyDown={dismissKeyboardOnEnter} />
+                  <input value={personSearch} onChange={e => setPersonSearch(e.target.value)} placeholder="Search..." className="w-full bg-card border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" enterKeyHint="done" onKeyDown={dismissKeyboardOnEnter} />
                 </div>
               )}
 

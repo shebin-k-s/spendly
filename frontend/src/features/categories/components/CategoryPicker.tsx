@@ -28,9 +28,9 @@ export function CategoryPicker({
   const [search, setSearch] = useState('');
   const { data: categories = [] } = useCategoriesQuery();
 
-  const filtered = categories.filter(c =>
-    !search || c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = categories
+    .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <BottomSheet
@@ -59,7 +59,7 @@ export function CategoryPicker({
         </div>
       )}
     >
-      <div className="px-4 pb-10 space-y-4 min-h-[60vh] flex flex-col">
+      <div className="px-4 pb-10 space-y-4 h-[min(60vh,calc(100dvh-140px))] flex flex-col">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -73,7 +73,7 @@ export function CategoryPicker({
             placeholder="Search categories..."
             className="w-full bg-secondary border border-border rounded-xl pl-10 pr-10 py-2.5 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary transition-all [&::-webkit-search-cancel-button]:hidden"
             value={search}
-            enterKeyHint="search"
+            enterKeyHint="done"
             onChange={(e) => setSearch(e.target.value)}
           />
 

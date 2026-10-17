@@ -136,6 +136,8 @@ export default function PeoplePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search people..."
+              enterKeyHint="done"
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
               className="w-full bg-card border border-border rounded-xl pl-10 pr-9 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
             {searchQuery && (
