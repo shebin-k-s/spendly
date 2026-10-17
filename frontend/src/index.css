@@ -30,27 +30,29 @@ input[type=number] {
     --radius: 0.75rem;
 
     /* Cool sky: a pale blue page with white cards, so cards lift off the page
-       instead of relying on borders alone. Indigo accent, blue-tinted greys. */
-    --background: 214 60% 95.5%;
-    --foreground: 222 40% 11%;
+       instead of relying on borders alone. Indigo accent, blue-tinted greys.
+       Text is held at 8:1+ (captions) and 14:1+ (body); page / tile / border steps
+       are far enough apart to read as separate layers. */
+    --background: 214 55% 93%;
+    --foreground: 224 50% 7%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 40% 11%;
+    --card-foreground: 224 50% 7%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 40% 11%;
+    --popover-foreground: 224 50% 7%;
 
-    --primary: 246 88% 58%;
+    --primary: 246 82% 54%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 50% 92%;
-    --secondary-foreground: 222 30% 22%;
+    --secondary: 214 48% 88%;
+    --secondary-foreground: 224 38% 18%;
 
-    --muted: 214 50% 92%;
-    --muted-foreground: 218 16% 38%;
+    --muted: 214 48% 88%;
+    --muted-foreground: 220 22% 27%;
 
-    --accent: 214 50% 92%;
-    --accent-foreground: 222 40% 11%;
+    --accent: 214 48% 88%;
+    --accent-foreground: 224 50% 7%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -61,9 +63,9 @@ input[type=number] {
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 35% 86%;
-    --input: 214 35% 82%;
-    --ring: 246 88% 58%;
+    --border: 214 32% 77%;
+    --input: 214 28% 62%;
+    --ring: 246 82% 54%;
   }
 
   .dark {
