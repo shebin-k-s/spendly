@@ -1,19 +1,24 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-export type Theme = 'light' | 'dark';
+// 'light' is Cool sky (kept as 'light' so a saved preference keeps working); 'cream' is the
+// warm light theme. Only 'dark' gets the .dark class — both others are light.
+export type Theme = 'light' | 'cream' | 'dark';
+export const THEMES: Theme[] = ['dark', 'light', 'cream'];
 
 const STORAGE_KEY = 'spendly_theme';
 const MANIFEST_THEME_COLOR = '#0a0a0a'; // keep in sync with theme_color in vite.config.ts
 
 interface ThemeContextValue {
   theme: Theme;
+  setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getInitialTheme(): Theme {
-  return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark';
+  const saved = localStorage.getItem(STORAGE_KEY);
+  return saved === 'light' || saved === 'cream' ? saved : 'dark';
 }
 
 // "0 0% 100%" (a shadcn-style HSL CSS variable) → "#ffffff".
@@ -35,6 +40,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.dataset.theme = theme;
     localStorage.setItem(STORAGE_KEY, theme);
 
     // In a browser tab, match the address bar to the real page color (read
@@ -48,9 +54,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', standalone ? MANIFEST_THEME_COLOR : hslVarToHex(bg));
   }, [theme]);
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = () => setTheme((t) => THEMES[(THEMES.indexOf(t) + 1) % THEMES.length]);
 
-  return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

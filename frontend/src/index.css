@@ -29,43 +29,73 @@ input[type=number] {
   :root {
     --radius: 0.75rem;
 
-    /* Cool sky: a pale blue page with white cards, so cards lift off the page
-       instead of relying on borders alone. Indigo accent, blue-tinted greys.
-       Text is held at 8:1+ (captions) and 14:1+ (body); page / tile / border steps
-       are far enough apart to read as separate layers. */
-    --background: 214 55% 93%;
+    /* Cool sky (default light theme): cards are a soft blue-tinted white rather than
+       pure white, and the page / tile / border steps are one gentle ramp of the same
+       blue, so white and blue read as one palette. Body text 18:1, captions 8:1+. */
+    --background: 214 38% 92.5%;
     --foreground: 224 50% 7%;
 
-    --card: 0 0% 100%;
+    --card: 214 50% 98.5%;
     --card-foreground: 224 50% 7%;
 
-    --popover: 0 0% 100%;
+    --popover: 214 50% 98.5%;
     --popover-foreground: 224 50% 7%;
 
-    --primary: 246 82% 54%;
+    --primary: 246 70% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 48% 88%;
+    --secondary: 214 36% 88.5%;
     --secondary-foreground: 224 38% 18%;
 
-    --muted: 214 48% 88%;
+    --muted: 214 36% 88.5%;
     --muted-foreground: 220 22% 27%;
 
-    --accent: 214 48% 88%;
+    --accent: 214 36% 88.5%;
     --accent-foreground: 224 50% 7%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 142 72% 28%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 32% 77%;
-    --input: 214 28% 62%;
-    --ring: 246 82% 54%;
+    --border: 214 26% 78%;
+    --input: 214 22% 62%;
+    --ring: 246 70% 52%;
+  }
+
+  /* Warm cream: the second light theme (data-theme="cream" on <html>). Same structure
+     as Cool sky — soft warm-white cards on a cream page, purple accent. */
+  :root[data-theme='cream'] {
+    --background: 38 30% 91%;
+    --foreground: 30 30% 8%;
+
+    --card: 40 45% 98%;
+    --card-foreground: 30 30% 8%;
+
+    --popover: 40 45% 98%;
+    --popover-foreground: 30 30% 8%;
+
+    --primary: 262 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 36 28% 86.5%;
+    --secondary-foreground: 30 22% 18%;
+
+    --muted: 36 28% 86.5%;
+    --muted-foreground: 30 14% 26%;
+
+    --accent: 36 28% 86.5%;
+    --accent-foreground: 30 30% 8%;
+
+    --success: 142 72% 27%;
+
+    --border: 35 22% 76%;
+    --input: 33 18% 58%;
+    --ring: 262 70% 50%;
   }
 
   .dark {
@@ -221,4 +251,19 @@ input[type=number] {
   .sheet-exit[data-state="closed"] {
     animation: slideDownExit 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards !important;
   }
+}
+
+/* Captions faded with a reduced alpha (text-muted-foreground/60, opacity-50, ...) look
+   subtle on dark but too faint on light themes. Lift them there; icons at /20 and /30
+   (decorative chevrons) are left alone. */
+:root:not(.dark) [class*='text-muted-foreground/4'],
+:root:not(.dark) [class*='text-muted-foreground/5'],
+:root:not(.dark) [class*='text-muted-foreground/6'],
+:root:not(.dark) [class*='text-muted-foreground/7'] {
+  color: hsl(var(--muted-foreground) / 0.85);
+}
+:root:not(.dark) .text-muted-foreground.opacity-50,
+:root:not(.dark) .text-muted-foreground.opacity-60,
+:root:not(.dark) .text-muted-foreground.opacity-70 {
+  opacity: 0.9;
 }

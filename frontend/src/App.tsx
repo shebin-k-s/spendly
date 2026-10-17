@@ -104,7 +104,7 @@ function AppToaster() {
 
   return (
     <Toaster
-      theme={theme}
+      theme={theme === 'dark' ? 'dark' : 'light'}
       position="bottom-center"
       gap={8}
       // On wider screens the app lives in a centered max-w-md (448px) window —

@@ -14,16 +14,20 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Spendly</title>
     <script>
-      // Keep these two colors in sync with --background in index.css.
-      // The installed (standalone) app keeps the dark color in light mode too:
+      // Keep these colors in sync with --background in index.css (sky = :root, cream =
+      // :root[data-theme='cream']). Themes: 'dark' (default), 'light' (Cool sky), 'cream'.
+      // The installed (standalone) app keeps the dark color in light themes too:
       // Android paints its status bar from the manifest's fixed dark color and
       // only uses theme-color to pick light vs dark icons — a light theme-color
       // there means dark icons on a black bar, i.e. invisible. See ThemeContext.
       var standalone = window.matchMedia('(display-mode: standalone)').matches;
-      if (localStorage.getItem('spendly_theme') === 'light') {
-        if (!standalone) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff');
-      } else {
+      var theme = localStorage.getItem('spendly_theme');
+      if (theme !== 'light' && theme !== 'cream') theme = 'dark';
+      document.documentElement.dataset.theme = theme;
+      if (theme === 'dark') {
         document.documentElement.classList.add('dark');
+      } else if (!standalone) {
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'cream' ? '#efeae1' : '#e5ebf3');
       }
     </script>
   </head>

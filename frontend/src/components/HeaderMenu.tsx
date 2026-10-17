@@ -1,10 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Settings, Sun, Moon, LogOut } from 'lucide-react';
-import { useTheme } from '@/context/ThemeContext';
+import { Settings, Check, LogOut } from 'lucide-react';
+import { useTheme, THEMES, type Theme } from '@/context/ThemeContext';
 import apiClient, { notifySwLogout } from '@/lib/apiClient';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+
+const THEME_LABEL: Record<Theme, string> = { dark: 'Dark', light: 'Light · Sky', cream: 'Light · Cream' };
+// Page color with the accent as a half-circle, so each option previews its palette.
+const THEME_SWATCH: Record<Theme, string> = {
+  dark: 'linear-gradient(135deg, #0a0a0a 50%, #8b6cf0 50%)',
+  light: 'linear-gradient(135deg, #e5ebf3 50%, #402fda 50%)',
+  cream: 'linear-gradient(135deg, #ece5d6 50%, #7a2fd9 50%)',
+};
 
 /**
  * Single overflow menu for header actions that don't need to be one-tap —
@@ -13,7 +21,7 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
  * trigger keeps the header to two elements again.
  */
 export default function HeaderMenu() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -50,13 +58,24 @@ export default function HeaderMenu() {
             sideOffset={8}
             className="z-50 min-w-[180px] rounded-2xl border border-border bg-card shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150"
           >
-            <DropdownMenu.Item
-              onSelect={toggleTheme}
-              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm outline-none cursor-pointer data-[highlighted]:bg-muted"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-            </DropdownMenu.Item>
+            <DropdownMenu.Label className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Theme
+            </DropdownMenu.Label>
+            {THEMES.map((t) => (
+              <DropdownMenu.Item
+                key={t}
+                onSelect={() => setTheme(t)}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm outline-none cursor-pointer data-[highlighted]:bg-muted"
+              >
+                <span
+                  aria-hidden
+                  className="w-4 h-4 rounded-full border border-border shrink-0"
+                  style={{ background: THEME_SWATCH[t] }}
+                />
+                <span className="flex-1">{THEME_LABEL[t]}</span>
+                {theme === t && <Check className="w-4 h-4 text-primary" />}
+              </DropdownMenu.Item>
+            ))}
             <DropdownMenu.Separator className="h-px bg-border my-1" />
             <DropdownMenu.Item
               onSelect={() => setConfirmOpen(true)}

@@ -106,7 +106,7 @@ export default function MonthlyTrendChart({ data, isLoading }: MonthlyTrendChart
                 {chartData.map((entry, index) => (
                   <Cell
                     key={index}
-                    fill={entry.isCurrent ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.35)'}
+                    fill={entry.isCurrent ? 'hsl(var(--primary))' : 'hsl(var(--primary) / 0.5)'}
                   />
                 ))}
               </Bar>
