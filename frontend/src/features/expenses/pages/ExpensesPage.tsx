@@ -1,8 +1,9 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Receipt, Filter, X, Search } from 'lucide-react';
+import { Plus, Receipt, Filter, X, Search, ChevronDown } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
-import { formatINR, monthLabel, currentYearMonth } from '@/lib/utils';
+import { formatINR, monthLabel, currentYearMonth, cn } from '@/lib/utils';
+import { useLongPress } from '@/hooks/useLongPress';
 import { CashbackVisibilityIcon } from '@/components/CashbackVisibilityIcon';
 import { useExpensesQuery } from '../hooks/useExpenses';
 import { groupByDate, totalAmount } from '../utils/expenseUtils';
@@ -23,9 +24,46 @@ import MonthNavigator from '../components/MonthNavigator';
 import YearNavigator from '../components/YearNavigator';
 import EmptyState from '@/components/EmptyState';
 
+// A month's heading in the year view. Press and hold to hide or show that month's expenses.
+function MonthHeading({ label, total, hiddenCount, collapsed, onToggle }: {
+  label: string;
+  total: number;
+  hiddenCount: number;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const press = useLongPress({ onLongPress: onToggle, delay: 450 });
+  return (
+    <div
+      {...press}
+      // A scroll that starts on the heading cancels the pointer; make sure that also cancels the hold.
+      onPointerCancel={press.onPointerLeave}
+      onContextMenu={(e) => e.preventDefault()}
+      className="flex items-center justify-between mb-3 pb-2 border-b border-border select-none"
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <ChevronDown className={cn('w-4 h-4 text-muted-foreground shrink-0 transition-transform', collapsed && '-rotate-90')} />
+        <p className="text-sm font-bold">{label}</p>
+        {collapsed && (
+          <span className="text-[11px] text-muted-foreground truncate">· {hiddenCount} hidden</span>
+        )}
+      </div>
+      <p className="text-sm font-bold text-primary">{formatINR(total)}</p>
+    </div>
+  );
+}
+
 export default function ExpensesPage() {
   const { year, month, view } = useAppSelector((state) => state.date);
   const isYear = view === 'year';
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(() => new Set());
+  const toggleMonth = (key: string) =>
+    setCollapsedMonths((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const dispatch = useAppDispatch();
 
   const expensesQuery = useExpensesQuery(year, isYear ? null : month);
@@ -198,6 +236,11 @@ export default function ExpensesPage() {
     }
     return totals;
   }, [filteredExpenses]);
+  const monthCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of filteredExpenses) counts[e.date.slice(0, 7)] = (counts[e.date.slice(0, 7)] ?? 0) + 1;
+    return counts;
+  }, [filteredExpenses]);
   const monthNet = totalAmount(filteredExpenses);
   const monthGross = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
@@ -208,22 +251,7 @@ export default function ExpensesPage() {
 
         {/* Title row */}
         <div className="px-4 pt-4 pb-3 flex items-center justify-between w-full">
-          <div>
-            <div className="inline-flex rounded-lg bg-secondary p-0.5 mb-1" role="tablist" aria-label="Period">
-              {(['month', 'year'] as const).map((v) => (
-                <button
-                  key={v}
-                  role="tab"
-                  aria-selected={view === v}
-                  onClick={() => view !== v && dispatch(setView(v))}
-                  className={`px-3 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
-                    view === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
-                  }`}
-                >
-                  {v === 'month' ? 'Month' : 'Year'}
-                </button>
-              ))}
-            </div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">Expenses</h1>
               <DataFreshnessIndicator
@@ -232,7 +260,22 @@ export default function ExpensesPage() {
               />
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className="inline-flex rounded-lg bg-secondary p-0.5" role="tablist" aria-label="Period">
+              {(['month', 'year'] as const).map((v) => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={view === v}
+                  onClick={() => view !== v && dispatch(setView(v))}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                    view === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                  }`}
+                >
+                  {v === 'month' ? 'Month' : 'Year'}
+                </button>
+              ))}
+            </div>
             <MissedExpensesButton />
             <button
               onClick={() => dispatch(setFilterOpen(!isFilterOpen))}
@@ -400,17 +443,25 @@ export default function ExpensesPage() {
               const dayExpenses = grouped[dateStr];
               const monthKey = dateStr.slice(0, 7);
               const startsMonth = isYear && (i === 0 || sortedDates[i - 1].slice(0, 7) !== monthKey);
+              const monthHidden = isYear && collapsedMonths.has(monthKey);
+              // A hidden month keeps only its heading (carried by its first day).
+              if (monthHidden && !startsMonth) return null;
               const dayNet = totalAmount(dayExpenses);
               const dayGross = dayExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
               const label = format(parseISO(dateStr), 'EEE, MMM d');
               return (
                 <div key={dateStr} id={`date-${dateStr}`} className="scroll-mt-36">
                   {startsMonth && (
-                    <div className="flex items-baseline justify-between mb-3 pb-2 border-b border-border">
-                      <p className="text-sm font-bold">{monthLabel(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)))}</p>
-                      <p className="text-sm font-bold text-primary">{formatINR(monthTotals[monthKey] ?? 0)}</p>
-                    </div>
+                    <MonthHeading
+                      label={monthLabel(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)))}
+                      total={monthTotals[monthKey] ?? 0}
+                      hiddenCount={monthCounts[monthKey] ?? 0}
+                      collapsed={monthHidden}
+                      onToggle={() => toggleMonth(monthKey)}
+                    />
                   )}
+                  {!monthHidden && (
+                  <>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</p>
                     <div className="flex flex-col items-end">
@@ -425,6 +476,8 @@ export default function ExpensesPage() {
                       <ExpenseCard key={expense.id} expense={expense} />
                     ))}
                   </div>
+                  </>
+                  )}
                 </div>
               );
             })}
