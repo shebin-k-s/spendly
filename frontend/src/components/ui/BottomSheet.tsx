@@ -94,7 +94,7 @@ export function BottomSheet({
           // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
           style={pin
             ? {
-                height: `${Math.round(openHeight * 0.85)}px`,
+                height: `${Math.round(openHeight * 0.8)}px`,
                 maxHeight: 'none',
                 // 100dvh tracks the shrinking viewport, so this offset cancels it out
                 // and the sheet stays at its opening position.

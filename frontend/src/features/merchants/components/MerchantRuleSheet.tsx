@@ -67,7 +67,7 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
           </div>
         )}
       >
-        <div className="px-4 pb-8 pt-2 space-y-5">
+        <div className="px-4 pb-8 pt-2 space-y-5 min-h-full flex flex-col">
           <div>
             <label className="form-label">Shop name</label>
             <input
@@ -124,6 +124,9 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
+
+          {/* Pushes Save to the bottom of the (taller, pinned) sheet */}
+          <div className="flex-1" />
 
           <div className="flex gap-3">
             {rule && (
