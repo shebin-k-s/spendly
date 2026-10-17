@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <title>Spendly</title>
     <script>
-      // Keep these colors in sync with --background in index.css (sky = :root, cream =
+      // Keep these colors in sync with --background in index.css (light = :root, cream =
       // :root[data-theme='cream']). Themes: 'dark' (default), 'light' (Cool sky), 'cream'.
       // The installed (standalone) app keeps the dark color in light themes too:
       // Android paints its status bar from the manifest's fixed dark color and
@@ -27,7 +27,7 @@
       if (theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else if (!standalone) {
-        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'cream' ? '#efeae1' : '#e5ebf3');
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'cream' ? '#f5f4f1' : '#f6f4f8');
       }
     </script>
   </head>

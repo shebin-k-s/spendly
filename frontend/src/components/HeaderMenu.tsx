@@ -6,12 +6,12 @@ import { useTheme, THEMES, type Theme } from '@/context/ThemeContext';
 import apiClient, { notifySwLogout } from '@/lib/apiClient';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
-const THEME_LABEL: Record<Theme, string> = { dark: 'Dark', light: 'Light · Sky', cream: 'Light · Cream' };
+const THEME_LABEL: Record<Theme, string> = { dark: 'Dark', light: 'Light', cream: 'Cream' };
 // Page color with the accent as a half-circle, so each option previews its palette.
 const THEME_SWATCH: Record<Theme, string> = {
   dark: 'linear-gradient(135deg, #0a0a0a 50%, #8b6cf0 50%)',
-  light: 'linear-gradient(135deg, #e5ebf3 50%, #402fda 50%)',
-  cream: 'linear-gradient(135deg, #ece5d6 50%, #7a2fd9 50%)',
+  light: 'linear-gradient(135deg, #f6f4f8 50%, #6550b9 50%)',
+  cream: 'linear-gradient(135deg, #f5f4f1 50%, #6550b9 50%)',
 };
 
 /**

@@ -29,29 +29,31 @@ input[type=number] {
   :root {
     --radius: 0.75rem;
 
-    /* Cool sky (default light theme): cards are a soft blue-tinted white rather than
-       pure white, and the page / tile / border steps are one gentle ramp of the same
-       blue, so white and blue read as one palette. Body text 18:1, captions 8:1+. */
-    --background: 214 38% 92.5%;
-    --foreground: 224 50% 7%;
+    /* Light (default light theme): Radix "Mauve" neutrals + "Violet" accent — a tinted gray
+       and an accent scale designed as a pair, using each scale's documented roles:
+       page = near-white (steps 1-2), card = white, tile / hover = step 3, border = step 6,
+       field edge = step 8, accent = step 11, text = steps 11-12. Layers differ by ~1.1:1,
+       like the dark theme, but bright. Body text 16:1, captions 6.4:1+. */
+    --background: 270 22% 96.5%;
+    --foreground: 257 10% 13.5%;
 
-    --card: 214 50% 98.5%;
-    --card-foreground: 224 50% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 257 10% 13.5%;
 
-    --popover: 214 50% 98.5%;
-    --popover-foreground: 224 50% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 257 10% 13.5%;
 
-    --primary: 246 70% 52%;
+    --primary: 252 43% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 36% 88.5%;
-    --secondary-foreground: 224 38% 18%;
+    --secondary: 285 14% 94.5%;
+    --secondary-foreground: 257 10% 22%;
 
-    --muted: 214 36% 88.5%;
-    --muted-foreground: 220 22% 27%;
+    --muted: 285 14% 94.5%;
+    --muted-foreground: 252 6% 35.3%;
 
-    --accent: 214 36% 88.5%;
-    --accent-foreground: 224 50% 7%;
+    --accent: 285 14% 94.5%;
+    --accent-foreground: 257 10% 13.5%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
@@ -62,40 +64,40 @@ input[type=number] {
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 26% 78%;
-    --input: 214 22% 62%;
-    --ring: 246 70% 52%;
+    --border: 262 11% 86.3%;
+    --input: 249 10% 75.5%;
+    --ring: 252 43% 52%;
   }
 
-  /* Warm cream: the second light theme (data-theme="cream" on <html>). Same structure
-     as Cool sky — soft warm-white cards on a cream page, purple accent. */
+  /* Cream (data-theme="cream" on <html>): the same recipe on Radix "Sand" (a warm gray)
+     with the same Violet accent. */
   :root[data-theme='cream'] {
-    --background: 38 30% 91%;
-    --foreground: 30 30% 8%;
+    --background: 45 17% 95.3%;
+    --foreground: 48 8% 12%;
 
-    --card: 40 45% 98%;
-    --card-foreground: 30 30% 8%;
+    --card: 40 100% 99.4%;
+    --card-foreground: 48 8% 12%;
 
-    --popover: 40 45% 98%;
-    --popover-foreground: 30 30% 8%;
+    --popover: 40 100% 99.4%;
+    --popover-foreground: 48 8% 12%;
 
-    --primary: 262 70% 50%;
+    --primary: 252 43% 52%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 36 28% 86.5%;
-    --secondary-foreground: 30 22% 18%;
+    --secondary: 30 7% 94.1%;
+    --secondary-foreground: 48 8% 21%;
 
-    --muted: 36 28% 86.5%;
-    --muted-foreground: 30 14% 26%;
+    --muted: 30 7% 94.1%;
+    --muted-foreground: 60 4% 32.2%;
 
-    --accent: 36 28% 86.5%;
-    --accent-foreground: 30 30% 8%;
+    --accent: 30 7% 94.1%;
+    --accent-foreground: 48 8% 12%;
 
     --success: 142 72% 27%;
 
-    --border: 35 22% 76%;
-    --input: 33 18% 58%;
-    --ring: 262 70% 50%;
+    --border: 45 5% 84.7%;
+    --input: 51 5% 72.4%;
+    --ring: 252 43% 52%;
   }
 
   .dark {
