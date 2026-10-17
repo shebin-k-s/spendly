@@ -6,13 +6,11 @@ import { useTheme, THEMES, type Theme } from '@/context/ThemeContext';
 import apiClient, { notifySwLogout } from '@/lib/apiClient';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
-const THEME_LABEL: Record<Theme, string> = { dark: 'Dark', dim: 'Dim', light: 'Light', dawn: 'Dawn' };
+const THEME_LABEL: Record<Theme, string> = { dark: 'Dark', light: 'Light' };
 // Page color with the accent as a half-circle, so each option previews its palette.
 const THEME_SWATCH: Record<Theme, string> = {
   dark: 'linear-gradient(135deg, #0a0a0a 50%, #8b6cf0 50%)',
-  dim: 'linear-gradient(135deg, #232634 50%, #ca9ee6 50%)',
-  light: 'linear-gradient(135deg, #e6e9ef 50%, #7a2fd6 50%)',
-  dawn: 'linear-gradient(135deg, #f2e9e1 50%, #6b5590 50%)',
+  light: 'linear-gradient(135deg, #eaeaee 50%, #6d28d9 50%)',
 };
 
 /**

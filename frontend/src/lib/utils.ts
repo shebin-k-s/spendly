@@ -20,6 +20,10 @@ export function currentYearMonth(): { year: number; month: number } {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
+/** A category's own color, pulled toward the text color so it stays readable as text on both
+ *  themes (a white category color is invisible on a light page, a black one on dark). */
+export const readableColor = (color: string) => `color-mix(in srgb, ${color} 45%, hsl(var(--foreground)))`;
+
 export function monthLabel(year: number, month: number): string {
   return new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 }

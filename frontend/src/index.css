@@ -29,82 +29,33 @@ input[type=number] {
   :root {
     --radius: 0.75rem;
 
-    /* THEMES. Dark (below) is the reference: layers a few lightness points apart, one accent.
-       The others follow the same rule — soft tinted surfaces, small steps between page / card /
-       tile / border, no pure white or pure black — using Catppuccin (Latte, Frappé) and
-       Rosé Pine (Dawn) as the base, with only text and accents nudged darker for contrast.
-       Light = Latte: page #e6e9ef, card #eff1f5, tile #dce0e8, text #363850, accent #7a2fd6. */
-    --background: 220 22% 92%;
-    --foreground: 235 19% 26.3%;
-    --card: 220 23% 94.9%;
-    --card-foreground: 235 19% 26.3%;
-    --popover: 220 23% 94.9%;
-    --popover-foreground: 235 19% 26.3%;
-    --primary: 267 67% 51.2%;
+    /* Light: crisp and high-contrast, the counterpart of the dark theme — near-black text (19:1),
+       true-white cards on a clean light-grey page, firm borders (1.5:1) and field edges (2.8:1),
+       one vivid violet accent (7:1 on white). Neutral greys with only a trace of cool, so nothing
+       tints the white. Zinc-style scale; every text color here is >= 7:1 on its surface. */
+    --background: 240 11% 92.5%;
+    --foreground: 240 24% 5.7%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 24% 5.7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 24% 5.7%;
+    --primary: 263 70% 50.4%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 21% 88.6%;
-    --secondary-foreground: 234 16% 35.5%;
-    --muted: 220 21% 88.6%;
-    --muted-foreground: 234 15% 38%;
-    --accent: 220 21% 88.6%;
-    --accent-foreground: 235 19% 26.3%;
-    --success: 110 62% 23%;
-    --border: 223 16% 82.7%;
-    --input: 227 12% 71%;
-    --ring: 267 67% 51.2%;
-
-    --destructive: 0 68% 42%;
+    --secondary: 240 13% 95.5%;
+    --secondary-foreground: 240 12% 19.6%;
+    --muted: 240 13% 95.5%;
+    --muted-foreground: 240 9% 31.8%;
+    --accent: 240 13% 95.5%;
+    --accent-foreground: 240 24% 5.7%;
+    --destructive: 0 74% 41.8%;
     --destructive-foreground: 0 0% 100%;
+    --success: 143 64% 24.1%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-  }
-
-  /* Dawn: warm paper light theme (Rosé Pine Dawn). */
-  :root[data-theme='dawn'] {
-    --background: 28 40% 91.6%;
-    --foreground: 251 24% 32.4%;
-    --card: 32 57% 95.5%;
-    --card-foreground: 251 24% 32.4%;
-    --popover: 32 57% 95.5%;
-    --popover-foreground: 251 24% 32.4%;
-    --primary: 262 26% 44.9%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 30 37% 88.2%;
-    --secondary-foreground: 248 19% 39.8%;
-    --muted: 30 37% 88.2%;
-    --muted-foreground: 249 15% 40.8%;
-    --accent: 30 37% 88.2%;
-    --accent-foreground: 251 24% 32.4%;
-    --success: 110 62% 23%;
-    --border: 10 9% 86.3%;
-    --input: 259 9% 65.1%;
-    --ring: 262 26% 44.9%;
-  }
-
-  /* Dim: a softer dark (Catppuccin Frappé) — also gets the .dark class, then overrides it. */
-  :root[data-theme='dim'] {
-    --background: 229 20% 17.1%;
-    --foreground: 229 100% 93.7%;
-    --card: 231 19% 19.8%;
-    --card-foreground: 229 100% 93.7%;
-    --popover: 231 19% 19.8%;
-    --popover-foreground: 229 100% 93.7%;
-    --primary: 277 59% 76.1%;
-    --primary-foreground: 229 20% 17.1%;
-    --secondary: 229 19% 23.1%;
-    --secondary-foreground: 227 70% 86.9%;
-    --muted: 229 19% 23.1%;
-    --muted-foreground: 228 29% 72.7%;
-    --accent: 229 19% 23.1%;
-    --accent-foreground: 229 100% 93.7%;
-    --success: 96 44% 67.8%;
-    --border: 230 16% 30.2%;
-    --input: 227 15% 37.3%;
-    --ring: 277 59% 76.1%;
-    --destructive: 359 68% 71%;
-    --destructive-foreground: 232 20% 17%;
-    --success-foreground: 232 20% 17%;
+    --border: 240 10% 82.9%;
+    --input: 240 7% 63.1%;
+    --ring: 263 70% 50.4%;
   }
 
   .dark {
@@ -262,17 +213,25 @@ input[type=number] {
   }
 }
 
-/* Captions faded with a reduced alpha (text-muted-foreground/60, opacity-50, ...) look
-   subtle on dark but too faint on light themes. Lift them there; icons at /20 and /30
-   (decorative chevrons) are left alone. */
+/* Text faded with a reduced alpha (text-muted-foreground/60, opacity-50, text-foreground/80, ...)
+   suits dark but is too faint on the light theme — bring it to full strength there. Icons at
+   /20 and /30 (decorative chevrons) and the build stamp are left alone. */
 :root:not(.dark) [class*='text-muted-foreground/4'],
 :root:not(.dark) [class*='text-muted-foreground/5'],
 :root:not(.dark) [class*='text-muted-foreground/6'],
 :root:not(.dark) [class*='text-muted-foreground/7'] {
-  color: hsl(var(--muted-foreground) / 0.85);
+  color: hsl(var(--muted-foreground));
+}
+:root:not(.dark) .text-foreground\/80 {
+  color: hsl(var(--foreground));
 }
 :root:not(.dark) .text-muted-foreground.opacity-50,
 :root:not(.dark) .text-muted-foreground.opacity-60,
 :root:not(.dark) .text-muted-foreground.opacity-70 {
-  opacity: 0.9;
+  opacity: 1;
+}
+/* Placeholders were ~2:1 on light — keep them clearly readable (5:1) but still lighter than typed text. */
+:root:not(.dark) ::placeholder {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.85;
 }

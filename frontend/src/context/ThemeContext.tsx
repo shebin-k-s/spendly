@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-// dark = the original black theme; dim = a softer dark; light = Catppuccin Latte;
-// dawn = Rosé Pine Dawn (warm paper). dark and dim get the .dark class.
-export type Theme = 'dark' | 'dim' | 'light' | 'dawn';
-export const THEMES: Theme[] = ['dark', 'dim', 'light', 'dawn'];
-export const isDarkTheme = (t: Theme) => t === 'dark' || t === 'dim';
+// dark = the original black theme; light = the crisp light theme. Only dark gets the .dark class.
+export type Theme = 'dark' | 'light';
+export const THEMES: Theme[] = ['dark', 'light'];
+export const isDarkTheme = (t: Theme) => t === 'dark';
 
 const STORAGE_KEY = 'spendly_theme';
 const MANIFEST_THEME_COLOR = '#0a0a0a'; // keep in sync with theme_color in vite.config.ts
@@ -19,8 +18,9 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getInitialTheme(): Theme {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved === 'cream') return 'dawn'; // renamed
-  return saved === 'light' || saved === 'dawn' || saved === 'dim' ? saved : 'dark';
+  // Earlier experiments (cream / dawn) were light themes; dim was a dark one.
+  if (saved === 'light' || saved === 'cream' || saved === 'dawn') return 'light';
+  return 'dark';
 }
 
 // "0 0% 100%" (a shadcn-style HSL CSS variable) → "#ffffff".

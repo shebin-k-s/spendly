@@ -6,6 +6,7 @@ import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import EmptyState from '@/components/EmptyState';
 import { MerchantRuleSheet } from '../components/MerchantRuleSheet';
 import type { MerchantRule } from '../types';
+import { readableColor } from '@/lib/utils';
 
 const SEARCH_THRESHOLD = 5; // search only earns its space once the list is long
 
@@ -26,7 +27,7 @@ function MerchantRuleCard({ rule, onClick }: { rule: MerchantRule; onClick: () =
 
         <span
           className="inline-flex items-center gap-1.5 max-w-full rounded-lg px-2 py-1 text-xs font-medium"
-          style={{ backgroundColor: `${category.color}22`, color: category.color }}
+          style={{ backgroundColor: `${category.color}22`, color: readableColor(category.color) }}
         >
           <span className="text-sm leading-none">{category.icon}</span>
           <span className="truncate">{category.name}</span>
