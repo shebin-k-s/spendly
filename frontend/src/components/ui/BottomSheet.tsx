@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
 import { useBackToClose } from '@/hooks/useBackToClose';
@@ -12,6 +12,11 @@ interface BottomSheetProps {
   children: React.ReactNode;
   header?: React.ReactNode;
   maxHeight?: string;
+  // Keep the sheet where it opened instead of riding the keyboard. The page
+  // shrinks when the keyboard shows (and briefly flickers when focus moves
+  // between inputs), so a bottom-anchored sheet visibly drops and rises again.
+  // Pinned sheets get a fixed height and the keyboard just covers their lower part.
+  pinned?: boolean;
 }
 
 export function BottomSheet({
@@ -21,7 +26,13 @@ export function BottomSheet({
   children,
   header,
   maxHeight = '85vh',
+  pinned = false,
 }: BottomSheetProps) {
+  const [openHeight, setOpenHeight] = useState(0);
+  useLayoutEffect(() => {
+    if (open && pinned) setOpenHeight(window.innerHeight);
+  }, [open, pinned]);
+  const pin = pinned && openHeight > 0;
   const { disableGlobalSwipe, enableGlobalSwipe } = useSwipeGesture();
   // Tied to open, not proximity — this also gates pull-to-refresh (which
   // checks the same flag), so it needs to be reliably off the instant the
@@ -81,7 +92,15 @@ export function BottomSheet({
           )}
           // The viewport resizes when the keyboard opens (interactive-widget=resizes-content),
           // but vh doesn't — clamp to dvh so the sheet always fits above the keyboard.
-          style={{ maxHeight: `min(${maxHeight}, calc(100dvh - 16px))` }}
+          style={pin
+            ? {
+                height: `${Math.round(openHeight * 0.85)}px`,
+                maxHeight: 'none',
+                // 100dvh tracks the shrinking viewport, so this offset cancels it out
+                // and the sheet stays at its opening position.
+                bottom: `calc(100dvh - ${openHeight}px)`,
+              }
+            : { maxHeight: `min(${maxHeight}, calc(100dvh - 16px))` }}
         >
           {/* Drag handle */}
           <div

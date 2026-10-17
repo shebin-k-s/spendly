@@ -57,6 +57,7 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
       <BottomSheet
         open={open}
         onOpenChange={onOpenChange}
+        pinned
         header={(
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
