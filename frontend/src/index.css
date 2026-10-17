@@ -48,12 +48,12 @@ input[type=number] {
     --muted-foreground: 234 15% 38%;
     --accent: 220 21% 88.6%;
     --accent-foreground: 235 19% 26.3%;
-    --success: 110 62% 29.6%;
+    --success: 110 62% 23%;
     --border: 223 16% 82.7%;
     --input: 227 12% 71%;
     --ring: 267 67% 51.2%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 68% 42%;
     --destructive-foreground: 0 0% 100%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
@@ -76,7 +76,7 @@ input[type=number] {
     --muted-foreground: 249 15% 40.8%;
     --accent: 30 37% 88.2%;
     --accent-foreground: 251 24% 32.4%;
-    --success: 110 62% 29.6%;
+    --success: 110 62% 23%;
     --border: 10 9% 86.3%;
     --input: 259 9% 65.1%;
     --ring: 262 26% 44.9%;
