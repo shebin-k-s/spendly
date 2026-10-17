@@ -45,12 +45,19 @@ export function BottomSheet({
     let held = 0;
     let lastKb = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let easeId = 0;
     const ease = (jump: number) => {
       // jump > 0: sheet snapped up by that much, so start `jump` lower; < 0: snapped down.
-      setShift({ y: jump, anim: false });
-      requestAnimationFrame(() => requestAnimationFrame(() => setShift({ y: 0, anim: true })));
+      // If an earlier ease is still running (the keyboard can report its size in
+      // several steps), continue from where the sheet visibly is, not from zero.
+      const raw = modalRef.current ? getComputedStyle(modalRef.current).translate : 'none';
+      const current = parseFloat(raw.split(' ')[1] ?? '0') || 0;
+      const id = ++easeId;
+      setShift({ y: current + jump, anim: false });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (id === easeId) setShift({ y: 0, anim: true });
+      }));
     };
-    setHold({ lift: 0, fullHeight: base, avail: base });
     const onResize = () => {
       const kb = Math.max(0, base - window.innerHeight);
       clearTimeout(timer);
