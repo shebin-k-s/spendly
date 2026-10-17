@@ -77,6 +77,9 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
               onChange={(e) => setName(e.target.value)}
               disabled={isPending}
               placeholder="e.g. Ayaans Mart"
+              // Stops Android showing its autofill row (key/card/pin) above the keyboard,
+              // which resizes the page a second time and leaves a dark gap under the sheet.
+              autoComplete="off"
               // Same key label as the field below it: switching between inputs with
               // different enterKeyHint makes Android restart the keyboard, which
               // resizes the viewport and makes this sheet drop and slide back up.
@@ -93,6 +96,7 @@ export function MerchantRuleSheet({ open, onOpenChange, rule }: Props) {
               onChange={(e) => setAliasText(e.target.value)}
               disabled={isPending}
               placeholder="e.g. Ayaans, Ayaan's"
+              autoComplete="off"
               enterKeyHint="done"
               onKeyDown={blurOnEnter}
               className="form-input"
