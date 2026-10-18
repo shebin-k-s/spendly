@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { useCreateCategory, useCategoriesQuery } from '../hooks/useCategories';
+import GroupPicker from '../components/GroupPicker';
+import { useCategoryGroupsQuery } from '../hooks/useCategoryGroups';
+import { guessGroup } from '../utils/groupCategories';
 import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
 const DEFAULT_ICONS = ['🍔', '🚗', '🛒', '🏥', '🎬', '🛍️', '💡', '📱', '✈️', '🏠', '📚', '🔧', '👨‍👩‍👧', '🎁', '💼', '📦'];
@@ -19,6 +22,9 @@ export default function AddCategoryPage() {
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📦');
   const [color, setColor] = useState('#f97316');
+  const [pickedGroup, setPickedGroup] = useState<string | null>(null);
+  const { data: groups = [] } = useCategoryGroupsQuery();
+  const group = pickedGroup ?? guessGroup(name, groups);
 
   const getSavedIcons = () => {
     try {
@@ -46,7 +52,7 @@ export default function AddCategoryPage() {
     }
     
     createCategory.mutate(
-      { name: name.trim(), icon, color },
+      { name: name.trim(), icon, color, groupName: group },
       { onSuccess: () => navigate(-1) },
     );
   };
@@ -101,6 +107,8 @@ export default function AddCategoryPage() {
             className="form-input"
           />
         </div>
+
+        <GroupPicker value={group} onChange={setPickedGroup} />
 
         {/* Icon picker */}
         <div>

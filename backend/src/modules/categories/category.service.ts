@@ -1,6 +1,7 @@
 import { AppDataSource } from '../../config/data.source';
 import { Category } from './category.entity';
 import { ApiError } from '../../common/middlewares/error.middleware';
+import { CategoryGroupService } from '../category-groups/categoryGroup.service';
 
 const DEFAULT_CATEGORIES = [
     { name: 'Food & Dining', icon: '🍔', color: '#f97316' },
@@ -24,7 +25,21 @@ export class CategoryService {
     private repo = AppDataSource.getRepository(Category);
     private static cache: Category[] | null = null;
     private static cacheTime: number = 0;
+    private groups = new CategoryGroupService();
     private readonly CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
+    static clearCache() {
+        CategoryService.cache = null;
+    }
+
+    // Stores the group's canonical name, and rejects names that aren't in the groups list.
+    private async resolveGroup(data: Partial<Category>) {
+        if (data.groupName == null) return;
+        await this.groups.getAll();
+        const group = await this.groups.findByName(data.groupName);
+        if (!group) throw new ApiError(`Unknown group "${data.groupName}"`, 400);
+        data.groupName = group.name;
+    }
 
     async getAll() {
         if (CategoryService.cache && Date.now() - CategoryService.cacheTime < this.CACHE_TTL) {
@@ -41,13 +56,15 @@ export class CategoryService {
         return category;
     }
 
-    create(data: Partial<Category>) {
+    async create(data: Partial<Category>) {
+        await this.resolveGroup(data);
         const category = this.repo.create(data);
         CategoryService.cache = null;
         return this.repo.save(category);
     }
 
     async update(id: string, data: Partial<Category>) {
+        await this.resolveGroup(data);
         const category = await this.getById(id);
         Object.assign(category, data);
         CategoryService.cache = null;

@@ -7,5 +7,6 @@ export const createCategorySchema = Joi.object({
         .pattern(/^#[0-9A-Fa-f]{6}$/)
         .required()
         .messages({ 'string.pattern.base': 'color must be a valid hex color (e.g. #f97316)' }),
+    groupName: Joi.string().trim().min(1).max(40).optional(),
     isDefault: Joi.boolean().optional(),
 });

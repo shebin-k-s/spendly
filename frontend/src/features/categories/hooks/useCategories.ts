@@ -35,7 +35,7 @@ export function useCreateCategory() {
   });
 }
 
-export function useUpdateCategory() {
+export function useUpdateCategory({ silent = false }: { silent?: boolean } = {}) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: UpdateCategoryPayload) => categoriesApi.update(payload),
@@ -44,7 +44,7 @@ export function useUpdateCategory() {
       // Expense lists, summaries and the category-details page all embed the
       // category's name/icon/color, so they go stale on rename too.
       qc.invalidateQueries({ queryKey: ['expenses'] });
-      toast.success('Category updated');
+      if (!silent) toast.success('Category updated');
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

@@ -21,6 +21,9 @@ export class Category {
     @Column()
     color: string;
 
+    @Column({ type: 'varchar', nullable: true })
+    groupName: string | null;
+
     @Column({ default: false })
     isDefault: boolean;
 

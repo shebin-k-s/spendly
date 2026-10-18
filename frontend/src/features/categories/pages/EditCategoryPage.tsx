@@ -3,6 +3,9 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Trash2, Loader2 } from 'lucide-react';
 import { useCategoryById, useUpdateCategory, useDeleteCategory, useCategoriesQuery } from '../hooks/useCategories';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import GroupPicker from '../components/GroupPicker';
+import { useCategoryGroupsQuery } from '../hooks/useCategoryGroups';
+import { groupOf } from '../utils/groupCategories';
 import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 import { leaveDeletedItem } from '@/utils/navigation';
 
@@ -26,6 +29,8 @@ export default function EditCategoryPage() {
   const [name, setName] = useState(initialCategory?.name || '');
   const [icon, setIcon] = useState(initialCategory?.icon || '📦');
   const [color, setColor] = useState(initialCategory?.color || '#f97316');
+  const { data: groups = [] } = useCategoryGroupsQuery();
+  const [pickedGroup, setPickedGroup] = useState<string | null>(null);
 
   const getSavedIcons = () => {
     try {
@@ -49,10 +54,13 @@ export default function EditCategoryPage() {
     }
   }, [category]);
 
+  const group = pickedGroup ?? (refCategory ? groupOf(refCategory, groups) : 'Other');
+
   const isChanged = refCategory ? (
     name.trim() !== (refCategory.name?.trim() || '') ||
     icon !== refCategory.icon ||
-    color !== refCategory.color
+    color !== refCategory.color ||
+    group !== groupOf(refCategory, groups)
   ) : false;
 
   const canSubmit = name.trim().length > 0 && isChanged && !isBlocking;
@@ -67,7 +75,7 @@ export default function EditCategoryPage() {
     }
 
     updateCategory.mutate(
-      { id, name: name.trim(), icon, color },
+      { id, name: name.trim(), icon, color, groupName: group },
       { onSuccess: () => navigate(-1) },
     );
   };
@@ -144,6 +152,8 @@ export default function EditCategoryPage() {
             className="form-input"
           />
         </div>
+
+        <GroupPicker value={group} onChange={setPickedGroup} />
 
         {/* Icon picker */}
         <div>
