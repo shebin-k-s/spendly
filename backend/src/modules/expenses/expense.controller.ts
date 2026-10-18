@@ -463,6 +463,14 @@ export class ExpenseController {
             return;
         }
 
+        // auto=true is the page quietly keeping an existing summary current: it may refresh a month
+        // that was analyzed before, but never starts a first analysis (that costs an AI call the
+        // user hasn't asked for) — 204 tells the page there is nothing to show yet.
+        if (req.query.auto === 'true' && !(await service.hasInsight(year, month))) {
+            res.status(204).end();
+            return;
+        }
+
         if (!process.env.GEMINI_API_KEY) {
             log.error('gemini: GEMINI_API_KEY not configured');
             res.status(503).json({ message: 'AI analysis not configured' });

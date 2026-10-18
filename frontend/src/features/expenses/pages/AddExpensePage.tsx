@@ -376,9 +376,6 @@ export default function AddExpensePage() {
   const [transferPerson,    setTransferPerson]    = useState<string | null>((ps?.transfer_person as string) ?? stateTransferPerson ?? null);
   const [transferDirection, setTransferDirection] = useState<'sent' | 'received' | null>((ps?.transfer_direction as 'sent' | 'received' | null) ?? stateTransferDirection ?? null);
   const [transferPhone,     setTransferPhone]     = useState<string | null>((ps?.transfer_phone as string) ?? stateTransferPhone ?? null);
-  const [nlText, setNlText] = useState(stateFromNlParse && stateRawText ? stateRawText : '');
-  const [nlStatus, setNlStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [showQuickParse, setShowQuickParse] = useState(stateFromNlParse && !!stateRawText);
   const [showBulkModal, setShowBulkModal] = useState(searchParams.get('bulk') === 'true');
 
   // Lending mode (inline — no navigation)
@@ -648,43 +645,6 @@ export default function AddExpensePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedText]);
 
-  const handleNlParse = async () => {
-    if (!nlText.trim() || nlStatus === 'loading') return;
-    setNlStatus('loading');
-    try {
-      const result = await expensesApi.parseText(nlText.trim());
-      setAmount(stripTrailingZeros(typeof result.amount === 'string' ? result.amount : ''));
-      setDescription(typeof result.description === 'string' ? result.description : '');
-      setDate(typeof result.date === 'string' && result.date ? result.date : format(new Date(), 'yyyy-MM-dd'));
-      setTime(typeof result.time === 'string' && result.time ? result.time : format(new Date(), 'HH:mm'));
-      setCategoryId(typeof result.category_id === 'string' ? result.category_id : '');
-      setNote(typeof result.note === 'string' ? result.note : '');
-      setCashback(stripTrailingZeros(typeof result.cashback === 'string' ? result.cashback : ''));
-      // Update lending direction regardless of whether a person name was detected
-      if (result.transfer_direction === 'received') setLendingType('RETURNED');
-      else if (result.transfer_direction === 'sent') setLendingType('GIVEN');
-
-      const person = typeof result.transfer_person === 'string' && result.transfer_person ? result.transfer_person : null;
-      if (person) {
-        setTransferPerson(person);
-        setTransferDirection((result.transfer_direction as 'sent' | 'received' | null) ?? null);
-        setTransferPhone((result as any).transfer_phone ?? null);
-        const matched = matchPerson(person, (result as any).transfer_phone ?? null, people);
-        if (matched) { setSelectedPersonId(matched.id); setPinnedPersonId(matched.id); }
-      }
-
-      if (result.suggested_flow === 'transfer') {
-        setLendingMode(true);
-      } else if (result.suggested_flow === 'expense' && lendingMode) {
-        setLendingMode(false);
-      }
-
-      setNlStatus('done');
-    } catch {
-      setNlStatus('error');
-    }
-  };
-
   const canSubmit = amount.trim() && description.trim() && !createExpense.isPending && aiStatus !== 'loading';
 
   const handleSubmit = () => {
@@ -821,71 +781,16 @@ export default function AddExpensePage() {
           );
         })()}
 
-        {/* Natural language input — toggleable */}
-        {!isFromShare && !prefill && !showQuickParse && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowQuickParse(true)}
-              className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all"
-            >
-              <Sparkles className="w-4 h-4 shrink-0" />
-              <span className="text-sm font-semibold">AI Quick Parse</span>
-            </button>
-            <button
-              onClick={() => setShowBulkModal(true)}
-              className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all shrink-0"
-              title="Add multiple expenses at once"
-            >
-              <Sparkles className="w-4 h-4 shrink-0" />
-              <span className="text-sm font-semibold">Bulk Add</span>
-            </button>
-          </div>
-        )}
-        {!isFromShare && !prefill && showQuickParse && (
-          <div className="p-3.5 rounded-3xl bg-primary/5 border border-primary/10 space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold text-primary">AI Quick Parse</span>
-              </div>
-              <button onClick={() => setShowQuickParse(false)} className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center active:scale-90 transition-all">
-                <X className="w-3.5 h-3.5 text-primary" />
-              </button>
-            </div>
-
-            <textarea
-              value={nlText}
-              onChange={(e) => { setNlText(e.target.value); if (nlStatus !== 'idle') setNlStatus('idle'); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleNlParse(); } }}
-              placeholder='e.g. "Zomato 350 UPI" or "coffee 80 cash"'
-              rows={2}
-              className="form-input resize-none text-sm bg-background/60"
-              autoFocus
-            />
-
-            <button
-              onClick={() => void handleNlParse()}
-              disabled={!nlText.trim() || nlStatus === 'loading'}
-              className="w-full py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-            >
-              {nlStatus === 'loading'
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <Sparkles className="w-4 h-4" />}
-              {lendingMode ? 'Parse' : 'Parse Expense'}
-            </button>
-            {nlStatus === 'done' && (
-              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20">
-                <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <p className="text-xs font-medium text-primary">Form filled — edit or re-parse</p>
-              </div>
-            )}
-            {nlStatus === 'error' && (
-              <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-destructive/10 border border-destructive/20">
-                <AlertCircle className="w-3.5 h-3.5 text-destructive flex-shrink-0" />
-                <p className="text-[11px] font-medium text-destructive">Couldn't parse — try being more specific or fill manually</p>
-              </div>
-            )}
-          </div>
+        {/* Bulk add — several expenses from one pasted text */}
+        {!isFromShare && !prefill && (
+          <button
+            onClick={() => setShowBulkModal(true)}
+            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-primary active:scale-[0.98] transition-all"
+            title="Add multiple expenses at once"
+          >
+            <Sparkles className="w-4 h-4 shrink-0" />
+            <span className="text-sm font-semibold">Bulk Add</span>
+          </button>
         )}
 
         {/* Amount — shared between modes */}

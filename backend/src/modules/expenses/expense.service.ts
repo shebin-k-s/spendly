@@ -247,6 +247,10 @@ export class ExpenseService {
         }
     }
 
+    async hasInsight(year: number, month: number): Promise<boolean> {
+        return (await this.insightRepo.countBy({ year, month })) > 0;
+    }
+
     async saveInsight(year: number, month: number, inputHash: string, points: string[]): Promise<Date> {
         let row = await this.insightRepo.findOneBy({ year, month });
         if (!row) row = this.insightRepo.create({ year, month });

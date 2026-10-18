@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { currentYearMonth, monthLabel } from '@/lib/utils';
-import { useAnalytics, useMonthlySummary, useMonthAnalysis, useReanalyzeMonth } from '@/features/expenses/hooks/useExpenses';
+import { useAnalytics, useMonthlySummary, useMonthAnalysis, useReanalyzeMonth, useAutoRefreshAnalysis } from '@/features/expenses/hooks/useExpenses';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
@@ -49,6 +49,21 @@ export default function AnalyticsPage() {
     }
     seenAnalysisError.current = analysis.error;
   }, [analysis.error]);
+
+  // Quietly bring an already-written summary up to date when this month's numbers have changed.
+  const autoRefresh = useAutoRefreshAnalysis(
+    year,
+    month,
+    [
+      summary?.count ?? 0,
+      summary?.total ?? 0,
+      summary?.cashbackTotal ?? 0,
+      // Moving an expense between categories changes the analysis without changing the total.
+      ...(summary?.breakdown ?? []).map((b) => `${b.categoryId}:${b.total}`),
+    ].join('|'),
+    !isYear && !!summary && summary.count > 0,
+  );
+  const isRefreshingSummary = autoRefresh.isFetching;
 
   const reanalyze = useReanalyzeMonth();
   // reanalyze is one shared mutation instance — if it's mid-flight for a
@@ -250,7 +265,7 @@ export default function AnalyticsPage() {
                       guard against Invalid Date rather than let date-fns throw
                       and blank the whole page (no error boundary above this). */}
                   <p className="text-[11px] text-muted-foreground">
-                    {lastAnalyzedLabel ? `Last analyzed ${lastAnalyzedLabel}` : ''}
+                    {isRefreshingSummary ? 'Updating summary…' : lastAnalyzedLabel ? `Last analyzed ${lastAnalyzedLabel}` : ''}
                   </p>
                   {/* Explicit re-ask — always forces a fresh AI pass (bypassing
                       the backend's hash cache) rather than silently handing

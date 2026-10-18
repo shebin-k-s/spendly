@@ -117,6 +117,25 @@ export function useMonthAnalysis(year: number, month: number) {
 // whatever year/month were current at call time (via `variables` in the
 // callbacks) keeps the result going to the month that was actually
 // re-analyzed instead of wherever the user has since navigated to.
+// Keeps an existing summary current without the user pressing Re-analyze. `signature` is the month's
+// numbers (total/count): it is part of the key, so the check runs once per change in the data and never
+// again for the same numbers — even across sessions. The server compares its own fingerprint first, so
+// unchanged numbers cost no AI call, and a month that was never analyzed is left alone (null).
+export function useAutoRefreshAnalysis(year: number, month: number, signature: string, enabled: boolean) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: [...ANALYSIS_KEY, 'auto', year, month, signature],
+    queryFn: async () => {
+      const fresh = await expensesApi.refreshMonthAnalysis(year, month);
+      if (fresh) qc.setQueryData([...ANALYSIS_KEY, year, month], fresh);
+      return fresh;
+    },
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 export function useReanalyzeMonth() {
   const qc = useQueryClient();
   return useMutation({

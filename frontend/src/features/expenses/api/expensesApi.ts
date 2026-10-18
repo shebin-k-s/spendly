@@ -43,6 +43,14 @@ export const expensesApi = {
     return data;
   },
 
+  // Quiet refresh of a summary that already exists: null means the month was never analyzed (nothing to refresh).
+  async refreshMonthAnalysis(year: number, month: number): Promise<MonthAnalysis | null> {
+    const { data, status } = await apiClient.get<MonthAnalysis>(`${URL}/analyze`, {
+      params: { year, month, auto: 'true' },
+    });
+    return status === 204 || !data ? null : data;
+  },
+
   async getMissed(): Promise<MissedExpensesResult> {
     const { data } = await apiClient.get<MissedExpensesResult>(`${URL}/missed`);
     return data;
