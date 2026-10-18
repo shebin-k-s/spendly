@@ -112,7 +112,7 @@ export default function CategoriesPage() {
     document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-group-name]')?.dataset.groupName ?? null;
 
   // Optimistic: the icon jumps to its new group at once; the save runs behind it and is rolled back if it fails.
-  const saveGroup = (cat: Category, group: string) => {
+  const saveGroup = (cat: Category, group: string, done?: { onSuccess?: () => void; onError?: () => void }) => {
     const previous = qc.getQueryData<Category[]>(CATEGORIES_KEY);
     qc.setQueryData<Category[]>(CATEGORIES_KEY, (old) =>
       old?.map((c) => (c.id === cat.id ? { ...c, groupName: group } : c)),
@@ -120,8 +120,10 @@ export default function CategoriesPage() {
     updateCategory.mutate(
       { id: cat.id, name: cat.name, icon: cat.icon, color: cat.color, groupName: group },
       {
+        onSuccess: () => done?.onSuccess?.(),
         onError: () => {
           qc.setQueryData(CATEGORIES_KEY, previous);
+          done?.onError?.();
           toast.error('Could not move category');
         },
       },
@@ -130,8 +132,10 @@ export default function CategoriesPage() {
 
   const moveCategory = (cat: Category, to: string) => {
     const from = groupOf(cat, groups);
-    saveGroup(cat, to);
-    showUndoToast(`Moved "${cat.name}"`, `${from} → ${to}`, () => saveGroup(cat, from));
+    const toastHandle = showUndoToast(`Moved "${cat.name}"`, `${from} → ${to}`, () =>
+      saveGroup(cat, from, { onSuccess: () => toast.success(`Moved back to ${from}`) }),
+    );
+    saveGroup(cat, to, { onSuccess: toastHandle.saved, onError: toastHandle.failed });
   };
 
   const dragHandlers = {
