@@ -371,9 +371,12 @@ export default function CategoriesPage() {
                         onKeyDown={blurOnEnter}
                         className="form-input flex-1 min-w-0 !py-2"
                       />
-                      <button onClick={handleRenameGroup} disabled={updateGroup.isPending} aria-label="Save" className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0">
-                        <Check className="w-4 h-4 text-primary" />
-                      </button>
+                      {/* Only offered once the name actually differs from the saved one. */}
+                      {editingGroup.name.trim() && editingGroup.name.trim() !== group.name && (
+                        <button onClick={handleRenameGroup} disabled={updateGroup.isPending} aria-label="Save" className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                          <Check className="w-4 h-4 text-primary" />
+                        </button>
+                      )}
                       <button onClick={() => setDeletingGroup(group)} aria-label={`Delete ${label}`} className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </button>
