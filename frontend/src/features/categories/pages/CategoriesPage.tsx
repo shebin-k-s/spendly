@@ -36,7 +36,7 @@ function GroupHeader({ label, count, open, locked, onOpen, onToggle, onEdit }: {
 }) {
   const press = useLongPress({ onLongPress: () => { if (!locked) onEdit(); }, onClick: onOpen });
   return (
-    <div className="flex items-center">
+    <div data-group-header className="flex items-center">
       <div
         role="link"
         tabIndex={0}
@@ -360,6 +360,11 @@ export default function CategoriesPage() {
                 <section
                   key={group.id}
                   data-group-name={label}
+                  // Tapping the card anywhere that isn't a category, the header or a control opens the group too.
+                  onClick={(e) => {
+                    if (moveMode || (e.target as HTMLElement).closest('a, button, input, [data-group-header]')) return;
+                    navigate(`/categories/group/${group.id}`);
+                  }}
                   className={`bg-card border rounded-3xl overflow-hidden transition-colors ${
                     dragCat && overGroup === label ? 'border-primary ring-2 ring-primary/40' : 'border-border'
                   }`}
