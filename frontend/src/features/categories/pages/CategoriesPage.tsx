@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { showUndoToast } from '@/components/UndoToast';
+import { showUndoToast, UNDO_TOAST_ID } from '@/components/UndoToast';
 import { Check, ChevronDown, FolderPlus, Move, Plus, Search, Store, Tag, Trash2, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCategoriesQuery, useSeedCategories, useUpdateCategory } from '../hooks/useCategories';
@@ -124,7 +124,7 @@ export default function CategoriesPage() {
         onError: () => {
           qc.setQueryData(CATEGORIES_KEY, previous);
           done?.onError?.();
-          toast.error('Could not move category');
+          toast.error('Could not move category', { id: UNDO_TOAST_ID });
         },
       },
     );
@@ -133,7 +133,7 @@ export default function CategoriesPage() {
   const moveCategory = (cat: Category, to: string) => {
     const from = groupOf(cat, groups);
     const toastHandle = showUndoToast(`Moved "${cat.name}"`, `${from} → ${to}`, () =>
-      saveGroup(cat, from, { onSuccess: () => toast.success(`Moved back to ${from}`) }),
+      saveGroup(cat, from, { onSuccess: () => toast.success(`Moved back to ${from}`, { id: UNDO_TOAST_ID }) }),
     );
     saveGroup(cat, to, { onSuccess: toastHandle.saved, onError: toastHandle.failed });
   };

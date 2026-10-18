@@ -3,6 +3,10 @@ import { Check, Loader2, Undo2 } from 'lucide-react';
 
 type Status = 'saving' | 'saved';
 
+// One shared slot: a new toast replaces the previous one instead of stacking under it.
+export const UNDO_TOAST_ID = 'undo-toast';
+let latest = 0;
+
 export interface UndoToastHandle {
   saved: () => void;
   failed: () => void;
@@ -16,7 +20,8 @@ export interface UndoToastHandle {
  * Undo stays disabled until the save lands, so the two requests can't overtake each other.
  */
 export function showUndoToast(title: string, subtitle: string, onUndo: () => void): UndoToastHandle {
-  const id = `undo-${Date.now()}`;
+  const id = UNDO_TOAST_ID;
+  const mine = ++latest;
 
   const render = (status: Status) =>
     toast.custom((tid) => (
@@ -56,5 +61,9 @@ export function showUndoToast(title: string, subtitle: string, onUndo: () => voi
     });
 
   render('saving');
-  return { saved: () => render('saved'), failed: () => toast.dismiss(id) };
+  // A slower, older save must not repaint over a newer toast.
+  return {
+    saved: () => { if (mine === latest) render('saved'); },
+    failed: () => { if (mine === latest) toast.dismiss(id); },
+  };
 }
