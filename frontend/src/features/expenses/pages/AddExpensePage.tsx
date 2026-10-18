@@ -165,7 +165,7 @@ export default function AddExpensePage() {
   const location = useLocation();
   const createExpense = useCreateExpense();
   const categoriesQuery = useCategoriesQuery();
-  const categories = categoriesQuery.data || [];
+  const categories = [...(categoriesQuery.data || [])].sort((a, b) => a.name.localeCompare(b.name));
 
   // These are single-purpose fields with nowhere useful for "Next" to send
   // focus, so the keyboard's own action key just dismisses it instead —

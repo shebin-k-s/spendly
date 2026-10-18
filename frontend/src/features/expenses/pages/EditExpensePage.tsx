@@ -17,7 +17,8 @@ export default function EditExpensePage() {
 
   const { data: expense, isLoading } = useExpenseById(id!, !initialExpense);
   const refExpense = expense || initialExpense;
-  const { data: categories = [] } = useCategoriesQuery();
+  const { data: rawCategories = [] } = useCategoriesQuery();
+  const categories = [...rawCategories].sort((a, b) => a.name.localeCompare(b.name));
   const updateExpense = useUpdateExpense();
   const deleteExpense = useDeleteExpense();
   const isPending = updateExpense.isPending || deleteExpense.isPending;
