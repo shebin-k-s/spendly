@@ -16,8 +16,8 @@ import {
   useDeleteCategoryGroup,
 } from '../hooks/useCategoryGroups';
 import { FALLBACK_GROUP, groupCategories, groupOf } from '../utils/groupCategories';
-import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { blurOnEnter } from '@/utils/keyboard';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { Category, CategoryGroup } from '../types';
 import EmptyState from '@/components/EmptyState';
 
@@ -154,7 +154,8 @@ export default function CategoriesPage() {
   }, [dragCat]);
 
   const handleAddGroup = () => {
-    if (!newGroupName.trim()) return;
+    if (!newGroupName.trim() || createGroup.isPending) return;
+    (document.activeElement as HTMLElement | null)?.blur(); // closes the keyboard
     createGroup.mutate(newGroupName, {
       onSuccess: () => {
         setNewGroupName('');
@@ -164,7 +165,14 @@ export default function CategoriesPage() {
   };
 
   const handleRenameGroup = () => {
-    if (!editingGroup || !editingGroup.name.trim()) return;
+    if (!editingGroup || !editingGroup.name.trim() || updateGroup.isPending) return;
+    (document.activeElement as HTMLElement | null)?.blur(); // closes the keyboard
+    const current = groups.find((g) => g.id === editingGroup.id)?.name;
+    // Nothing changed: just close, don't hit the server.
+    if (editingGroup.name.trim() === current) {
+      setEditingGroup(null);
+      return;
+    }
     updateGroup.mutate(editingGroup, { onSuccess: () => setEditingGroup(null) });
   };
 
@@ -260,7 +268,7 @@ export default function CategoriesPage() {
               autoFocus
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddGroup(); }}
+              onKeyDown={blurOnEnter}
               placeholder="New group name"
               maxLength={40}
               enterKeyHint="done"
@@ -336,8 +344,9 @@ export default function CategoriesPage() {
                         autoFocus
                         value={editingGroup.name}
                         maxLength={40}
+                        enterKeyHint="done"
                         onChange={(e) => setEditingGroup({ id: group.id, name: e.target.value })}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleRenameGroup(); else blurOnEnter(e); }}
+                        onKeyDown={blurOnEnter}
                         className="form-input flex-1 min-w-0 !py-2"
                       />
                       <button onClick={handleRenameGroup} disabled={updateGroup.isPending} aria-label="Save" className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center shrink-0">

@@ -4,12 +4,14 @@ export const FALLBACK_GROUP = 'Other';
 
 // First matching rule wins, so specific ones (petrol, recharge, movie) sit above "family".
 const GROUP_RULES: { label: string; keywords: string[] }[] = [
-  { label: 'Transport & Fuel', keywords: ['petrol', 'fuel', 'diesel', 'transport', 'railway', 'train', 'bus', 'cab', 'taxi', 'trip', 'travel'] },
-  { label: 'Bills & Home', keywords: ['recharge', 'electricity', 'water', 'bill', 'rent', 'housing', 'maintenance', 'internet', 'subscription'] },
+  { label: 'Fuel', keywords: ['petrol', 'fuel', 'diesel'] },
+  { label: 'Travel & Transport', keywords: ['transport', 'railway', 'train', 'bus', 'cab', 'taxi', 'trip', 'travel'] },
+  { label: 'Bills & Utilities', keywords: ['recharge', 'electricity', 'water', 'bill', 'rent', 'housing', 'maintenance', 'internet', 'subscription'] },
   { label: 'Entertainment', keywords: ['movie', 'entertainment', 'game'] },
-  { label: 'Food & Groceries', keywords: ['food', 'dining', 'grocer', 'tea', 'snack', 'drink', 'chocolate', 'coffee'] },
+  { label: 'Groceries', keywords: ['grocer'] },
+  { label: 'Food & Drinks', keywords: ['food', 'dining', 'tea', 'snack', 'drink', 'chocolate', 'coffee'] },
   { label: 'Shopping & Personal', keywords: ['dress', 'cloth', 'electronic', 'shopping', 'hair', 'gift'] },
-  { label: 'Health & Education', keywords: ['health', 'medical', 'education'] },
+  { label: 'Health', keywords: ['health', 'medical', 'education'] },
   { label: 'Family', keywords: ['family'] },
 ];
 
