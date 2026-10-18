@@ -98,11 +98,19 @@ export class ExpenseService {
         await this.repo.remove(expense);
     }
 
-    async getMonthlySummary(year: number, month: number) {
-        const monthStr = month.toString().padStart(2, '0');
-        const lastDay = new Date(year, month, 0).getDate();
-        const start = `${year}-${monthStr}-01`;
-        const end = `${year}-${monthStr}-${lastDay.toString().padStart(2, '0')}`;
+    // month = null summarises the whole year (the response then carries month 0).
+    async getMonthlySummary(year: number, month: number | null) {
+        let start: string;
+        let end: string;
+        if (month === null) {
+            start = `${year}-01-01`;
+            end = `${year}-12-31`;
+        } else {
+            const monthStr = month.toString().padStart(2, '0');
+            const lastDay = new Date(year, month, 0).getDate();
+            start = `${year}-${monthStr}-01`;
+            end = `${year}-${monthStr}-${lastDay.toString().padStart(2, '0')}`;
+        }
 
         const dbSummary = await this.repo
             .createQueryBuilder('expense')
@@ -141,7 +149,7 @@ export class ExpenseService {
 
         return {
             year,
-            month,
+            month: month ?? 0,
             total,
             cashbackTotal,
             count: Number(dbSummary?.count || 0),

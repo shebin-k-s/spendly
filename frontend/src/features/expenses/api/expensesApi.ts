@@ -21,9 +21,10 @@ export const expensesApi = {
     return data;
   },
 
-  async getMonthlySummary(year: number, month: number): Promise<MonthlySummary> {
+  // month = null asks for the whole year.
+  async getMonthlySummary(year: number, month: number | null): Promise<MonthlySummary> {
     const { data } = await apiClient.get<MonthlySummary>(`${URL}/summary`, {
-      params: { year, month },
+      params: month === null ? { year, period: 'year' } : { year, month },
     });
     return data;
   },

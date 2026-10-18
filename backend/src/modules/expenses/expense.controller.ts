@@ -64,7 +64,8 @@ export class ExpenseController {
     getMonthlySummary = async (req: Request, res: Response) => {
         const { year: istYear, month: istMonth } = getISTParts();
         const year = parseInt(req.query.year as string) || istYear;
-        const month = parseInt(req.query.month as string) || istMonth;
+        // ?period=year summarises the whole year; otherwise a single month, as before.
+        const month = req.query.period === 'year' ? null : parseInt(req.query.month as string) || istMonth;
         res.json(await service.getMonthlySummary(year, month));
     };
 

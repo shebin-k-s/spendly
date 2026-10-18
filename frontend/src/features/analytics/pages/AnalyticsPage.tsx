@@ -13,11 +13,13 @@ import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import MonthlyTrendChart from '../components/MonthlyTrendChart';
 import CategoryPieChart from '../components/CategoryPieChart';
 import MonthNavigator from '@/features/expenses/components/MonthNavigator';
+import YearNavigator from '@/features/expenses/components/YearNavigator';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { setDate } from '@/store/dateSlice';
+import { setDate, setView } from '@/store/dateSlice';
 
 export default function AnalyticsPage() {
-  const { year, month } = useAppSelector((state) => state.date);
+  const { year, month, view } = useAppSelector((state) => state.date);
+  const isYear = view === 'year';
   const showGross = useAppSelector((state) => state.prefs.showGross);
   const dispatch = useAppDispatch();
 
@@ -27,7 +29,7 @@ export default function AnalyticsPage() {
   const analyticsFreshness = useQueryFreshness(analyticsQuery);
   useRefetchOnFocus(analyticsQuery);
 
-  const summaryQuery = useMonthlySummary(year, month);
+  const summaryQuery = useMonthlySummary(year, isYear ? null : month);
   const { data: summary, isLoading: summaryLoading } = summaryQuery;
   const summaryFreshness = useQueryFreshness(summaryQuery);
   useRefetchOnFocus(summaryQuery);
@@ -102,6 +104,22 @@ export default function AnalyticsPage() {
             />
           </div>
         </div>
+        {/* Same Month / Year switch as the Expenses page — the choice is shared between the two. */}
+        <div className="inline-flex rounded-lg bg-secondary p-0.5 shrink-0" role="tablist" aria-label="Period">
+          {(['month', 'year'] as const).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => view !== v && dispatch(setView(v))}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                view === v ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+              }`}
+            >
+              {v === 'month' ? 'Month' : 'Year'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="page-content space-y-4">
@@ -114,8 +132,19 @@ export default function AnalyticsPage() {
         {/* Per-month deep dive */}
         <div className="bg-card border border-border rounded-2xl p-4">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Month Detail</p>
-            <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{isYear ? 'Year Detail' : 'Month Detail'}</p>
+            {isYear ? (
+              <YearNavigator
+                year={year}
+                onChange={(y) => {
+                  // Keep the month valid for when you switch back (no future months).
+                  const now = currentYearMonth();
+                  dispatch(setDate({ year: y, month: y === now.year ? Math.min(month, now.month) : month }));
+                }}
+              />
+            ) : (
+              <MonthNavigator year={year} month={month} onChange={(y, m) => { dispatch(setDate({ year: y, month: m })); }} />
+            )}
           </div>
 
           {summaryLoading ? (
@@ -148,13 +177,14 @@ export default function AnalyticsPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">No data for {monthLabel(year, month)}</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No data for {isYear ? year : monthLabel(year, month)}</p>
           )}
         </div>
 
         {/* AI summary — its own card, same as every other section here,
             instead of tacked onto the end of Month Detail's stat grid. */}
-        {summary && summary.count > 0 && (
+        {/* The AI read is written per month, so it isn't offered in the year view. */}
+        {!isYear && summary && summary.count > 0 && (
           <div className="bg-card border border-border rounded-2xl p-4">
             <div className="flex items-center gap-1.5 mb-3">
               <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />

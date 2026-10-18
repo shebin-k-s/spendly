@@ -54,7 +54,7 @@ export function showUndoToast(title: string, subtitle: string, onUndo: () => voi
       id,
       // The Toaster's global card styling would wrap this in a second card.
       unstyled: true,
-      duration: 6000,
+      duration: 4000,
       style: { background: 'transparent', border: 'none', padding: 0, boxShadow: 'none' },
       // Sonner only sizes styled toasts on wider screens — give it the same width.
       className: 'min-[600px]:w-[var(--width)]',

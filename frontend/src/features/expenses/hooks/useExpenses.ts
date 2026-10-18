@@ -28,9 +28,9 @@ export function useExpenseById(id: string, enabled = true) {
   });
 }
 
-export function useMonthlySummary(year: number, month: number) {
+export function useMonthlySummary(year: number, month: number | null) {
   return useQuery({
-    queryKey: [...SUMMARY_KEY, year, month],
+    queryKey: [...SUMMARY_KEY, year, month ?? 'year'],
     queryFn: () => expensesApi.getMonthlySummary(year, month),
     staleTime: 30_000,
   });
