@@ -157,11 +157,13 @@ export class ExpenseService {
             .getMany();
     }
 
-    async getByCategoryRange(categoryId: string, start: string, end: string) {
-        const expenses = await this.repo
+    // Accepts one category id, or several (a group's categories).
+    async getByCategoryRange(categoryIds: string | string[], start: string, end: string) {
+        const ids = Array.isArray(categoryIds) ? categoryIds : [categoryIds];
+        const expenses = ids.length === 0 ? [] : await this.repo
             .createQueryBuilder('expense')
             .leftJoinAndSelect('expense.category', 'category')
-            .where('category.id = :categoryId', { categoryId })
+            .where('category.id IN (:...ids)', { ids })
             .andWhere('expense.date >= :start AND expense.date <= :end', { start, end })
             .getMany();
 
@@ -196,6 +198,20 @@ export class ExpenseService {
             }))
             .sort((a, b) => (a.year !== b.year ? a.year - b.year : a.month - b.month));
 
+        // Per-category totals (net of cashback), biggest first — used by the group page.
+        const perCategory = new Map<string, { id: string; name: string; icon: string; color: string; total: number; count: number }>();
+        for (const expense of expenses) {
+            const c = expense.category;
+            if (!c) continue;
+            const row = perCategory.get(c.id) ?? { id: c.id, name: c.name, icon: c.icon, color: c.color, total: 0, count: 0 };
+            row.total += Number(expense.amount) - Number(expense.cashback || 0);
+            row.count += 1;
+            perCategory.set(c.id, row);
+        }
+        const breakdown = Array.from(perCategory.values())
+            .map((r) => ({ ...r, total: Math.round(r.total * 100) / 100 }))
+            .sort((a, b) => b.total - a.total);
+
         return {
             start,
             end,
@@ -203,6 +219,7 @@ export class ExpenseService {
             cashbackTotal: Math.round(cashbackTotal * 100) / 100,
             count: expenses.length,
             monthly,
+            breakdown,
             expenses,
         };
     }

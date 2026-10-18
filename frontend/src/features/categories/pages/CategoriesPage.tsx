@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { showUndoToast } from '@/components/UndoToast';
 import { Check, ChevronDown, FolderPlus, Move, Plus, Search, Store, Tag, Trash2, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCategoriesQuery, useSeedCategories, useUpdateCategory } from '../hooks/useCategories';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
@@ -21,37 +23,48 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { Category, CategoryGroup } from '../types';
 import EmptyState from '@/components/EmptyState';
 
-// Tap folds the group; long-press opens rename/delete (the catch-all group can't be edited).
-function GroupHeader({ label, count, open, locked, onToggle, onEdit }: {
+// Tap the title to open the group's page; long-press renames/deletes it (the catch-all group can't be edited);
+// the arrow folds or opens the group.
+function GroupHeader({ label, count, open, locked, onOpen, onToggle, onEdit }: {
   label: string;
   count: number;
   open: boolean;
   locked: boolean;
+  onOpen: () => void;
   onToggle: () => void;
   onEdit: () => void;
 }) {
-  const press = useLongPress({ onLongPress: () => { if (!locked) onEdit(); }, onClick: onToggle });
+  const press = useLongPress({ onLongPress: () => { if (!locked) onEdit(); }, onClick: onOpen });
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-expanded={open}
-      {...press}
-      onContextMenu={(e) => e.preventDefault()}
-      className="flex items-center justify-between p-4 cursor-pointer"
-    >
-      <h2 className="text-base font-bold truncate">{label}</h2>
-      <span className="flex items-center gap-2 shrink-0">
-        <span className="text-xs font-medium text-muted-foreground bg-secondary rounded-full px-2.5 py-1">{count}</span>
+    <div className="flex items-center">
+      <div
+        role="link"
+        tabIndex={0}
+        {...press}
+        onContextMenu={(e) => e.preventDefault()}
+        className="flex-1 min-w-0 flex items-center gap-2 py-4 pl-4 cursor-pointer"
+      >
+        <h2 className="text-base font-bold truncate">{label}</h2>
+        <span className="text-xs font-medium text-muted-foreground bg-secondary rounded-full px-2.5 py-1 shrink-0">{count}</span>
+      </div>
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={open ? `Fold ${label}` : `Open ${label}`}
+        className="p-4 shrink-0"
+      >
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? '' : '-rotate-90'}`} />
-      </span>
+      </button>
     </div>
   );
 }
 
+const CATEGORIES_KEY = ['categories'] as const;
 const COLLAPSED_KEY = 'spendly_collapsed_category_groups';
 
 export default function CategoriesPage() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const categoriesQuery = useCategoriesQuery();
   const { data: raw = [], isLoading } = categoriesQuery;
   const freshness = useQueryFreshness(categoriesQuery);
@@ -98,18 +111,27 @@ export default function CategoriesPage() {
   const groupAt = (x: number, y: number) =>
     document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-group-name]')?.dataset.groupName ?? null;
 
+  // Optimistic: the icon jumps to its new group at once; the save runs behind it and is rolled back if it fails.
+  const saveGroup = (cat: Category, group: string) => {
+    const previous = qc.getQueryData<Category[]>(CATEGORIES_KEY);
+    qc.setQueryData<Category[]>(CATEGORIES_KEY, (old) =>
+      old?.map((c) => (c.id === cat.id ? { ...c, groupName: group } : c)),
+    );
+    updateCategory.mutate(
+      { id: cat.id, name: cat.name, icon: cat.icon, color: cat.color, groupName: group },
+      {
+        onError: () => {
+          qc.setQueryData(CATEGORIES_KEY, previous);
+          toast.error('Could not move category');
+        },
+      },
+    );
+  };
+
   const moveCategory = (cat: Category, to: string) => {
     const from = groupOf(cat, groups);
-    const payload = { id: cat.id, name: cat.name, icon: cat.icon, color: cat.color };
-    updateCategory.mutate({ ...payload, groupName: to }, {
-      onSuccess: () => {
-        toast.success(`Moved "${cat.name}" to ${to}`, {
-          duration: 6000,
-          action: { label: 'Undo', onClick: () => updateCategory.mutate({ ...payload, groupName: from }) },
-        });
-      },
-      onError: () => toast.error('Could not move category'),
-    });
+    saveGroup(cat, to);
+    showUndoToast(`Moved "${cat.name}"`, `${from} → ${to}`, () => saveGroup(cat, from));
   };
 
   const dragHandlers = {
@@ -365,6 +387,7 @@ export default function CategoriesPage() {
                       count={items.length}
                       open={open}
                       locked={locked}
+                      onOpen={() => navigate(`/categories/group/${group.id}`)}
                       onToggle={() => toggleGroup(label)}
                       onEdit={() => setEditingGroup({ id: group.id, name: label })}
                     />

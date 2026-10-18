@@ -80,6 +80,7 @@ export default function App() {
               <Route path="expenses/:id/edit" element={<EditExpensePage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="categories/new" element={<AddCategoryPage />} />
+              <Route path="categories/group/:id" element={<CategoryDetailsPage />} />
               <Route path="categories/:id" element={<CategoryDetailsPage />} />
               <Route path="categories/:id/edit" element={<EditCategoryPage />} />
               <Route path="categories/shops" element={<MerchantRulesPage />} />

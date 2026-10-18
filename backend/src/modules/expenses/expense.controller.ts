@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
+import { CategoryGroupService } from '../category-groups/categoryGroup.service';
 import { MerchantRuleService } from '../merchants/merchant-rule.service';
 import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
@@ -15,6 +16,7 @@ const log = {
 
 const service = new ExpenseService();
 const categoryService = new CategoryService();
+const categoryGroupService = new CategoryGroupService();
 const aiService = new ExpenseAiService();
 const merchantRuleService = new MerchantRuleService();
 
@@ -787,8 +789,9 @@ export class ExpenseController {
 
     getByCategoryYear = async (req: Request, res: Response) => {
         const categoryId = req.query.categoryId as string | undefined;
-        if (!categoryId) {
-            res.status(400).json({ message: 'categoryId is required' });
+        const groupId = req.query.groupId as string | undefined;
+        if (!categoryId && !groupId) {
+            res.status(400).json({ message: 'categoryId or groupId is required' });
             return;
         }
 
@@ -806,9 +809,17 @@ export class ExpenseController {
             end = `${year}-12-31`;
         }
 
+        if (groupId) {
+            // A group page is the same report over all of its categories; the "category" is a stand-in for the group.
+            const { group, categories } = await categoryGroupService.getWithCategories(groupId);
+            const data = await service.getByCategoryRange(categories.map((c) => c.id), start, end);
+            res.json({ category: { id: group.id, name: group.name, icon: '🗂️', color: '#8b5cf6' }, ...data });
+            return;
+        }
+
         const [category, data] = await Promise.all([
-            categoryService.getById(categoryId),
-            service.getByCategoryRange(categoryId, start, end),
+            categoryService.getById(categoryId!),
+            service.getByCategoryRange(categoryId!, start, end),
         ]);
         res.json({ category, ...data });
     };

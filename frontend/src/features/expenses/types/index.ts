@@ -62,16 +62,29 @@ export interface CategoryMonthlyTotal {
   count: number;
 }
 
+export interface GroupBreakdownRow {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  total: number;
+  count: number;
+}
+
 export interface CategorySpend {
-  category: Category;
+  // For a group page this is a stand-in for the group (icon/color/name only).
+  category: Pick<Category, 'id' | 'name' | 'icon' | 'color'>;
   start: string;
   end: string;
   total: number;
   cashbackTotal: number;
   count: number;
   monthly: CategoryMonthlyTotal[];
+  breakdown: GroupBreakdownRow[];
   expenses: Expense[];
 }
+
+export type SpendKind = 'category' | 'group';
 
 export type CategorySpendRange = { year: number } | { start: string; end: string };
 

@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { monthLabel } from '@/lib/utils';
-import type { CreateExpensePayload, UpdateExpensePayload, CategorySpendRange, ResolveMissedPayload } from '../types';
+import type { CreateExpensePayload, UpdateExpensePayload, CategorySpendRange, SpendKind, ResolveMissedPayload } from '../types';
 
 const EXPENSES_KEY = ['expenses'] as const;
 const SUMMARY_KEY = ['expenses', 'summary'] as const;
@@ -60,16 +60,17 @@ export function useResolveMissed() {
   });
 }
 
-function categorySpendKey(categoryId: string, range: CategorySpendRange) {
+function categorySpendKey(id: string, range: CategorySpendRange, kind: SpendKind = 'category') {
   const rangeKey = 'year' in range ? ['year', range.year] : ['range', range.start, range.end];
-  return [...CATEGORY_SPEND_KEY, categoryId, ...rangeKey] as const;
+  // Category ids keep their old key shape; groups get a prefix so ids can never collide.
+  return [...CATEGORY_SPEND_KEY, ...(kind === 'group' ? ['group'] : []), id, ...rangeKey] as const;
 }
 
-export function useCategorySpend(categoryId: string, range: CategorySpendRange, enabled = true) {
+export function useCategorySpend(id: string, range: CategorySpendRange, enabled = true, kind: SpendKind = 'category') {
   return useQuery({
-    queryKey: categorySpendKey(categoryId, range),
-    queryFn: () => expensesApi.getCategorySpend(categoryId, range),
-    enabled: !!categoryId && enabled,
+    queryKey: categorySpendKey(id, range, kind),
+    queryFn: () => expensesApi.getCategorySpend(id, range, kind),
+    enabled: !!id && enabled,
     staleTime: 30_000,
     placeholderData: keepPreviousData,
   });
@@ -79,10 +80,10 @@ export function useCategorySpend(categoryId: string, range: CategorySpendRange, 
 // actually navigates to it (e.g. neighbouring years), so switching feels instant.
 export function usePrefetchCategorySpend() {
   const qc = useQueryClient();
-  return (categoryId: string, range: CategorySpendRange) => {
+  return (id: string, range: CategorySpendRange, kind: SpendKind = 'category') => {
     qc.prefetchQuery({
-      queryKey: categorySpendKey(categoryId, range),
-      queryFn: () => expensesApi.getCategorySpend(categoryId, range),
+      queryKey: categorySpendKey(id, range, kind),
+      queryFn: () => expensesApi.getCategorySpend(id, range, kind),
       staleTime: 30_000,
     });
   };

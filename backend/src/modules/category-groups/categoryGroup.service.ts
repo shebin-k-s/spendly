@@ -78,6 +78,16 @@ export class CategoryGroupService {
         return group;
     }
 
+    // The group plus the categories currently filed under it ("Other" also takes categories with no group).
+    async getWithCategories(id: string) {
+        const group = await this.getById(id);
+        const all = await this.categories.find();
+        const members = all.filter((c) =>
+            c.groupName ? c.groupName.toLowerCase() === group.name.toLowerCase() : group.name === FALLBACK_GROUP,
+        );
+        return { group, categories: members };
+    }
+
     async delete(id: string) {
         const group = await this.getById(id);
         if (group.name === FALLBACK_GROUP) throw new ApiError(`"${FALLBACK_GROUP}" cannot be deleted`, 400);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, startTransition } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Pencil, Tag } from 'lucide-react';
 import { format, parseISO, startOfMonth } from 'date-fns';
@@ -23,6 +23,9 @@ const YEAR_PICKER_SPAN = 20;
 export default function CategoryDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // The same report page serves a group (/categories/group/:id), covering all of its categories.
+  const isGroup = useLocation().pathname.startsWith('/categories/group/');
+  const kind = isGroup ? 'group' : 'category';
   const showGross = useAppSelector((state) => state.prefs.showGross);
   const { toggle: toggleCashback, verifying: verifyingCashback, prefetchChallenge } = useToggleCashback();
   const currentYear = new Date().getFullYear();
@@ -64,7 +67,7 @@ export default function CategoryDetailsPage() {
   const isRangeValid = rangeStart <= rangeEnd;
   const range: CategorySpendRange = mode === 'year' ? { year } : { start: rangeStart, end: rangeEnd };
 
-  const spendQuery = useCategorySpend(id!, range, mode === 'year' || isRangeValid);
+  const spendQuery = useCategorySpend(id!, range, mode === 'year' || isRangeValid, kind);
   const { data, isLoading } = spendQuery;
   const freshness = useQueryFreshness(spendQuery);
   useRefetchOnFocus(spendQuery);
@@ -74,10 +77,10 @@ export default function CategoryDetailsPage() {
   const prefetchCategorySpend = usePrefetchCategorySpend();
   useEffect(() => {
     if (mode !== 'year' || !id) return;
-    prefetchCategorySpend(id, { year: year - 1 });
-    if (year < currentYear) prefetchCategorySpend(id, { year: year + 1 });
+    prefetchCategorySpend(id, { year: year - 1 }, kind);
+    if (year < currentYear) prefetchCategorySpend(id, { year: year + 1 }, kind);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, year, id]);
+  }, [mode, year, id, kind]);
 
   const category = data?.category;
   const expenses = data?.expenses ?? [];
@@ -149,15 +152,17 @@ export default function CategoryDetailsPage() {
                 isFetching={freshness.isFetching}
               />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">Spending overview</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{isGroup ? 'Group overview' : 'Spending overview'}</p>
           </div>
         </div>
-        <button
-          onClick={() => navigate(`/categories/${id}/edit`, { state: { category } })}
-          className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity shrink-0"
-        >
-          <Pencil className="w-4 h-4" />
-        </button>
+        {!isGroup && (
+          <button
+            onClick={() => navigate(`/categories/${id}/edit`, { state: { category } })}
+            className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center active:opacity-60 transition-opacity shrink-0"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <div className="page-content space-y-5">
@@ -256,6 +261,43 @@ export default function CategoryDetailsPage() {
             <CashbackVisibilityIcon showGross={showGross} loading={verifyingCashback} />
           </div>
         </div>
+
+        {/* Categories inside this group */}
+        {isGroup && data.breakdown.length > 0 && (
+          <div className="bg-card border border-border rounded-2xl p-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Categories
+            </p>
+            <div className="space-y-3">
+              {data.breakdown.map((c) => {
+                const pct = data.breakdown[0].total > 0 ? (c.total / data.breakdown[0].total) * 100 : 0;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => navigate(`/categories/${c.id}`)}
+                    className="w-full flex items-center gap-3 text-left active:opacity-60 transition-opacity"
+                  >
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0 icon-badge"
+                      style={{ backgroundColor: c.color }}
+                    >
+                      {c.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate">{c.name}</span>
+                        <span className="text-sm font-semibold shrink-0">{formatINR(c.total)}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-secondary overflow-hidden mt-1.5">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c.color }} />
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Monthly breakdown */}
         {totalNet > 0 && (
