@@ -51,28 +51,26 @@ function DriveSection() {
       ) : !d.connected ? (
         <>
           <p className="text-xs text-muted-foreground">
-            Connect once and each backup goes to a <span className="font-semibold text-foreground">Spendly Backups</span> folder in your Drive. The app can only see files it makes itself.
+            Backups go to a <span className="font-semibold text-foreground">Spendly Backups</span> folder in your Drive.
           </p>
           <button onClick={() => connect.mutate()} disabled={busy} className="btn-primary">
             {connect.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening Google…</> : <><Cloud className="w-4 h-4" /> Connect Google Drive</>}
           </button>
-          <div className="rounded-xl bg-secondary/60 p-3 space-y-1.5">
-            <p className="text-[11px] text-muted-foreground">
-              If Google says <span className="font-semibold">redirect_uri_mismatch</span>, this exact address must be listed under <span className="font-semibold">Authorized redirect URIs</span> in your Google client:
-            </p>
-            <div className="flex items-start gap-2">
-              <code className="min-w-0 flex-1 break-all text-[11px] font-semibold">{d.redirectUri}</code>
+          <details className="text-[11px] text-muted-foreground">
+            <summary className="cursor-pointer select-none font-semibold">Google setup address</summary>
+            <div className="mt-2 flex items-start gap-2 rounded-xl bg-secondary/60 p-2.5">
+              <code className="min-w-0 flex-1 break-all font-semibold text-foreground">{d.redirectUri}</code>
               <button
                 type="button"
                 onClick={() => {
                   navigator.clipboard?.writeText(d.redirectUri).then(() => toast.success('Address copied'), () => toast.error("Couldn't copy — select it and copy by hand"));
                 }}
-                className="shrink-0 flex items-center gap-1 rounded-lg bg-secondary px-2 py-1 text-[11px] font-semibold active:scale-95"
+                className="shrink-0 flex items-center gap-1 rounded-lg bg-secondary px-2 py-1 font-semibold text-foreground active:scale-95"
               >
                 <Copy className="w-3 h-3" /> Copy
               </button>
             </div>
-          </div>
+          </details>
         </>
       ) : (
         <>
@@ -121,17 +119,9 @@ function DriveSection() {
             </button>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => connect.mutate()} disabled={busy} className="text-xs font-semibold text-primary disabled:opacity-50">
-              {connect.isPending ? 'Opening Google…' : 'Change Google account'}
-            </button>
-            <button type="button" onClick={() => setConfirmDisconnect(true)} disabled={busy} className="text-xs font-semibold text-destructive disabled:opacity-50">
-              Disconnect
-            </button>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Changing the account sends backups to a new Spendly Backups folder in that account from now on. Old backups stay where they are.
-          </p>
+          <button type="button" onClick={() => setConfirmDisconnect(true)} disabled={busy} className="text-xs font-semibold text-destructive disabled:opacity-50">
+            Disconnect
+          </button>
           <ConfirmModal
             open={confirmDisconnect}
             onOpenChange={setConfirmDisconnect}
@@ -219,24 +209,9 @@ export default function BackupPage() {
             <h2 className="text-sm font-bold">Download a copy</h2>
           </div>
           <p className="text-xs text-muted-foreground">
-            Saves the whole database — every table — as one file. Keep it somewhere private: it holds all your expenses and settings.
+            Saves everything as one file — keep it somewhere private.
+            {tables.length > 0 && <span className="text-foreground font-semibold"> {totalRows} rows in {tables.length} tables.</span>}
           </p>
-
-          <div className="rounded-xl bg-secondary/60 divide-y divide-border/60">
-            {summaryQuery.isLoading ? (
-              <div className="h-24 animate-pulse" />
-            ) : tables.length === 0 ? (
-              <p className="px-3 py-3 text-xs text-muted-foreground">Couldn't load what's in the database.</p>
-            ) : (
-              tables.map((t) => (
-                <div key={t.table} className="flex items-center justify-between px-3 py-2 text-xs">
-                  <span>{label(t.table)}</span>
-                  <span className="font-semibold tabular-nums">{t.rows}</span>
-                </div>
-              ))
-            )}
-          </div>
-          {tables.length > 0 && <p className="text-[11px] text-muted-foreground">{totalRows} rows in {tables.length} tables</p>}
 
           <button onClick={() => download.mutate()} disabled={busy} className="btn-primary">
             {download.isPending ? (
@@ -254,8 +229,7 @@ export default function BackupPage() {
             <h2 className="text-sm font-bold">Restore from a backup</h2>
           </div>
           <p className="text-xs text-muted-foreground">
-            Replaces <span className="font-semibold text-foreground">all current data</span> with the file's. The file is checked first and nothing changes unless it loads completely.
-            Download a backup of what you have now before restoring.
+            Replaces <span className="font-semibold text-foreground">all current data</span> with the file's. It's checked first, and nothing changes unless it loads fully.
           </p>
 
           <input
@@ -301,7 +275,7 @@ export default function BackupPage() {
                   <span className="text-right">Backup</span>
                   <span className="text-right">Now</span>
                 </div>
-                {checked.tables.map((t) => (
+                {checked.tables.filter((t) => t.backupRows > 0 || t.currentRows > 0).map((t) => (
                   <div key={t.table} className="grid grid-cols-[1fr_auto_auto] gap-x-4 border-t border-border/60 px-3 py-1.5">
                     <span>{label(t.table)}</span>
                     <span className="text-right font-semibold tabular-nums">{t.backupRows}</span>
