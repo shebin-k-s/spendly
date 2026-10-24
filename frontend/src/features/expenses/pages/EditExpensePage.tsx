@@ -31,21 +31,48 @@ function FieldLabel({ text, hint, edited }: { text: string; hint?: string; edite
   );
 }
 
-function EditedDiff({ from, to, onUndo }: { from: string; to: string; onUndo: () => void }) {
+function UndoButton({ onUndo }: { onUndo: () => void }) {
   return (
-    <div className="mt-1.5 flex items-center gap-2 text-xs">
-      <span className="min-w-0 flex-1 flex items-center gap-1.5">
-        <span className="truncate max-w-[42%] text-muted-foreground line-through decoration-muted-foreground/60">{from}</span>
-        <ArrowRight className="w-3 h-3 shrink-0 text-muted-foreground" />
-        <span className="truncate font-semibold text-edited">{to}</span>
-      </span>
-      <button
-        type="button"
-        onClick={onUndo}
-        className="shrink-0 flex items-center gap-1 rounded-lg bg-edited/10 px-2 py-1 font-semibold text-edited active:scale-95 transition-transform"
-      >
-        <RotateCcw className="w-3 h-3" /> Undo
-      </button>
+    <button
+      type="button"
+      onClick={onUndo}
+      className="shrink-0 flex items-center gap-1 rounded-lg bg-edited/10 px-2 py-1 text-xs font-semibold text-edited active:scale-95 transition-transform"
+    >
+      <RotateCcw className="w-3 h-3" /> Undo
+    </button>
+  );
+}
+
+// Short values (amounts, cashback) read best on one line; anything longer is
+// shown in full, wrapped, as Before / Now — never cut off with an ellipsis.
+const SHORT_VALUE = 14;
+
+function EditedDiff({ from, to, onUndo }: { from: string; to: string; onUndo: () => void }) {
+  if (from.length <= SHORT_VALUE && to.length <= SHORT_VALUE) {
+    return (
+      <div className="mt-1.5 flex items-center gap-2 text-xs">
+        <span className="min-w-0 flex-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+          <span className="break-words text-muted-foreground line-through decoration-muted-foreground/60">{from}</span>
+          <ArrowRight className="w-3 h-3 shrink-0 text-muted-foreground" />
+          <span className="break-words font-semibold text-edited">{to}</span>
+        </span>
+        <UndoButton onUndo={onUndo} />
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1.5 rounded-xl border border-edited/25 bg-edited/5 px-3 py-2 text-xs space-y-1.5">
+      <div className="flex gap-2">
+        <span className="w-11 shrink-0 pt-px text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Before</span>
+        <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-muted-foreground line-through decoration-muted-foreground/60">{from}</span>
+      </div>
+      <div className="flex gap-2">
+        <span className="w-11 shrink-0 pt-px text-[10px] font-semibold uppercase tracking-wide text-edited">Now</span>
+        <span className="min-w-0 flex-1 whitespace-pre-wrap break-words font-semibold text-edited">{to}</span>
+      </div>
+      <div className="flex justify-end">
+        <UndoButton onUndo={onUndo} />
+      </div>
     </div>
   );
 }
