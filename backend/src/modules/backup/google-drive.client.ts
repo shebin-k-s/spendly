@@ -16,7 +16,18 @@ const urls = () => ({
     api: process.env.GOOGLE_API_URL ?? 'https://www.googleapis.com',
 });
 
-export const redirectUri = () => `${(process.env.BACKEND_URL ?? '').replace(/\/$/, '')}/api/v1/backup-hooks/drive-callback`;
+// Only the site address (scheme + host) of BACKEND_URL is used, so a trailing slash or a pasted
+// full callback address can't produce a doubled path.
+const backendOrigin = () => {
+    const raw = (process.env.BACKEND_URL ?? '').trim();
+    try {
+        return new URL(raw).origin;
+    } catch {
+        return raw.replace(/\/+$/, '');
+    }
+};
+
+export const redirectUri = () => `${backendOrigin()}/api/v1/backup-hooks/drive-callback`;
 
 export function isConfigured(): boolean {
     return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.BACKEND_URL && (process.env.BACKUP_SECRET ?? '').length >= 16);
