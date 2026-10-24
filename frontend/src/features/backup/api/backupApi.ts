@@ -13,6 +13,7 @@ export interface RestoreResult {
 
 export interface DriveStatus {
   configured: boolean;
+  redirectUri: string;
   connected: boolean;
   accountEmail: string | null;
   folderUrl: string | null;

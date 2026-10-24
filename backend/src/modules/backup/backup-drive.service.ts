@@ -32,6 +32,8 @@ export async function driveStatus() {
     const s = await getSettings();
     return {
         configured: drive.isConfigured(),
+        // The exact address Google must list under "Authorized redirect URIs" — shown in the app so it can be copied.
+        redirectUri: drive.redirectUri(),
         connected: !!s.refreshTokenEnc,
         accountEmail: s.accountEmail,
         folderUrl: s.folderId ? `https://drive.google.com/drive/folders/${s.folderId}` : null,
