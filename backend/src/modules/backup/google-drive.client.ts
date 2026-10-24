@@ -46,7 +46,9 @@ export function buildAuthUrl(state: string): string {
         response_type: 'code',
         scope: SCOPE,
         access_type: 'offline',
-        prompt: 'consent', // Google only returns a refresh token when consent is shown
+        // consent: Google only returns a refresh token when consent is shown.
+        // select_account: always ask which Google account, so switching accounts is possible.
+        prompt: 'consent select_account',
         state,
     });
     return `${urls().auth}?${q}`;
@@ -91,7 +93,9 @@ export async function ensureFolder(accessToken: string, existingId: string | nul
     if (existingId) {
         const res = await fetch(`${urls().api}/drive/v3/files/${encodeURIComponent(existingId)}?fields=id,trashed`, { headers: auth(accessToken) });
         if (res.ok && !((await res.json()) as any).trashed) return existingId;
-        if (!res.ok && res.status !== 404) return failure(res, 'looking up the backup folder');
+        // 404/403: the folder is gone, or belongs to a different Google account than the one now connected —
+        // either way make a fresh one in this account instead of failing.
+        if (!res.ok && res.status !== 404 && res.status !== 403) return failure(res, 'looking up the backup folder');
     }
     const res = await fetch(`${urls().api}/drive/v3/files?fields=id`, {
         method: 'POST',
