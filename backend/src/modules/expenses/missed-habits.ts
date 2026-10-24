@@ -1,10 +1,23 @@
-// Weekday-aware habit detection for "possibly missed" suggestions.
+// "Possibly missed" detection, designed from the owner's real logging data.
 //
-// A habit is an ITEM (dosa, kattanchaya, egg…) — not a category at a clock time.
-// For each weekday we measure how often the item showed up over the last weeks;
-// when it usually shows up on that weekday and today it didn't, that's an
-// irregularity worth asking about. Pure functions, no DB access, so the same
-// code can be backtested against real data.
+// What the data showed (see git history for the analysis):
+//  - 41% of entries are logged a day or more after the day they belong to, almost
+//    all of them evening spending (groceries, petrol, snacks) — what gets
+//    "missed" is a PART OF THE DAY, not a particular item. Item-level habits
+//    recovered only ~8% of those late entries; time-slot habits recover ~70%.
+//  - Weekday-specific rates and recency decay both made it worse, so a plain
+//    56-day window over all days is used.
+//  - Which category/amount will turn up in a slot is only ~60% / ~33%
+//    predictable, so a flagged slot offers a few likely categories to pick from
+//    instead of pretending to know the exact item and price.
+//
+// Pure functions, no DB access, so the same code can be backtested.
+
+export type Slot = 'morning' | 'lunch' | 'tea' | 'evening';
+export const SLOTS: Slot[] = ['morning', 'lunch', 'tea', 'evening'];
+
+// Local clock-time bounds of each slot, in minutes since midnight.
+const SLOT_END_MINUTES: Record<Slot, number> = { morning: 12 * 60, lunch: 15 * 60 + 30, tea: 18 * 60, evening: 24 * 60 };
 
 export interface HabitExpense {
     date: string; // yyyy-MM-dd
@@ -16,36 +29,30 @@ export interface HabitExpense {
     categoryName: string | null;
 }
 
-export interface Habit {
-    item: string;
-    weekday: number; // 0 = Sunday
-    rate: number; // share of that weekday's days the item appeared, last LOOKBACK_DAYS
-    occurrences: number;
-    weekdayCount: number;
-    expectedMinutes: number;
-    expectedTime: string;
-    typicalDescription: string;
-    typicalAmount: number;
-    typicalNote: string | null;
+export interface Candidate {
     categoryId: string | null;
     categoryName: string | null;
-    lastSeen: string;
+    description: string;
+    note: string | null;
+    amount: number; // median
+    amountLow: number; // 25th percentile
+    amountHigh: number; // 75th percentile
+    days: number; // days in the window this category showed up in the slot
+    share: number; // days / window days, 0..1
 }
 
-export const LOOKBACK_DAYS = 56; // 8 weeks
-export const MIN_OCCURRENCES = 4;
-export const MIN_RATE = 0.6;
-export const RECENT_DAYS = 14; // an item not seen at all lately has stopped being a habit
-export const TODAY_GRACE_MINUTES = 90;
-// Anything logged close to the habit's usual time (vada under Snacks instead of
-// dosa under Food & Dining) is a swap, not a missed expense — whatever its
-// category, since the same meal gets filed under different ones.
-export const SUBSTITUTE_WINDOW_MINUTES = 60;
+export interface SlotHabit {
+    slot: Slot;
+    rate: number; // share of window days with at least one entry in this slot
+    presentDays: number;
+    windowDays: number;
+    candidates: Candidate[]; // most likely categories first
+}
 
-const STOPWORDS = new Set([
-    'and', 'from', 'the', 'for', 'with', 'item', 'items', 'rupees', 'rupee', 'rs', 'inr', 'each', 'at', 'of', 'to',
-    'in', 'on', 'my', 'some', 'extra', 'plus',
-]);
+export const LOOKBACK_DAYS = 56;
+export const MIN_PRESENT_DAYS = 4;
+export const MIN_RATE = 0.8;
+export const MAX_CANDIDATES = 3;
 
 export function dayOfWeek(date: string): number {
     return new Date(`${date}T12:00:00Z`).getUTCDay();
@@ -57,36 +64,18 @@ export function addDays(date: string, n: number): string {
     return d.toISOString().slice(0, 10);
 }
 
-function toMinutes(time: string | null): number | null {
+const isWeekend = (date: string) => [0, 6].includes(dayOfWeek(date));
+
+export function slotOf(time: string | null): Slot | null {
     if (!time) return null;
-    const [h, m] = time.split(':').map(Number);
-    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+    if (time < '08:00') return null; // night owl entries belong to no routine slot
+    if (time < '12:00') return 'morning';
+    if (time < '15:30') return 'lunch';
+    if (time < '18:00') return 'tea';
+    return 'evening';
 }
 
-function clock(minutes: number): string {
-    const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
-    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-}
-
-/** The distinct item words an expense mentions in its description or note. */
-export function itemsOf(e: Pick<HabitExpense, 'description' | 'note'>): string[] {
-    // "Egg from Ayaans" — the shop is where it was bought, not an item, and as a
-    // "habit" it would glue unrelated purchases from the same shop together.
-    const withoutShop = (text: string) => text.replace(/\bfrom\b[^,.]*/gi, ' ');
-    const words = `${withoutShop(e.description)} ${withoutShop(e.note ?? '')}`
-        .toLowerCase()
-        .replace(/[^a-z\s]/g, ' ')
-        .split(/\s+/)
-        .filter((w) => w.length >= 3 && !STOPWORDS.has(w))
-        .map((w) => (w.length > 4 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
-    return [...new Set(words)];
-}
-
-const median = (xs: number[]) => {
-    const s = [...xs].sort((a, b) => a - b);
-    const mid = Math.floor(s.length / 2);
-    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-};
+const quantile = (sorted: number[], q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 
 function mostCommon<T>(xs: T[]): T {
     const counts = new Map<T, number>();
@@ -95,102 +84,72 @@ function mostCommon<T>(xs: T[]): T {
 }
 
 /**
- * Learn habits as of `asOf` from the LOOKBACK_DAYS strictly before it.
- * Pass only expenses you want considered; anything on/after `asOf` is ignored.
+ * Learn which parts of the day normally have spending, as of `asOf`, from the
+ * LOOKBACK_DAYS strictly before it. Only slots that are filled on at least
+ * MIN_RATE of those days qualify as routine.
  */
-export function learnHabits(expenses: HabitExpense[], asOf: string): Habit[] {
+export function learnSlots(expenses: HabitExpense[], asOf: string, opts: { splitWeekend?: boolean } = {}): SlotHabit[] {
+    const splitWeekend = opts.splitWeekend ?? false;
     const start = addDays(asOf, -LOOKBACK_DAYS);
-    const window = expenses.filter((e) => e.date >= start && e.date < asOf);
+    // Optionally compare weekday vs weekday / weekend vs weekend. Off by default:
+    // on the owner's data it measured slightly worse (77% vs 80% precision) than
+    // treating all days alike, and seven separate weekdays measured worse still.
+    const sameKind = (date: string) => !splitWeekend || isWeekend(date) === isWeekend(asOf);
+    const window = expenses.filter((e) => e.date >= start && e.date < asOf && sameKind(e.date));
     if (window.length === 0) return [];
 
-    // Don't penalise weekdays from before tracking began.
+    // Don't count days from before tracking began.
     const firstTracked = window.reduce((min, e) => (e.date < min ? e.date : min), window[0].date);
-    const weekdayCount = new Array(7).fill(0);
-    for (let d = firstTracked; d < asOf; d = addDays(d, 1)) weekdayCount[dayOfWeek(d)]++;
+    let windowDays = 0;
+    for (let d = firstTracked; d < asOf; d = addDays(d, 1)) if (sameKind(d)) windowDays++;
+    if (windowDays < MIN_PRESENT_DAYS) return [];
 
-    // item → weekday → date → entries mentioning it
-    const index = new Map<string, Map<number, Map<string, HabitExpense[]>>>();
-    for (const e of window) {
-        const dow = dayOfWeek(e.date);
-        for (const item of itemsOf(e)) {
-            const byDow = index.get(item) ?? new Map();
-            const byDate = byDow.get(dow) ?? new Map();
-            byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
-            byDow.set(dow, byDate);
-            index.set(item, byDow);
+    const habits: SlotHabit[] = [];
+    for (const slot of SLOTS) {
+        const inSlot = window.filter((e) => slotOf(e.time) === slot);
+        const presentDays = new Set(inSlot.map((e) => e.date)).size;
+        const rate = presentDays / windowDays;
+        if (presentDays < MIN_PRESENT_DAYS || rate < MIN_RATE) continue;
+
+        const byCategory = new Map<string, HabitExpense[]>();
+        for (const e of inSlot) {
+            const key = e.categoryId ?? '-';
+            byCategory.set(key, [...(byCategory.get(key) ?? []), e]);
         }
+        const candidates: Candidate[] = [...byCategory.values()]
+            .map((entries) => {
+                const days = new Set(entries.map((e) => e.date)).size;
+                const typical = mostCommon(entries.map((e) => e.description.trim().toLowerCase()));
+                const same = entries.filter((e) => e.description.trim().toLowerCase() === typical);
+                const latest = same.reduce((a, b) => (b.date > a.date ? b : a));
+                const notes = same.map((e) => e.note).filter((n): n is string => !!n);
+                const amounts = entries.map((e) => e.amount).sort((a, b) => a - b);
+                return {
+                    categoryId: latest.categoryId,
+                    categoryName: latest.categoryName,
+                    description: latest.description,
+                    note: notes.length ? mostCommon(notes) : null,
+                    amount: quantile(amounts, 0.5),
+                    amountLow: quantile(amounts, 0.25),
+                    amountHigh: quantile(amounts, 0.75),
+                    days,
+                    share: Math.round((days / windowDays) * 100) / 100,
+                };
+            })
+            .sort((a, b) => b.days - a.days)
+            .slice(0, MAX_CANDIDATES);
+
+        habits.push({ slot, rate: Math.round(rate * 100) / 100, presentDays, windowDays, candidates });
     }
-
-    const recentCutoff = addDays(asOf, -RECENT_DAYS);
-    const habits: Habit[] = [];
-    for (const [item, byDow] of index) {
-        const allDates = [...byDow.values()].flatMap((m) => [...m.keys()]);
-        const lastSeen = allDates.reduce((max, d) => (d > max ? d : max), allDates[0]);
-        if (lastSeen < recentCutoff) continue;
-
-        for (const [weekday, byDate] of byDow) {
-            const occurrences = byDate.size;
-            const total = weekdayCount[weekday];
-            const rate = total > 0 ? occurrences / total : 0;
-            if (occurrences < MIN_OCCURRENCES || rate < MIN_RATE) continue;
-
-            const entries = [...byDate.values()].flat();
-            const minutes = entries.map((e) => toMinutes(e.time)).filter((m): m is number => m !== null);
-            const typicalKey = mostCommon(entries.map((e) => e.description.trim().toLowerCase()));
-            const sameKind = entries.filter((e) => e.description.trim().toLowerCase() === typicalKey);
-            const latest = sameKind.reduce((a, b) => (b.date > a.date ? b : a));
-            const notes = sameKind.map((e) => e.note).filter((n): n is string => !!n);
-
-            habits.push({
-                item,
-                weekday,
-                rate: Math.round(rate * 100) / 100,
-                occurrences,
-                weekdayCount: total,
-                expectedMinutes: minutes.length ? median(minutes) : 12 * 60,
-                expectedTime: clock(minutes.length ? median(minutes) : 12 * 60),
-                typicalDescription: latest.description,
-                typicalAmount: mostCommon(sameKind.map((e) => e.amount)),
-                typicalNote: notes.length ? mostCommon(notes) : null,
-                categoryId: latest.categoryId,
-                categoryName: latest.categoryName,
-                lastSeen,
-            });
-        }
-    }
-
-    // Two item words from the same entry ("Dosa and Kattanchaya") would suggest
-    // the same card twice — keep the stronger habit per weekday + typical entry.
-    const best = new Map<string, Habit>();
-    for (const h of habits) {
-        const key = `${h.weekday}|${h.typicalDescription.trim().toLowerCase()}`;
-        const cur = best.get(key);
-        if (!cur || h.rate > cur.rate || (h.rate === cur.rate && h.item < cur.item)) best.set(key, h);
-    }
-    return [...best.values()].sort((a, b) => a.weekday - b.weekday || a.expectedMinutes - b.expectedMinutes);
-}
-
-/** Habits that normally happen on this date's weekday. */
-export function expectedOn(habits: Habit[], date: string): Habit[] {
-    const dow = dayOfWeek(date);
-    return habits.filter((h) => h.weekday === dow);
+    return habits;
 }
 
 /**
- * The irregularities for one date: habits expected that day with no matching
- * entry (any category, any time). For today, only once the habit's usual time
- * plus a grace period has passed — before that it is simply "not yet".
+ * The slots that are routine but have nothing logged on `date`. For today a slot
+ * only counts once it is over (nowMinutes ≥ its end); before that it is "not yet".
+ * Pass nowMinutes = null for a past day.
  */
-export function gapsOn(habits: Habit[], dayExpenses: HabitExpense[], date: string, nowMinutes: number | null): Habit[] {
-    const present = new Set(dayExpenses.flatMap((e) => itemsOf(e)));
-    return expectedOn(habits, date).filter((h) => {
-        if (present.has(h.item)) return false;
-        const swapped = dayExpenses.some((e) => {
-            const m = toMinutes(e.time);
-            return m !== null && Math.abs(m - h.expectedMinutes) <= SUBSTITUTE_WINDOW_MINUTES;
-        });
-        if (swapped) return false;
-        if (nowMinutes !== null && nowMinutes < h.expectedMinutes + TODAY_GRACE_MINUTES) return false;
-        return true;
-    });
+export function gapsOn(habits: SlotHabit[], dayExpenses: HabitExpense[], nowMinutes: number | null): SlotHabit[] {
+    const filled = new Set(dayExpenses.map((e) => slotOf(e.time)));
+    return habits.filter((h) => !filled.has(h.slot) && (nowMinutes === null || nowMinutes >= SLOT_END_MINUTES[h.slot]));
 }
