@@ -585,13 +585,13 @@ How the speaker separates transactions:
 
 Writing each line:
 - Keep the speaker's own words for the items and the shop. Do not translate, summarise, add or invent anything.
-- Write numbers as digits: "fifty" → 50, "one fifty" → 150, "two hundred rupees" → 200, "1.5k" → 1500. KEEP the currency word the speaker said, written as "rs" directly after the number: "fifty rupees" / "50 rs" / "rs 50" → 50rs, "one fifty rs" → 150rs. If the speaker said no currency word, write only the number. Never write ₹ or "Rs." or "rupees".
+- Write numbers as digits: "fifty" → 50, "one fifty" → 150, "1.5k" → 1500. EVERY AMOUNT IS IN RUPEES, so ALWAYS write each amount as the number followed directly by "rs" — even when the speaker did not say rs or rupees at all ("auto 30" → "auto 30rs", "tea twenty" → "tea 20rs"). Quantities and times are NOT amounts and stay plain ("2 idli", "10pm"). For instance — "fifty rupees" → 50rs, "50 rs" → 50rs, "rs 50" → 50rs, "one fifty rs" → 150rs, "two hundred rupees" → 200rs, "1.5k rs" → 1500rs. Never write ₹, "Rs." or "rupees". If the speaker said no currency word, write only the number. Never write ₹ or "Rs." or "rupees".
 - Drop filler such as "uh", "um", "okay", "so".
 - If a part is unclear, leave it out rather than guessing.
 
-Example 1: the speaker says "fifty rupees ayaans tea and veggies, next item, tea twenty, next, auto one fifty rs" and you write exactly:
+Example 1: the speaker says "fifty rupees ayaans tea and veggies, next item, tea twenty rupees, next, auto one fifty rs" and you write exactly:
 50rs ayaans tea and veggies
-tea 20
+tea 20rs
 auto 150rs
 
 Example 2: the speaker says "150 rs for ayaan yesterday 10 pm items soap chapati" (no marker anywhere) and you write exactly ONE line:
@@ -599,13 +599,13 @@ Example 2: the speaker says "150 rs for ayaan yesterday 10 pm items soap chapati
 
 Example 3a: the speaker says "tea 20 rs yesterday 10pm and auto 30 today" and you write exactly TWO lines (the dates come last, each belongs to the amount before it):
 tea 20rs yesterday 10pm
-auto 30 today
+auto 30rs today
 
-Example 3b: the speaker says "at 3pm today lunch 180 next item tea 20 yesterday" and you write exactly TWO lines:
-at 3pm today lunch 180
-tea 20 yesterday
+Example 3b: the speaker says "at 3pm today lunch 180 rupees next item tea 20 rs yesterday" and you write exactly TWO lines:
+at 3pm today lunch 180rs
+tea 20rs yesterday
 
-Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 45rs dosa and idli" and you write exactly TWO lines (a different day starts a new transaction; the first has no amount, which is fine):
+Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 45 dosa and idli" and you write exactly TWO lines (a different day starts a new transaction; the first has no amount, which is fine; the second gets rs even though the speaker did not say it):
 yesterday night 10pm ayaans item chapath
 today 45rs dosa and idli
 
