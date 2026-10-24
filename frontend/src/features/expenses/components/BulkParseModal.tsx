@@ -60,6 +60,8 @@ interface Props {
   title?: string;
   subtitle?: string;
   headerIcon?: React.ReactNode;
+  // Small status element shown next to the title (e.g. the data-freshness dot).
+  headerBadge?: React.ReactNode;
   // An extra pill button rendered above the item list (alongside/instead of
   // "Re-parse", which never makes sense for a seeded session with no source
   // text to re-parse).
@@ -209,7 +211,7 @@ function scrollCaretIntoView(textarea: HTMLTextAreaElement) {
   textarea.scrollIntoView({ block: 'nearest' });
 }
 
-export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, topAction, onRemoveItem, onItemSaved, draftKey }: Props) {
+export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title, subtitle, headerIcon, headerBadge, topAction, onRemoveItem, onItemSaved, draftKey }: Props) {
   // Fixed for this instance's whole lifetime — whether initialItems was
   // passed on the mount that created this component. The caller remounts
   // (rather than this changing) whenever it wants a fresh seed.
@@ -738,7 +740,10 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
             {headerIcon ?? <Sparkles className="w-4 h-4 text-primary" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold">{title ?? 'Bulk Add Expenses'}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold">{title ?? 'Bulk Add Expenses'}</p>
+              {headerBadge}
+            </div>
             <p className="text-[10px] text-muted-foreground">{subtitle ?? 'Type all at once — AI splits them for you'}</p>
           </div>
           {!isSeededRef.current && status !== 'done' && (

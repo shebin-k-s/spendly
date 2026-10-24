@@ -4,6 +4,8 @@ import { format, subDays } from 'date-fns';
 import { toast } from 'sonner';
 import { useMissedExpenses, useResolveMissed } from '../hooks/useExpenses';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { BulkParseModal, type ParsedItem } from './BulkParseModal';
 import { readLegacyMissedState, clearLegacyMissedState } from '../utils/legacyMissedStorage';
@@ -63,6 +65,7 @@ export default function MissedExpensesButton() {
   const missedQuery = useMissedExpenses();
   const { data } = missedQuery;
   useRefetchOnFocus(missedQuery);
+  const freshness = useQueryFreshness(missedQuery);
   const resolveMissed = useResolveMissed();
   const [open, setOpen] = useState(false);
   // Discards and "mark everything covered" are stored server-side, so every
@@ -164,6 +167,7 @@ export default function MissedExpensesButton() {
           title="Possibly missed"
           subtitle="Based on your usual habits — review, edit, or remove"
           headerIcon={<AlertCircle className="w-4 h-4 text-primary" />}
+          headerBadge={<DataFreshnessIndicator status={freshness.status} isFetching={freshness.isFetching} />}
           topAction={{
             label: 'Mark everything covered up to now',
             icon: <CheckCheck className="w-3.5 h-3.5" />,
