@@ -13,6 +13,7 @@ router.get('/summary', controller.getMonthlySummary);
 router.get('/analytics', controller.getAnalytics);
 router.get('/analyze', controller.analyzeMonth);
 router.get('/missed', controller.getMissedExpenses);
+router.get('/habits', controller.getHabits);
 router.post('/missed/resolve', validate(resolveMissedSchema), controller.resolveMissedExpenses);
 router.get('/by-category', controller.getByCategoryYear);
 router.post('/parse-text', validate(parseTextSchema), controller.parseText);

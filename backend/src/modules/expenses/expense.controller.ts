@@ -6,6 +6,7 @@ import { CategoryGroupService } from '../category-groups/categoryGroup.service';
 import { MerchantRuleService } from '../merchants/merchant-rule.service';
 import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
+import { learnHabits, gapsOn, expectedOn, addDays, dayOfWeek, LOOKBACK_DAYS, type HabitExpense } from './missed-habits';
 
 const log = {
     info: (msg: string, meta?: Record<string, unknown>) =>
@@ -791,6 +792,38 @@ export class ExpenseController {
 
     // Discarding a suggestion, saving it under another category, or "mark
     // everything covered" — stored server-side so every device agrees.
+    // Preview of the weekday-aware habit logic (see missed-habits.ts): the habits
+    // learned from the last 8 weeks, the irregularities (usual item not logged)
+    // over the last 7 days, and what is expected over the next 7. Read-only —
+    // the live /missed list does not use it yet.
+    getHabits = async (_req: Request, res: Response) => {
+        const { dateString: today, hour, minute } = getISTParts();
+        const rows = await service.getByDateRange(addDays(today, -LOOKBACK_DAYS), today);
+        const expenses: HabitExpense[] = rows.map((e) => ({
+            date: e.date,
+            time: e.time,
+            amount: Number(e.amount),
+            description: e.description,
+            note: e.note ?? null,
+            categoryId: e.category?.id ?? null,
+            categoryName: e.category?.name ?? null,
+        }));
+        const habits = learnHabits(expenses, today);
+
+        const gaps = [];
+        for (let i = 7; i >= 0; i--) {
+            const date = addDays(today, -i);
+            const missing = gapsOn(habits, expenses.filter((e) => e.date === date), date, i === 0 ? hour * 60 + minute : null);
+            for (const h of missing) gaps.push({ date, weekday: dayOfWeek(date), ...h });
+        }
+        const forecast = [];
+        for (let i = 1; i <= 7; i++) {
+            const date = addDays(today, i);
+            forecast.push({ date, weekday: dayOfWeek(date), expected: expectedOn(habits, date) });
+        }
+        res.json({ asOf: today, habits, gaps, forecast });
+    };
+
     resolveMissedExpenses = async (req: Request, res: Response) => {
         const { items, cursorDate } = req.body as { items: { date: string; categoryId: string; slotKey: string }[]; cursorDate?: string };
         res.json(await service.resolveMissed(items, cursorDate));
