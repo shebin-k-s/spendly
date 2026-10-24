@@ -15,9 +15,23 @@ import type { MissedExpenseSuggestion, ResolveMissedPayload } from '../types';
 // BulkParseModal's card has no field of its own for "why was this
 // suggested" — pre-filling the note covers that context instead of leaving
 // it blank, and doubles as a visible reason to look at the (otherwise
-// easy-to-miss) note box at all. Prefer the real note from past occasions
-// (the actual itemized breakdown, e.g. "Tea ₹20, Biscuit ₹10.") when this
-// habit has one; only fall back to the frequency explanation when it doesn't.
+// easy-to-miss) note box at all. An exact item keeps the real note from past
+// occasions (the actual itemized breakdown, e.g. "Tea ₹20, Biscuit ₹10.")
+// when it has one; otherwise the note says how likely it is and what else
+// usually goes in that slot, so the right alternative is one edit away.
+function describeAlternates(s: MissedExpenseSuggestion): string {
+  return (s.alternates ?? []).map((a) => `${a.description} ₹${a.amount}`).join(', ');
+}
+
+function suggestionNote(s: MissedExpenseSuggestion): string {
+  const alternates = describeAlternates(s);
+  if (s.kind === 'pick') {
+    return `This slot varies — ${s.frequencyPct}% of days like this have something here.${alternates ? ` Other likely: ${alternates}.` : ''}`;
+  }
+  const base = s.typicalNote ?? `Logged on ${s.frequencyPct}% of days like this.`;
+  return alternates ? `${base} Other times: ${alternates}.` : base;
+}
+
 function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
   return {
     amount: String(s.typicalAmount),
@@ -26,7 +40,7 @@ function toParsedItem(s: MissedExpenseSuggestion): ParsedItem {
     time: s.suggestedTime,
     category_id: s.categoryId,
     category_name: s.categoryName,
-    note: s.typicalNote ?? `You usually do this ${s.frequencyPct}% of tracked days.`,
+    note: suggestionNote(s),
     cashback: null,
     suggested_flow: 'expense',
     transfer_person: null,

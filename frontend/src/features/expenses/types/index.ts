@@ -130,7 +130,12 @@ export interface MissedExpenseSuggestion {
   typicalDescription: string;
   typicalNote: string | null;
   suggestedTime: string;
+  // How likely this is on a day like this — for an exact item, that item; for a pick list, the habit itself.
   frequencyPct: number;
+  // 'exact': one specific item reliably shows up. 'pick': the meal varies, so typicalDescription is only the
+  // most likely one and alternates are the other likely ones.
+  kind?: 'exact' | 'pick';
+  alternates?: { description: string; amount: number }[];
 }
 
 export interface MissedExpensesResult {

@@ -6,7 +6,7 @@ import { CategoryGroupService } from '../category-groups/categoryGroup.service';
 import { MerchantRuleService } from '../merchants/merchant-rule.service';
 import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
-import { learnSlots, gapsOn, addDays, dayOfWeek, LOOKBACK_DAYS, type HabitExpense } from './missed-habits';
+import { learnHabits, suggestionsOn, addDays, dayOfWeek, LOOKBACK_DAYS, type HabitExpense } from './missed-habits';
 
 const log = {
     info: (msg: string, meta?: Record<string, unknown>) =>
@@ -483,46 +483,6 @@ export class ExpenseController {
         res.json({ points: generated, cached: false, generatedAt, spikeDays: spikeDayLinks, unusualExpenses: unusualExpenseLinks, categories: categoryLinks });
     };
 
-    private parseTimeToMinutes = (time: string): number => {
-        const [hStr, mStr] = time.split(':');
-        let hour = parseInt(hStr, 10);
-        const minute = parseInt(mStr, 10);
-        if (hour < 5) hour += 24; // keep late-night times attached to the day before, not split at midnight
-        return hour * 60 + minute;
-    };
-
-    private minutesToClockTime = (minutes: number): string => {
-        const wrapped = ((Math.round(minutes) % 1440) + 1440) % 1440;
-        return `${Math.floor(wrapped / 60).toString().padStart(2, '0')}:${(wrapped % 60).toString().padStart(2, '0')}`;
-    };
-
-    // Splits one category's historical times into separate real habits by
-    // where the actual GAPS are in the data, instead of forcing everything
-    // into fixed morning/afternoon/evening/night boxes. A tea at 9:00,
-    // 10:00, and 10:30 lands in ONE cluster (small gaps between them) with
-    // an averaged expected time around 9:50; a category that's genuinely
-    // used at two unrelated times of day still splits into two separate
-    // habits, because the gap between those times is much bigger than the
-    // gaps within each one. 90 minutes (not more) so breakfast (~10am) and
-    // lunch (~1pm) — both "Food & Dining" but really two different meals —
-    // split into distinct habits instead of blending into one smeared-out
-    // average that's accurate for neither.
-    private readonly CLUSTER_GAP_MINUTES = 90;
-    private clusterByTime = <T extends { minutes: number }>(entries: T[]): T[][] => {
-        const sorted = [...entries].sort((a, b) => a.minutes - b.minutes);
-        const clusters: T[][] = [];
-        let current: T[] = [];
-        for (const e of sorted) {
-            if (current.length > 0 && e.minutes - current[current.length - 1].minutes > this.CLUSTER_GAP_MINUTES) {
-                clusters.push(current);
-                current = [];
-            }
-            current.push(e);
-        }
-        if (current.length > 0) clusters.push(current);
-        return clusters;
-    };
-
     // "Today", "Yesterday", or a weekday+ordinal for anything older — same
     // shape as the AI analysis's spike-day labels.
     private dayLabelFor = (date: string, today: string, yesterday: string) => {
@@ -534,12 +494,23 @@ export class ExpenseController {
         return `${weekdayName}, the ${dayNum}${ordinalSuffix(dayNum)}`;
     };
 
-    // "You usually spend in this category around a certain time, most days
-    // — and that time has already passed with nothing logged" — a
-    // frequency + timing check per category, no AI involved. The "certain
-    // time" is learned from real data via clusterByTime above, not a fixed
-    // box, so ordinary variance (tea at 9, 10, or 10:30) still reads as ONE
-    // habit with a sensible average time.
+    private toHabitExpenses = (rows: Awaited<ReturnType<ExpenseService['getByDateRange']>>): HabitExpense[] =>
+        rows.map((e) => ({
+            date: e.date,
+            time: e.time,
+            amount: Number(e.amount),
+            description: e.description,
+            note: e.note ?? null,
+            categoryId: e.category?.id ?? null,
+            categoryName: e.category?.name ?? null,
+            categoryIcon: e.category?.icon ?? null,
+        }));
+
+    // "You usually log this around now, on days like this — and nothing covers
+    // it yet." The habits are learned fresh from the recent entries on every
+    // request (see missed-habits.ts for how: per category + time of day, per
+    // weekday, down to the exact item when one reliably shows up), so the list
+    // follows the user's routine as it changes — nothing is configured or stored.
     //
     // The client holds a "caught up through" cursor — a plain date, passed
     // as ?sinceDate — and only dates strictly AFTER it are ever returned.
@@ -575,250 +546,66 @@ export class ExpenseController {
             ? sinceDateParam!
             : earliestAllowed;
 
-        // Training window: the 60 days strictly BEFORE `since` — never the
-        // days being checked, so backfilling a long gap never erodes the
-        // pattern it's being checked against.
-        const TRAINING_DAYS = 60;
-        const trainingEnd = new Date(`${since}T00:00:00Z`);
-        trainingEnd.setUTCDate(trainingEnd.getUTCDate() - 1);
-        const trainingEndStr = trainingEnd.toISOString().slice(0, 10);
-        const trainingStart = new Date(`${trainingEndStr}T00:00:00Z`);
-        trainingStart.setUTCDate(trainingStart.getUTCDate() - TRAINING_DAYS);
-        const trainingStartStr = trainingStart.toISOString().slice(0, 10);
-
-        const [trainingExpenses, checkRangeExpenses] = trainingEndStr >= trainingStartStr
-            ? await Promise.all([
-                service.getByDateRange(trainingStartStr, trainingEndStr),
-                service.getByDateRange(since, today),
-            ])
-            : [[], await service.getByDateRange(since, today)];
-
-        if (trainingExpenses.length === 0) {
-            res.json({
-                items: [], since,
-                ...(debug ? { _debug: { today, currentHour, currentMinute, since, trainingStartStr, trainingEndStr, trainingExpensesCount: 0, checkRangeExpensesCount: checkRangeExpenses.length, reason: 'no expenses at all in the training window' } } : {}),
-            });
+        const expenses = this.toHabitExpenses(await service.getByDateRange(addDays(since, -LOOKBACK_DAYS), today));
+        if (expenses.length === 0) {
+            res.json({ items: [], since });
             return;
         }
 
-        // Bound the "how many days should this have happened" denominator by
-        // when tracking in this window actually started — a user who only
-        // started logging 10 days ago shouldn't have their morning-tea
-        // frequency diluted by 20 days of no data at all.
-        const earliestTrainingDate = trainingExpenses.reduce((min, e) => (e.date < min ? e.date : min), trainingExpenses[0].date);
-        const totalTrainingDays = Math.round(
-            (new Date(`${trainingEndStr}T00:00:00Z`).getTime() - new Date(`${earliestTrainingDate}T00:00:00Z`).getTime()) / 86_400_000,
-        ) + 1;
-
-        // Group by category only — the time-of-day split happens per
-        // category via clusterByTime below, driven by the real gaps in
-        // that category's own data.
-        type TimedEntry = { date: string; minutes: number; amount: number; description: string; note: string | null };
-        const byCategory = new Map<string, { categoryName: string; categoryIcon: string; entries: TimedEntry[] }>();
-        for (const e of trainingExpenses) {
-            if (!e.time || !e.category) continue;
-            const cat = byCategory.get(e.category.id) ?? { categoryName: e.category.name, categoryIcon: e.category.icon, entries: [] };
-            cat.entries.push({ date: e.date, minutes: this.parseTimeToMinutes(e.time), amount: Number(e.amount), description: e.description, note: e.note ?? null });
-            byCategory.set(e.category.id, cat);
-        }
-
-        const MIN_OCCURRENCES = 5;
-        const MIN_FREQUENCY = 0.33; // present at least a third of the tracked days
-        const MIN_WINDOW_DAYS = 10; // need enough history to trust the pattern
-        // High enough that it only ever bites as a genuine safety net, not
-        // as a de-facto second cap on the backfill window — 14 days of
-        // backfill x even a generous number of real habits per day stays
-        // well under this. Was 20, which silently truncated the oldest-first
-        // list before it ever reached today once the backlog + qualifying
-        // habit count grew past it — today's own entries were getting cut
-        // off the end without any indication anything was hidden.
         const MAX_SUGGESTIONS = 100;
-        const GRACE_MIN_MINUTES = 45; // even a razor-tight habit gets at least this much buffer
-        const GRACE_MAX_MINUTES = 180; // even a loose one is capped so it isn't nagging half the day
+        const dismissedKeys = await service.getMissedDismissalKeys(since);
+        const nowMinutes = currentHour * 60 + currentMinute;
 
-        type Habit = {
-            categoryId: string; categoryName: string; categoryIcon: string;
-            expectedMinutes: number; expectedTime: string; slotKey: string;
-            graceMinutes: number; typicalAmount: number; typicalDescription: string;
-            typicalNote: string | null; frequencyPct: number;
-        };
-        const habits: Habit[] = [];
-        // Every category+time-cluster found in the training data, with its
-        // raw numbers and whether it actually cleared the habit thresholds —
-        // the point of ?debug=true: seeing why something that feels like a
-        // habit isn't showing (too few occurrences, too low a frequency, or
-        // not enough tracked days yet to trust it at all).
-        const groupDebug: { categoryName: string; expectedTime: string; occurrences: number; frequencyPct: number; spreadMinutes: number; qualifies: boolean }[] = [];
-
-        for (const [categoryId, cat] of byCategory) {
-            for (const cluster of this.clusterByTime(cat.entries)) {
-                const dates = new Set(cluster.map(c => c.date));
-                const occurrences = dates.size;
-                const frequency = totalTrainingDays > 0 ? occurrences / totalTrainingDays : 0;
-                const avgMinutes = cluster.reduce((s, c) => s + c.minutes, 0) / cluster.length;
-                const variance = cluster.reduce((s, c) => s + (c.minutes - avgMinutes) ** 2, 0) / cluster.length;
-                const spreadMinutes = Math.round(Math.sqrt(variance));
-                const qualifies = totalTrainingDays >= MIN_WINDOW_DAYS && occurrences >= MIN_OCCURRENCES && frequency >= MIN_FREQUENCY;
-
-                groupDebug.push({
-                    categoryName: cat.categoryName,
-                    expectedTime: this.minutesToClockTime(avgMinutes),
-                    occurrences,
-                    frequencyPct: Math.round(frequency * 100),
-                    spreadMinutes,
-                    qualifies,
-                });
-                if (!qualifies) continue;
-
-                const descCounts = new Map<string, number>();
-                for (const c of cluster) descCounts.set(c.description, (descCounts.get(c.description) ?? 0) + 1);
-                const typicalDescription = [...descCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-                // The single most common EXACT amount among occasions that
-                // match the typical description — not an average. A routine
-                // purchase tends to cost one of a few real recurring prices
-                // (₹36 on its own, ₹46 with something else added), never
-                // literally the mean of them; averaging ₹36 and ₹46 gives
-                // ₹41, a number that never actually happened and is
-                // guaranteed to be wrong every single time. The mode is at
-                // least a real amount that's genuinely happened before.
-                const amountCounts = new Map<number, number>();
-                for (const c of cluster) {
-                    if (c.description !== typicalDescription) continue;
-                    amountCounts.set(c.amount, (amountCounts.get(c.amount) ?? 0) + 1);
-                }
-                const typicalAmount = [...amountCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-                // Same idea as the amount above, but for the note — the real
-                // itemized breakdown from past occasions ("Tea ₹20, Biscuit
-                // ₹10.") beats a made-up explanation of why this was
-                // suggested. Only among occasions that actually had one;
-                // null (not a blank string) when this habit never got a note,
-                // so the caller can fall back to something else.
-                const noteCounts = new Map<string, number>();
-                for (const c of cluster) {
-                    if (c.description !== typicalDescription || !c.note) continue;
-                    noteCounts.set(c.note, (noteCounts.get(c.note) ?? 0) + 1);
-                }
-                const typicalNote = noteCounts.size > 0
-                    ? [...noteCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
-                    : null;
-                // Tighter historical spread → tighter grace before flagging;
-                // looser spread → more slack, within the min/max above.
-                const graceMinutes = Math.min(GRACE_MAX_MINUTES, Math.max(GRACE_MIN_MINUTES, Math.round(spreadMinutes * 1.5)));
-
-                habits.push({
-                    categoryId,
-                    categoryName: cat.categoryName,
-                    categoryIcon: cat.categoryIcon,
-                    expectedMinutes: avgMinutes,
-                    expectedTime: this.minutesToClockTime(avgMinutes),
-                    // Rounded to the nearest half hour so this stays a stable
-                    // identity across requests (for the frontend's dismiss
-                    // ledger) even as the precise average drifts slightly
-                    // with new data — the display time above stays exact.
-                    slotKey: this.minutesToClockTime(Math.round(avgMinutes / 30) * 30),
-                    graceMinutes,
-                    typicalAmount,
-                    typicalDescription,
-                    typicalNote,
-                    frequencyPct: Math.round(frequency * 100),
+        const items = [];
+        for (let date = since; date <= today; date = addDays(date, 1)) {
+            // Each day is judged by what the routine looked like BEFORE it.
+            const habits = learnHabits(expenses, date);
+            const dayExpenses = expenses.filter((e) => e.date === date);
+            for (const s of suggestionsOn(habits, dayExpenses, date, date === today ? nowMinutes : null)) {
+                if (dismissedKeys.has(`${date}::${s.categoryId}::${s.slotKey}`)) continue;
+                items.push({
+                    date,
+                    dayLabel: this.dayLabelFor(date, today, yesterday),
+                    categoryId: s.categoryId,
+                    categoryName: s.categoryName,
+                    categoryIcon: s.categoryIcon,
+                    slotKey: s.slotKey,
+                    typicalAmount: s.amount,
+                    typicalDescription: s.description,
+                    typicalNote: s.note,
+                    suggestedTime: s.time,
+                    // How likely this is on a day like this (exact: that item; pick: the habit).
+                    frequencyPct: s.chancePct,
+                    kind: s.kind,
+                    alternates: s.alternates,
                 });
             }
         }
-
-        // An expense counts as satisfying a habit if it's reasonably close
-        // in time to that habit's own expected time — close enough that
-        // it's clearly "that" occasion and not a different, unrelated
-        // purchase in the same category at a totally different time of day.
-        const isCoveredOnDate = (date: string, categoryId: string, expectedMinutes: number) =>
-            checkRangeExpenses.some(e => {
-                if (e.date !== date || e.category?.id !== categoryId) return false;
-                if (!e.time) return true; // logged without a time — don't nag about "when", just that it happened
-                return Math.abs(this.parseTimeToMinutes(e.time) - expectedMinutes) <= this.CLUSTER_GAP_MINUTES;
-            });
-
-        const checkDates: string[] = [];
-        for (let d = new Date(`${since}T00:00:00Z`); d <= new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
-            checkDates.push(d.toISOString().slice(0, 10));
-        }
-        const currentMinutesToday = (currentHour < 5 ? currentHour + 24 : currentHour) * 60 + currentMinute;
-
-        const dismissedKeys = await service.getMissedDismissalKeys(since);
-
-        const suggestions = checkDates.flatMap(date => {
-            const isToday = date === today;
-            return habits
-                // A past day is fully over — every habit applies. Today only
-                // counts once its expected time + grace has actually
-                // passed — otherwise "missing" just means "not yet", not
-                // "skipped".
-                .filter(h => (isToday ? currentMinutesToday >= h.expectedMinutes + h.graceMinutes : true))
-                .filter(h => !isCoveredOnDate(date, h.categoryId, h.expectedMinutes))
-                .filter(h => !dismissedKeys.has(`${date}::${h.categoryId}::${h.slotKey}`))
-                .map(h => ({
-                    date,
-                    dayLabel: this.dayLabelFor(date, today, yesterday),
-                    categoryId: h.categoryId,
-                    categoryName: h.categoryName,
-                    categoryIcon: h.categoryIcon,
-                    slotKey: h.slotKey,
-                    typicalAmount: h.typicalAmount,
-                    typicalDescription: h.typicalDescription,
-                    typicalNote: h.typicalNote,
-                    suggestedTime: h.expectedTime,
-                    frequencyPct: h.frequencyPct,
-                }));
-        })
-            // Oldest first, then by expected time within a day — reads as
-            // one chronological sequence to work through.
-            .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.suggestedTime.localeCompare(b.suggestedTime)))
-            .slice(0, MAX_SUGGESTIONS);
+        // Oldest first, then by time within a day — reads as one chronological sequence to work through.
+        items.sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.suggestedTime.localeCompare(b.suggestedTime)));
 
         res.json({
-            items: suggestions, since,
-            ...(debug ? {
-                _debug: {
-                    today, currentHour, currentMinute, since,
-                    trainingStartStr, trainingEndStr, totalTrainingDays,
-                    trainingExpensesCount: trainingExpenses.length,
-                    checkRangeExpensesCount: checkRangeExpenses.length,
-                    timedTrainingExpensesCount: trainingExpenses.filter(e => e.time).length,
-                    categorizedTrainingExpensesCount: trainingExpenses.filter(e => e.category).length,
-                    checkDatesCount: checkDates.length,
-                    groups: groupDebug,
-                },
-            } : {}),
+            items: items.slice(0, MAX_SUGGESTIONS), since,
+            ...(debug ? { _debug: { today, currentHour, currentMinute, since, expensesLoaded: expenses.length, habitsToday: learnHabits(expenses, today) } } : {}),
         });
+    };
+
+    // What the engine has learned right now and expects for the coming week —
+    // read-only, for checking the routine it has picked up.
+    getHabits = async (_req: Request, res: Response) => {
+        const { dateString: today } = getISTParts();
+        const expenses = this.toHabitExpenses(await service.getByDateRange(addDays(today, -LOOKBACK_DAYS), today));
+        const habits = learnHabits(expenses, today);
+        const forecast = [];
+        for (let i = 1; i <= 7; i++) {
+            const date = addDays(today, i);
+            forecast.push({ date, weekday: dayOfWeek(date), expected: suggestionsOn(habits, [], date, null) });
+        }
+        res.json({ asOf: today, habits, forecast });
     };
 
     // Discarding a suggestion, saving it under another category, or "mark
     // everything covered" — stored server-side so every device agrees.
-    // Preview of the time-slot logic (see missed-habits.ts): the routine slots
-    // learned from the last 8 weeks, and the slots that are still empty over the
-    // last 7 days (today only once the slot is over). Read-only — the live
-    // /missed list does not use it yet.
-    getHabits = async (_req: Request, res: Response) => {
-        const { dateString: today, hour, minute } = getISTParts();
-        const rows = await service.getByDateRange(addDays(today, -LOOKBACK_DAYS), today);
-        const expenses: HabitExpense[] = rows.map((e) => ({
-            date: e.date,
-            time: e.time,
-            amount: Number(e.amount),
-            description: e.description,
-            note: e.note ?? null,
-            categoryId: e.category?.id ?? null,
-            categoryName: e.category?.name ?? null,
-        }));
-        const slots = learnSlots(expenses, today);
-
-        const gaps = [];
-        for (let i = 7; i >= 0; i--) {
-            const date = addDays(today, -i);
-            const missing = gapsOn(slots, expenses.filter((e) => e.date === date), i === 0 ? hour * 60 + minute : null);
-            for (const h of missing) gaps.push({ date, weekday: dayOfWeek(date), ...h });
-        }
-        res.json({ asOf: today, slots, gaps });
-    };
-
     resolveMissedExpenses = async (req: Request, res: Response) => {
         const { items, cursorDate } = req.body as { items: { date: string; categoryId: string; slotKey: string }[]; cursorDate?: string };
         res.json(await service.resolveMissed(items, cursorDate));
