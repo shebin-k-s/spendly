@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Plus, Search, Sparkles, Store, X } from 'lucide-react';
 import { useMerchantRulesQuery } from '../hooks/useMerchantRules';
 import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
+import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import EmptyState from '@/components/EmptyState';
 import { MerchantRuleSheet } from '../components/MerchantRuleSheet';
 import type { MerchantRule } from '../types';
@@ -55,6 +57,7 @@ export default function MerchantRulesPage() {
   const rulesQuery = useMerchantRulesQuery();
   const { data: rules = [], isLoading } = rulesQuery;
   useRefetchOnFocus(rulesQuery);
+  const freshness = useQueryFreshness(rulesQuery);
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<MerchantRule | null>(null);
@@ -82,7 +85,10 @@ export default function MerchantRulesPage() {
         </button>
         <div className="flex-1">
           <p className="text-xs text-muted-foreground">AI shop rules</p>
-          <h1 className="text-xl font-bold">Shops</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">Shops</h1>
+            <DataFreshnessIndicator status={freshness.status} isFetching={freshness.isFetching} />
+          </div>
         </div>
         <button
           onClick={() => openSheet(null)}
