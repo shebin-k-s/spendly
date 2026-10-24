@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Copy, Download, Upload, ShieldAlert, Loader2, CheckCircle2, FileArchive, Cloud, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, Upload, ShieldAlert, Loader2, CheckCircle2, FileArchive, Cloud, ExternalLink, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useBackupSummary, useDownloadBackup, useCheckBackup, useRestoreBackup, useDriveStatus, useConnectDrive, useRunDriveBackup, useSetDriveAuto, useDisconnectDrive } from '../hooks/useBackup';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -56,21 +56,6 @@ function DriveSection() {
           <button onClick={() => connect.mutate()} disabled={busy} className="btn-primary">
             {connect.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Opening Google…</> : <><Cloud className="w-4 h-4" /> Connect Google Drive</>}
           </button>
-          <details className="text-[11px] text-muted-foreground">
-            <summary className="cursor-pointer select-none font-semibold">Google setup address</summary>
-            <div className="mt-2 flex items-start gap-2 rounded-xl bg-secondary/60 p-2.5">
-              <code className="min-w-0 flex-1 break-all font-semibold text-foreground">{d.redirectUri}</code>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(d.redirectUri).then(() => toast.success('Address copied'), () => toast.error("Couldn't copy — select it and copy by hand"));
-                }}
-                className="shrink-0 flex items-center gap-1 rounded-lg bg-secondary px-2 py-1 font-semibold text-foreground active:scale-95"
-              >
-                <Copy className="w-3 h-3" /> Copy
-              </button>
-            </div>
-          </details>
         </>
       ) : (
         <>
