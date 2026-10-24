@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, Part } from '@google/generative-ai';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
+import { cleanTranscriptLines } from './transcript.utils';
 
 export interface CategoryOption { id: string; name: string; icon: string; }
 
@@ -566,6 +567,35 @@ Write like a friend who actually studied your numbers and is telling you what th
         const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
         if (debug) payload._debug = { prompt, rawText };
         return payload;
+    }
+
+    private buildTranscribePrompt(): string {
+        return `You are transcribing a short voice note in which a person dictates their expenses, usually in Indian English. Write down what they said as a plain list: ONE LINE PER TRANSACTION.
+
+How the speaker separates transactions:
+- They say a marker word between transactions: "next", "next item", "next one", or an ordinal like "first item", "second item", "1st item", "2nd item", "item 1", "item two".
+- Every marker starts a NEW line. Do NOT write the marker words themselves, and do NOT write the ordinal numbers.
+- Everything said between two markers belongs to ONE line: the items, the shop or place, the amount, and any time or date ("yesterday", "at 3pm").
+- If the speaker never uses a marker, put everything on ONE line.
+- "next" is only a marker when it introduces the next transaction. If it is part of ordinary speech ("next to the shop"), keep it as normal text.
+
+Writing each line:
+- Keep the speaker's own words for the items and the shop. Do not translate, summarise, add or invent anything.
+- Write numbers as digits: "fifty" → 50, "one fifty" → 150, "two hundred rupees" → 200, "1.5k" → 1500. Write amounts as plain numbers, no currency symbols ("50rs" → 50).
+- Drop filler such as "uh", "um", "okay", "so".
+- If a part is unclear, leave it out rather than guessing.
+
+Example: the speaker says "fifty rupees ayaans tea and veggies, next item, tea twenty, next, auto one fifty" and you write exactly:
+50 ayaans tea and veggies
+tea 20
+auto 150
+
+Return ONLY the lines, with no numbering, bullets, quotes or explanation. If nothing intelligible was said, return an empty response.`;
+    }
+
+    async transcribeBulkAudio(audioBase64: string, mimeType: string): Promise<{ lines: string[] }> {
+        const rawText = await this.runModel([this.buildTranscribePrompt(), { inlineData: { data: audioBase64, mimeType } }]);
+        return { lines: cleanTranscriptLines(rawText) };
     }
 
     async parseBulkText(text: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {

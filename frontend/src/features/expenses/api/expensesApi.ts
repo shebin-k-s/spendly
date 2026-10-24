@@ -92,6 +92,14 @@ export const expensesApi = {
     return data;
   },
 
+  // Voice note → one line per transaction (the speaker says "next" between them).
+  async transcribeAudio(wav: Blob): Promise<{ lines: string[] }> {
+    const formData = new FormData();
+    formData.append('audio', wav, 'speech.wav');
+    const { data } = await apiClient.post<{ lines: string[] }>(`${URL}/transcribe`, formData, { timeout: 40_000 });
+    return data;
+  },
+
   async reviseExpense(
     current: { amount: string | null; description: string | null; date: string | null; time: string | null; category_id: string | null; note: string | null; cashback: string | null },
     instruction: string,

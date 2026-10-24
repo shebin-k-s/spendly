@@ -18,6 +18,7 @@ router.get('/by-category', controller.getByCategoryYear);
 router.post('/parse-text', validate(parseTextSchema), controller.parseText);
 router.post('/parse-bulk-text', validate(parseBulkTextSchema), controller.parseBulkText);
 router.post('/revise', validate(reviseExpenseSchema), controller.reviseExpense);
+router.post('/transcribe', upload.single('audio'), controller.transcribeAudio);
 router.post('/parse-image', upload.single('image'), controller.parseImage);
 router.get('/:id', controller.getById);
 router.post('/', validate(createExpenseSchema), controller.create);

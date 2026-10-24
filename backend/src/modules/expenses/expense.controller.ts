@@ -908,4 +908,20 @@ export class ExpenseController {
         const parsed = await aiService.parseReceipt(base64, mimeType, categories, merchantRules, debug);
         res.json(parsed);
     };
+
+    transcribeAudio = async (req: Request, res: Response) => {
+        const file = (req as Request & { file?: Express.Multer.File }).file;
+        if (!file) {
+            res.status(400).json({ message: 'No audio uploaded' });
+            return;
+        }
+        if (!process.env.GEMINI_API_KEY) {
+            log.error('gemini: GEMINI_API_KEY not configured');
+            res.status(503).json({ message: 'AI parsing not configured' });
+            return;
+        }
+        const base64 = file.buffer.toString('base64');
+        const mimeType = file.mimetype || 'audio/wav';
+        res.json(await aiService.transcribeBulkAudio(base64, mimeType));
+    };
 }

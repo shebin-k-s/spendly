@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Sparkles, Loader2, Trash2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Search, UserPlus, LogOut, Check, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { X, Mic, Square, Sparkles, Loader2, Trash2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Search, UserPlus, LogOut, Check, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
@@ -15,6 +15,9 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker } from '@/features/categories/components/CategoryPicker';
 import { useBackToClose } from '@/hooks/useBackToClose';
 import { useSwipeGesture } from '@/context/SwipeGestureContext';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { audioToWav } from '../utils/audioToWav';
+import { getErrorMessage } from '@/utils/getErrorMessage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -291,6 +294,33 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   const categoriesQuery = useCategoriesQuery();
   const categories = categoriesQuery.data || [];
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Voice input: the spoken list is transcribed server-side into one line per
+  // transaction and appended to the textarea, numbered like typed lines.
+  const [transcribing, setTranscribing] = useState(false);
+  const handleClip = async (clip: Blob) => {
+    setTranscribing(true);
+    try {
+      const { lines } = await expensesApi.transcribeAudio(await audioToWav(clip));
+      if (lines.length === 0) {
+        toast.error("Couldn't hear any items — try again");
+        return;
+      }
+      setText((prev) => {
+        const kept = prev.replace(/\s+$/, '');
+        const base = kept ? kept.split('\n').filter((l) => l.trim()).length : 0;
+        const added = lines.map((line, i) => `${base + i + 1}. ${line}`).join('\n');
+        return kept ? `${kept}\n${added}` : added;
+      });
+      setStatus((s) => (s === 'idle' ? s : 'idle'));
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setTranscribing(false);
+    }
+  };
+  const recorder = useVoiceRecorder((clip) => { void handleClip(clip); });
+  useEffect(() => { if (!open) recorder.cancel(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const sheetRef = useRef<HTMLDivElement>(null);
   const handleY = useRef<number | null>(null);
   const dragY = useRef(0);
@@ -798,6 +828,30 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                 rows={8}
                 className="form-input resize-none text-sm leading-relaxed"
               />
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={recorder.state === 'recording' ? recorder.stop : () => void recorder.start()}
+                  disabled={transcribing || status === 'loading'}
+                  className={cn(
+                    'w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40',
+                    recorder.state === 'recording'
+                      ? 'bg-destructive text-destructive-foreground animate-pulse'
+                      : 'bg-secondary text-foreground',
+                  )}
+                >
+                  {transcribing ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Transcribing…</>
+                  ) : recorder.state === 'recording' ? (
+                    <><Square className="w-4 h-4 fill-current" /> Stop · {Math.floor(recorder.seconds / 60)}:{String(recorder.seconds % 60).padStart(2, '0')}</>
+                  ) : (
+                    <><Mic className="w-4 h-4" /> Speak items</>
+                  )}
+                </button>
+                <p className="text-[11px] text-center text-muted-foreground">
+                  Say <span className="font-semibold">"next"</span> or <span className="font-semibold">"next item"</span> between items — or "first item", "second item"
+                </p>
+              </div>
               {status === 'error' && (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-destructive/10 border border-destructive/20">
                   <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
