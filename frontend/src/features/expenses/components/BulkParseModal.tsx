@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Mic, Square, Sparkles, Loader2, Trash2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Search, UserPlus, LogOut, Check, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { X, Mic, Square, RotateCw, Sparkles, Loader2, Trash2, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Search, UserPlus, LogOut, Check, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { expensesApi } from '../api/expensesApi';
@@ -298,10 +298,14 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   // Voice input: the spoken list is transcribed server-side into one line per
   // transaction and appended to the textarea, numbered like typed lines.
   const [transcribing, setTranscribing] = useState(false);
-  const handleClip = async (clip: Blob) => {
+  // The converted recording is kept when transcription fails, so a retry
+  // re-sends it instead of making the user say the whole list again.
+  const [pendingWav, setPendingWav] = useState<Blob | null>(null);
+  const transcribe = async (wav: Blob) => {
     setTranscribing(true);
     try {
-      const { lines } = await expensesApi.transcribeAudio(await audioToWav(clip));
+      const { lines } = await expensesApi.transcribeAudio(wav);
+      setPendingWav(null);
       if (lines.length === 0) {
         toast.error("Couldn't hear any items — try again");
         return;
@@ -314,13 +318,25 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
       });
       setStatus((s) => (s === 'idle' ? s : 'idle'));
     } catch (err) {
-      toast.error(getErrorMessage(err));
+      setPendingWav(wav);
+      toast.error(`${getErrorMessage(err)} — tap Retry, your recording is saved`);
     } finally {
       setTranscribing(false);
     }
   };
+  const handleClip = async (clip: Blob) => {
+    setTranscribing(true);
+    try {
+      await transcribe(await audioToWav(clip));
+    } catch (err) {
+      setTranscribing(false);
+      toast.error(getErrorMessage(err));
+    }
+  };
   const recorder = useVoiceRecorder((clip) => { void handleClip(clip); });
   useEffect(() => { if (!open) recorder.cancel(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Opening Bulk Add starts waking a sleeping backend, so it is ready by the time the user stops speaking.
+  useEffect(() => { if (open && !isSeededRef.current) expensesApi.wakeServer(); }, [open]);
   const sheetRef = useRef<HTMLDivElement>(null);
   const handleY = useRef<number | null>(null);
   const dragY = useRef(0);
@@ -831,7 +847,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
               <div className="space-y-1.5">
                 <button
                   type="button"
-                  onClick={recorder.state === 'recording' ? recorder.stop : () => void recorder.start()}
+                  onClick={recorder.state === 'recording' ? recorder.stop : () => { setPendingWav(null); void recorder.start(); }}
                   disabled={transcribing || status === 'loading'}
                   className={cn(
                     'w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40',
@@ -848,6 +864,15 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                     <><Mic className="w-4 h-4" /> Speak items</>
                   )}
                 </button>
+                {pendingWav && !transcribing && recorder.state !== 'recording' && (
+                  <button
+                    type="button"
+                    onClick={() => void transcribe(pendingWav)}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold bg-primary/15 text-primary flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                  >
+                    <RotateCw className="w-4 h-4" /> Retry transcription
+                  </button>
+                )}
                 <p className="text-[11px] text-center text-muted-foreground">
                   Say <span className="font-semibold">"next"</span> or <span className="font-semibold">"next item"</span> between items — or "first item", "second item"
                 </p>

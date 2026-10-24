@@ -20,14 +20,44 @@ const DATE_SWITCH = new RegExp(String.raw`(?:\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|
 const CONNECTOR_END = /[\s,.;-]*\b(?:and|then|also|plus)\b[\s,.;-]*$/i;
 const CONNECTOR_START = /^[\s,.;-]*(?:(?:and|then|also|plus)\b[\s,.;-]*)+/i;
 
+// "night", "10pm", "night 10pm" said right after a date word belong to it.
+const TRAILING_TIME = /^(?:\s+(?:night|morning|evening|afternoon))?(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?!\w))?/i;
+
+// Where the date sits inside a transaction is the speaker's choice — "yesterday
+// 10pm tea 20", "tea 20 yesterday 10pm" — so the amounts decide where one
+// transaction stops and the next begins:
+//  - "tea 20 today and auto 30 yesterday": the first amount already came before
+//    its date and nothing (or just a connector) follows the next date → the date closes its transaction,
+//    so cut right after it.
+//  - everything else (date first, or amounts after the dates) → the date opens
+//    its transaction, so cut right before the next date.
 function splitOnDateSwitch(line: string): string[] {
+    const matches = [...line.matchAll(DATE_SWITCH)];
+    if (matches.length < 2) return [line];
+
     const cuts: number[] = [];
-    let seen = 0;
-    for (const m of line.matchAll(DATE_SWITCH)) {
-        seen += 1;
-        if (seen > 1) cuts.push(m.index!);
+    let segStart = 0;
+    for (let i = 0; i < matches.length - 1; i++) {
+        const cur = matches[i];
+        const next = matches[i + 1];
+        const curEnd = cur.index! + cur[0].length;
+        const nextStart = next.index!;
+        const nextEnd = nextStart + next[0].length;
+        const after = matches[i + 2]?.index ?? line.length;
+
+        const trailingStyle =
+            hasAmount(line.slice(segStart, cur.index!)) &&
+            hasAmount(line.slice(curEnd, nextStart)) &&
+            (!hasAmount(line.slice(nextEnd, after)) || /^\s*(?:and|then|also|plus)\b/i.test(line.slice(nextEnd, after)));
+
+        let cut = nextStart;
+        if (trailingStyle) {
+            cut = Math.min(curEnd + (line.slice(curEnd).match(TRAILING_TIME)?.[0].length ?? 0), nextStart);
+        }
+        cuts.push(cut);
+        segStart = cut;
     }
-    if (cuts.length === 0) return [line];
+
     const pieces: string[] = [];
     let from = 0;
     for (const cut of [...cuts, line.length]) {
@@ -35,6 +65,13 @@ function splitOnDateSwitch(line: string): string[] {
         from = cut;
     }
     return pieces.filter((p) => p.trim());
+}
+
+// "rs 20", "Rs. 150", "₹45", "50 rupees", "20 rs" → "20rs" / "150rs" / "45rs" / "50rs" / "20rs".
+const CURRENCY_BEFORE = /(?:\brs\.?|\brupees?\b|\binr\b|₹)\s*(\d+(?:\.\d+)?)/gi;
+const CURRENCY_AFTER = /(\d+(?:\.\d+)?)\s*(?:rs\b\.?|rupees?\b|inr\b|₹)/gi;
+export function normalizeCurrency(line: string): string {
+    return line.replace(CURRENCY_BEFORE, '$1rs').replace(CURRENCY_AFTER, '$1rs');
 }
 
 // "10 pm", "10:30", "10 o'clock" are times, not amounts.
@@ -56,11 +93,11 @@ export function cleanTranscriptLines(text: string): string[] {
         pieces.forEach((piece, idx) => {
             const stripped = piece.replace(LIST_PREFIX, '');
             const forced = idx > 0 || LEADING_MARKERS.test(stripped);
-            const line = stripped
+            const line = normalizeCurrency(stripped
                 .replace(LEADING_MARKERS, '')
                 .replace(TRAILING_MARKERS, '')
                 .replace(/\s+/g, ' ')
-                .trim();
+                .trim());
             if (!line) return;
             const parts = splitOnDateSwitch(line);
             // Pieces split off by a date switch are real, separate transactions —

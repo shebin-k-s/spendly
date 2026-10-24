@@ -579,26 +579,35 @@ How the speaker separates transactions:
 - If the speaker never uses a marker, put everything on ONE line.
 - "next" is only a marker when it introduces the next transaction. If it is part of ordinary speech ("next to the shop"), keep it as normal text.
 - The plain words "item" / "items" are NOT markers. When the speaker says "items soap chapati" or "item milk" they are just introducing what was bought; keep those words with the line they belong to. A marker needs "next" or an ordinal/number ("first item", "item 2").
+- Date and time can be said ANYWHERE in a transaction: at the start ("yesterday 10pm tea 20"), in the middle ("150 for ayaan yesterday 10pm soap"), or at the end ("tea 20 yesterday 10pm"). Keep them on the line of the transaction they describe, in the order the speaker said them. Use the amounts to decide where one transaction stops and the next starts: each transaction has its own amount.
 - A transaction has exactly ONE date. If the speaker switches to a different day ("yesterday ... and today ...", "last Monday ... today ..."), that starts a NEW line even though no marker word was said. Keep a time they say with the day ("10pm", "night") on that day's line.
 - A transaction always has an amount. If a stretch of speech has no amount (for example just the names of things bought), it belongs to the transaction before it. Never start a new line for it.
 
 Writing each line:
 - Keep the speaker's own words for the items and the shop. Do not translate, summarise, add or invent anything.
-- Write numbers as digits: "fifty" → 50, "one fifty" → 150, "two hundred rupees" → 200, "1.5k" → 1500. Write amounts as plain numbers, no currency symbols ("50rs" → 50).
+- Write numbers as digits: "fifty" → 50, "one fifty" → 150, "two hundred rupees" → 200, "1.5k" → 1500. KEEP the currency word the speaker said, written as "rs" directly after the number: "fifty rupees" / "50 rs" / "rs 50" → 50rs, "one fifty rs" → 150rs. If the speaker said no currency word, write only the number. Never write ₹ or "Rs." or "rupees".
 - Drop filler such as "uh", "um", "okay", "so".
 - If a part is unclear, leave it out rather than guessing.
 
-Example 1: the speaker says "fifty rupees ayaans tea and veggies, next item, tea twenty, next, auto one fifty" and you write exactly:
-50 ayaans tea and veggies
+Example 1: the speaker says "fifty rupees ayaans tea and veggies, next item, tea twenty, next, auto one fifty rs" and you write exactly:
+50rs ayaans tea and veggies
 tea 20
-auto 150
+auto 150rs
 
-Example 2: the speaker says "150 for ayaan yesterday 10 pm items soap chapati" (no marker anywhere) and you write exactly ONE line:
-150 for ayaan yesterday 10 pm items soap chapati
+Example 2: the speaker says "150 rs for ayaan yesterday 10 pm items soap chapati" (no marker anywhere) and you write exactly ONE line:
+150rs for ayaan yesterday 10 pm items soap chapati
+
+Example 3a: the speaker says "tea 20 rs yesterday 10pm and auto 30 today" and you write exactly TWO lines (the dates come last, each belongs to the amount before it):
+tea 20rs yesterday 10pm
+auto 30 today
+
+Example 3b: the speaker says "at 3pm today lunch 180 next item tea 20 yesterday" and you write exactly TWO lines:
+at 3pm today lunch 180
+tea 20 yesterday
 
 Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 45rs dosa and idli" and you write exactly TWO lines (a different day starts a new transaction; the first has no amount, which is fine):
 yesterday night 10pm ayaans item chapath
-today 45 dosa and idli
+today 45rs dosa and idli
 
 Return ONLY the lines, with no numbering, bullets, quotes or explanation. If nothing intelligible was said, return an empty response.`;
     }
