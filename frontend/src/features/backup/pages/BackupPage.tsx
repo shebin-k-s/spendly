@@ -104,9 +104,17 @@ function DriveSection() {
             </button>
           </div>
 
-          <button type="button" onClick={() => setConfirmDisconnect(true)} disabled={busy} className="text-xs font-semibold text-destructive disabled:opacity-50">
-            Disconnect Google Drive
-          </button>
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => connect.mutate()} disabled={busy} className="text-xs font-semibold text-primary disabled:opacity-50">
+              {connect.isPending ? 'Opening Google…' : 'Change Google account'}
+            </button>
+            <button type="button" onClick={() => setConfirmDisconnect(true)} disabled={busy} className="text-xs font-semibold text-destructive disabled:opacity-50">
+              Disconnect
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Changing the account sends backups to a new Spendly Backups folder in that account from now on. Old backups stay where they are.
+          </p>
           <ConfirmModal
             open={confirmDisconnect}
             onOpenChange={setConfirmDisconnect}

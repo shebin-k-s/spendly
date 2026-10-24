@@ -62,12 +62,23 @@ export async function completeConnection(code: string, state: string): Promise<v
     }
     const { refreshToken, accessToken } = await drive.exchangeCode(code);
     const s = await getSettings();
+    // Changing account: remember the old key so it can be revoked once the new one is saved.
+    const previous = s.refreshTokenEnc;
     s.refreshTokenEnc = encrypt(refreshToken);
     s.accountEmail = await drive.accountEmail(accessToken);
     s.folderId = await drive.ensureFolder(accessToken, s.folderId);
     s.lastStatus = null;
     s.lastMessage = null;
+    // autoEnabled is left as it was: switching account keeps the daily backup running.
     await repo().save(s);
+    if (previous) {
+        try {
+            const old = decrypt(previous);
+            if (old !== refreshToken) await drive.revoke(old);
+        } catch {
+            /* an unreadable old key can't be revoked — the new connection is what matters */
+        }
+    }
 }
 
 export async function disconnect(): Promise<void> {
