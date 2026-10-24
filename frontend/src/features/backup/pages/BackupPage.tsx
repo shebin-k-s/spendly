@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, Upload, ShieldAlert, Loader2, CheckCircle2, FileArchive, Cloud, ExternalLink, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import type { DriveStatus } from '../api/backupApi';
 import { useBackupSummary, useDownloadBackup, useCheckBackup, useRestoreBackup, useDriveStatus, useConnectDrive, useRunDriveBackup, useSetDriveAuto, useDisconnectDrive } from '../hooks/useBackup';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
@@ -26,13 +27,9 @@ const TABLE_LABEL: Record<string, string> = {
 };
 const label = (table: string) => TABLE_LABEL[table] ?? table;
 
-function DriveSection({ returning }: { returning: boolean }) {
-  const status = useDriveStatus();
-  useRefetchOnFocus(status);
-  // Coming back from Google, the saved status is out of date, so wait for a fresh one — but only for that
-  // first answer. Once data newer than this visit has arrived, later refreshes keep the card on screen.
-  const openedAt = useRef(Date.now());
-  const waitingForFresh = returning && status.dataUpdatedAt < openedAt.current && !status.isError;
+// `connecting`: we have just come back from Google and are waiting for the first fresh answer — the one moment
+// the card shows a loading block. Every refresh after that keeps the card as it is; only the page's dot moves.
+function DriveSection({ status, connecting }: { status: UseQueryResult<DriveStatus>; connecting: boolean }) {
   const connect = useConnectDrive();
   const run = useRunDriveBackup();
   const setAuto = useSetDriveAuto();
@@ -48,10 +45,10 @@ function DriveSection({ returning }: { returning: boolean }) {
         <h2 className="text-sm font-bold">Google Drive</h2>
       </div>
 
-      {status.isLoading || waitingForFresh ? (
+      {connecting ? (
         <div className="h-40 rounded-xl bg-secondary/60 animate-pulse" />
       ) : !d ? (
-        <p className="text-xs text-muted-foreground">Couldn't load the Google Drive status.</p>
+        status.isError ? <p className="text-xs text-muted-foreground">Couldn't load the Google Drive status.</p> : null
       ) : !d.configured ? (
         <p className="text-xs text-muted-foreground">
           Google Drive backup isn't set up on the server yet. It needs the Google sign-in keys added to the server settings.
@@ -133,7 +130,15 @@ function DriveSection({ returning }: { returning: boolean }) {
 export default function BackupPage() {
   const navigate = useNavigate();
   const summaryQuery = useBackupSummary();
-  const freshness = useQueryFreshness(summaryQuery);
+  const driveQuery = useDriveStatus();
+  useRefetchOnFocus(driveQuery);
+  const summaryFreshness = useQueryFreshness(summaryQuery);
+  const driveFreshness = useQueryFreshness(driveQuery);
+  // One dot for the whole page: refreshing if either part is, red if either failed to refresh.
+  const freshness = {
+    isFetching: summaryFreshness.isFetching || driveFreshness.isFetching,
+    status: summaryFreshness.status === 'error' || driveFreshness.status === 'error' ? ('error' as const) : summaryFreshness.status === 'loading' || driveFreshness.status === 'loading' ? ('loading' as const) : ('fresh' as const),
+  };
   const download = useDownloadBackup();
   const check = useCheckBackup();
   const restore = useRestoreBackup();
@@ -141,8 +146,10 @@ export default function BackupPage() {
   // Google sends the browser back here with ?drive=connected or ?drive=error&message=…
   const [params] = useSearchParams();
   const qc = useQueryClient();
-  // True for this visit if we came back from Google: the card then waits for the real status instead of showing a stale one.
+  // Did we just come back from Google? Then the saved status is out of date: wait for one fresh answer.
   const [returning] = useState(() => !!params.get('drive'));
+  const openedAt = useRef(Date.now());
+  const connecting = returning && driveQuery.dataUpdatedAt < openedAt.current && !driveQuery.isError;
   useEffect(() => {
     const result = params.get('drive');
     if (!result) return;
@@ -213,7 +220,7 @@ export default function BackupPage() {
       </div>
 
       <div className="page-content space-y-5">
-        <DriveSection returning={returning} />
+        <DriveSection status={driveQuery} connecting={connecting} />
 
         {/* Backup */}
         <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
