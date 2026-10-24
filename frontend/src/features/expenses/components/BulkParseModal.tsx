@@ -741,6 +741,40 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
             <p className="text-sm font-bold">{title ?? 'Bulk Add Expenses'}</p>
             <p className="text-[10px] text-muted-foreground">{subtitle ?? 'Type all at once — AI splits them for you'}</p>
           </div>
+          {!isSeededRef.current && status !== 'done' && (
+            <>
+              {pendingWav && !transcribing && recorder.state !== 'recording' && (
+                <button
+                  type="button"
+                  onClick={() => void transcribe(pendingWav)}
+                  aria-label="Retry transcription"
+                  className="h-8 px-2.5 rounded-xl bg-primary/15 text-primary flex items-center justify-center gap-1 text-xs font-semibold active:scale-90 transition-all"
+                >
+                  <RotateCw className="w-3.5 h-3.5" /> Retry
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={recorder.state === 'recording' ? recorder.stop : () => { setPendingWav(null); void recorder.start(); }}
+                disabled={transcribing || status === 'loading'}
+                aria-label={recorder.state === 'recording' ? 'Stop recording' : 'Speak items'}
+                className={cn(
+                  'h-8 rounded-xl flex items-center justify-center gap-1.5 active:scale-90 transition-all disabled:opacity-40',
+                  recorder.state === 'recording'
+                    ? 'px-2.5 bg-destructive text-destructive-foreground text-xs font-semibold animate-pulse'
+                    : 'w-8 bg-secondary',
+                )}
+              >
+                {transcribing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : recorder.state === 'recording' ? (
+                  <><Square className="w-3 h-3 fill-current" /> {Math.floor(recorder.seconds / 60)}:{String(recorder.seconds % 60).padStart(2, '0')}</>
+                ) : (
+                  <Mic className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </>
+          )}
           <button
             onClick={handleClose}
             className="w-8 h-8 rounded-xl bg-secondary flex items-center justify-center active:scale-90 transition-all"
@@ -844,39 +878,9 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                 rows={8}
                 className="form-input resize-none text-sm leading-relaxed"
               />
-              <div className="space-y-1.5">
-                <button
-                  type="button"
-                  onClick={recorder.state === 'recording' ? recorder.stop : () => { setPendingWav(null); void recorder.start(); }}
-                  disabled={transcribing || status === 'loading'}
-                  className={cn(
-                    'w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40',
-                    recorder.state === 'recording'
-                      ? 'bg-destructive text-destructive-foreground animate-pulse'
-                      : 'bg-secondary text-foreground',
-                  )}
-                >
-                  {transcribing ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Transcribing…</>
-                  ) : recorder.state === 'recording' ? (
-                    <><Square className="w-4 h-4 fill-current" /> Stop · {Math.floor(recorder.seconds / 60)}:{String(recorder.seconds % 60).padStart(2, '0')}</>
-                  ) : (
-                    <><Mic className="w-4 h-4" /> Speak items</>
-                  )}
-                </button>
-                {pendingWav && !transcribing && recorder.state !== 'recording' && (
-                  <button
-                    type="button"
-                    onClick={() => void transcribe(pendingWav)}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold bg-primary/15 text-primary flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-                  >
-                    <RotateCw className="w-4 h-4" /> Retry transcription
-                  </button>
-                )}
-                <p className="text-[11px] text-center text-muted-foreground">
-                  Say <span className="font-semibold">"next"</span> or <span className="font-semibold">"next item"</span> between items — or "first item", "second item"
-                </p>
-              </div>
+              <p className="text-[11px] text-center text-muted-foreground">
+                Tap the <Mic className="inline w-3 h-3 -mt-0.5" /> at the top to speak — say <span className="font-semibold">"next"</span> or <span className="font-semibold">"next item"</span> between items, or "first item", "second item"
+              </p>
               {status === 'error' && (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-destructive/10 border border-destructive/20">
                   <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
