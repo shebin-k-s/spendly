@@ -99,7 +99,24 @@ export async function accountEmail(accessToken: string): Promise<string | null> 
     return ((await res.json()) as any)?.user?.emailAddress ?? null;
 }
 
-/** Returns the id of the backup folder, creating it when it was never made or has been deleted. */
+/**
+ * A "Spendly Backups" folder this app already made in the connected account, if any. With the
+ * drive.file permission the search only ever sees folders the app itself created, so this can't
+ * pick up a folder you made by hand. The oldest is used if there happen to be several.
+ */
+async function findExistingFolder(accessToken: string): Promise<string | null> {
+    const q = `name = '${FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    const params = new URLSearchParams({ q, orderBy: 'createdTime', pageSize: '10', fields: 'files(id)' });
+    const res = await fetch(`${urls().api}/drive/v3/files?${params}`, { headers: auth(accessToken) });
+    if (!res.ok) return null; // not being able to look must not block the backup — a new folder is the fallback
+    return ((await res.json()) as any).files?.[0]?.id ?? null;
+}
+
+/**
+ * Returns the id of the backup folder: the remembered one if it still works, else one this app
+ * already made in this account (so switching accounts back and forth never piles up folders),
+ * else a new one.
+ */
 export async function ensureFolder(accessToken: string, existingId: string | null): Promise<string> {
     if (existingId) {
         const res = await fetch(`${urls().api}/drive/v3/files/${encodeURIComponent(existingId)}?fields=id,trashed`, { headers: auth(accessToken) });
@@ -108,6 +125,8 @@ export async function ensureFolder(accessToken: string, existingId: string | nul
         // either way make a fresh one in this account instead of failing.
         if (!res.ok && res.status !== 404 && res.status !== 403) return failure(res, 'looking up the backup folder');
     }
+    const found = await findExistingFolder(accessToken);
+    if (found) return found;
     const res = await fetch(`${urls().api}/drive/v3/files?fields=id`, {
         method: 'POST',
         headers: { ...auth(accessToken), 'Content-Type': 'application/json' },
