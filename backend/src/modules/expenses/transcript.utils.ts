@@ -131,3 +131,31 @@ export function cleanTranscriptLines(text: string): string[] {
     if (carry) merged.push({ text: carry, forced: true });
     return merged.map((e) => e.text);
 }
+
+/**
+ * True when a 16-bit PCM WAV (what the app uploads) is effectively silent — a
+ * speech model asked to transcribe silence tends to invent plausible words, so
+ * such recordings are rejected before they reach it. Anything that isn't a
+ * readable PCM16 WAV is let through unchanged.
+ */
+export function wavLooksSilent(buf: Buffer, rmsThreshold = 0.008): boolean {
+    if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') return false;
+    let offset = 12;
+    while (offset + 8 <= buf.length) {
+        const id = buf.toString('ascii', offset, offset + 4);
+        const size = buf.readUInt32LE(offset + 4);
+        if (id === 'data') {
+            const end = Math.min(buf.length, offset + 8 + size);
+            let sum = 0;
+            let n = 0;
+            for (let i = offset + 8; i + 1 < end; i += 2) {
+                const v = buf.readInt16LE(i) / 32768;
+                sum += v * v;
+                n++;
+            }
+            return n === 0 || Math.sqrt(sum / n) < rmsThreshold;
+        }
+        offset += 8 + size + (size % 2);
+    }
+    return false;
+}

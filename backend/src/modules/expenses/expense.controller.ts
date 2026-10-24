@@ -6,6 +6,7 @@ import { CategoryGroupService } from '../category-groups/categoryGroup.service';
 import { MerchantRuleService } from '../merchants/merchant-rule.service';
 import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
+import { wavLooksSilent } from './transcript.utils';
 import { learnHabits, suggestionsOn, addDays, dayOfWeek, LOOKBACK_DAYS, type HabitExpense } from './missed-habits';
 
 const log = {
@@ -735,8 +736,20 @@ export class ExpenseController {
             res.status(503).json({ message: 'AI parsing not configured' });
             return;
         }
+        const instructionMode = req.query.mode === 'instruction';
+        // A silent recording would make the model invent words — answer "nothing heard" without asking it.
+        if (wavLooksSilent(file.buffer)) {
+            res.json(instructionMode ? { text: '' } : { lines: [] });
+            return;
+        }
         const base64 = file.buffer.toString('base64');
         const mimeType = file.mimetype || 'audio/wav';
+        // ?mode=instruction: a spoken correction for one expense ("make it 45") —
+        // transcribed verbatim, not split into a list of expenses.
+        if (instructionMode) {
+            res.json(await aiService.transcribeInstruction(base64, mimeType));
+            return;
+        }
         res.json(await aiService.transcribeBulkAudio(base64, mimeType));
     };
 }

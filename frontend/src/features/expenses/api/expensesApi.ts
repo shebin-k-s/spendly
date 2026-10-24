@@ -3,6 +3,26 @@ import type { Expense, CreateExpensePayload, UpdateExpensePayload, MonthlySummar
 
 const URL = '/expenses';
 
+// A sleeping server (Render free tier) can take a minute to wake: wait long enough,
+// and retry a couple of times on timeouts / gateway errors rather than making the
+// user say it all again.
+async function postAudio<T>(wav: Blob, query: string): Promise<T> {
+  const attempts = 3;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const formData = new FormData();
+      formData.append('audio', wav, 'speech.wav');
+      const { data } = await apiClient.post<T>(`${URL}/transcribe${query}`, formData, { timeout: 90_000 });
+      return data;
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      const transient = status === undefined || status === 502 || status === 503 || status === 504;
+      if (!transient || attempt >= attempts) throw err;
+      await new Promise((r) => setTimeout(r, 3_000 * attempt));
+    }
+  }
+}
+
 export const expensesApi = {
   // month === null → every expense of the year.
   async getByMonth(year: number, month: number | null, categoryId?: string): Promise<Expense[]> {
@@ -93,24 +113,13 @@ export const expensesApi = {
   },
 
   // Voice note → one line per transaction (the speaker says "next" between them).
-  // A sleeping server (Render free tier) can take a minute to wake: wait long
-  // enough, and retry a couple of times on timeouts / gateway errors rather than
-  // making the user say it all again.
   async transcribeAudio(wav: Blob): Promise<{ lines: string[] }> {
-    const attempts = 3;
-    for (let attempt = 1; ; attempt++) {
-      try {
-        const formData = new FormData();
-        formData.append('audio', wav, 'speech.wav');
-        const { data } = await apiClient.post<{ lines: string[] }>(`${URL}/transcribe`, formData, { timeout: 90_000 });
-        return data;
-      } catch (err) {
-        const status = (err as { response?: { status?: number } }).response?.status;
-        const transient = status === undefined || status === 502 || status === 503 || status === 504;
-        if (!transient || attempt >= attempts) throw err;
-        await new Promise((r) => setTimeout(r, 3_000 * attempt));
-      }
-    }
+    return postAudio<{ lines: string[] }>(wav, '');
+  },
+
+  // Voice note → the spoken correction as text ("make it 45"), for editing one expense.
+  async transcribeInstruction(wav: Blob): Promise<{ text: string }> {
+    return postAudio<{ text: string }>(wav, '?mode=instruction');
   },
 
   // Fire-and-forget request that wakes a sleeping backend while the user is still speaking.

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, Part } from '@google/generative-ai';
+import { GoogleGenerativeAI, Part, type GenerationConfig } from '@google/generative-ai';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
 import { cleanTranscriptLines } from './transcript.utils';
@@ -430,13 +430,13 @@ Write like a friend who actually studied your numbers and is telling you what th
         return false;
     }
 
-    private async runModel(parts: (string | Part)[]): Promise<string> {
+    private async runModel(parts: (string | Part)[], config?: GenerationConfig): Promise<string> {
         const genAI = this.getGenAI();
         const t0 = Date.now();
         let lastError: unknown;
 
         for (const modelName of this.modelFallbacks) {
-            const model = genAI.getGenerativeModel({ model: modelName });
+            const model = genAI.getGenerativeModel({ model: modelName, ...(config ? { generationConfig: config } : {}) });
 
             let timeoutId!: NodeJS.Timeout;
             const timeoutP = new Promise<never>((_, reject) =>
@@ -609,12 +609,39 @@ Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 
 yesterday night 10pm ayaans item chapath
 today 45rs dosa and idli
 
-Return ONLY the lines, with no numbering, bullets, quotes or explanation. If nothing intelligible was said, return an empty response.`;
+Return ONLY the lines, with no numbering, bullets, quotes or explanation.
+The examples above only illustrate the format — NEVER output any of their words unless the speaker actually said them. If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
     }
 
     async transcribeBulkAudio(audioBase64: string, mimeType: string): Promise<{ lines: string[] }> {
-        const rawText = await this.runModel([this.buildTranscribePrompt(), { inlineData: { data: audioBase64, mimeType } }]);
+        const rawText = await this.runModel([this.buildTranscribePrompt(), { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
+        if (this.isNoSpeech(rawText)) return { lines: [] };
         return { lines: cleanTranscriptLines(rawText) };
+    }
+
+    // The model answers with this sentinel (see the transcription prompts) instead
+    // of inventing words when a recording holds no speech.
+    private isNoSpeech(text: string): boolean {
+        return text.trim() === '' || /no[_\s-]?speech/i.test(text);
+    }
+
+    private buildTranscribeInstructionPrompt(): string {
+        return `Transcribe this short audio recording word for word. The speaker usually speaks Indian English.
+
+Rules:
+- Write down ONLY the words you actually hear, exactly as spoken. Never write words that were not said.
+- Write spoken numbers as digits (for example "forty five" becomes 45).
+- Drop filler words such as "uh", "um" and "okay".
+- If a part is unclear, leave it out.
+
+Return ONLY the transcribed words, with no quotes, labels or explanation.
+If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
+    }
+
+    async transcribeInstruction(audioBase64: string, mimeType: string): Promise<{ text: string }> {
+        const rawText = await this.runModel([this.buildTranscribeInstructionPrompt(), { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
+        if (this.isNoSpeech(rawText)) return { text: '' };
+        return { text: rawText.replace(/^["'“”\s]+|["'“”\s]+$/g, '').replace(/\s+/g, ' ') };
     }
 
     async parseBulkText(text: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {
