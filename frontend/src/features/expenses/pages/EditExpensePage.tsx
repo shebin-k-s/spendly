@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Check, Trash2, Loader2, Sparkles, Mic, Square, RotateCcw, RotateCw, Pencil, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Check, Trash2, Loader2, Sparkles, Mic, Square, RotateCcw, RotateCw, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { useExpenseById, useUpdateExpense, useDeleteExpense } from '../hooks/useExpenses';
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
@@ -14,20 +14,13 @@ import { cn, stripTrailingZeros } from '@/lib/utils';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 import { blurOnEnter, focusNextOnEnter } from '@/utils/keyboard';
 
-// A field the user (or the AI) has changed since the expense was loaded gets an
-// "Edited" pill, an outline, and a before → after line with an Undo for just that field.
-function FieldLabel({ text, hint, edited }: { text: string; hint?: string; edited: boolean }) {
+// A field the user (or the AI) has changed since the expense was loaded gets a blue
+// outline plus a before → after line with an Undo for just that field.
+function FieldLabel({ text, hint }: { text: string; hint?: string }) {
   return (
-    <div className="flex items-start justify-between gap-2">
-      <label className="form-label">
-        {text} {hint && <span className="text-muted-foreground font-normal">— {hint}</span>}
-      </label>
-      {edited && (
-        <span className="shrink-0 flex items-center gap-1 rounded-full bg-edited/15 px-2 py-0.5 text-[10px] font-semibold text-edited">
-          <Pencil className="w-2.5 h-2.5" /> Edited
-        </span>
-      )}
-    </div>
+    <label className="form-label">
+      {text} {hint && <span className="text-muted-foreground font-normal">— {hint}</span>}
+    </label>
   );
 }
 
@@ -402,7 +395,7 @@ export default function EditExpensePage() {
         )}
 
         <div>
-          <FieldLabel text="Amount (₹)" edited={edited.amount} />
+          <FieldLabel text="Amount (₹)" />
           <input
             type="number"
             inputMode="decimal"
@@ -418,13 +411,13 @@ export default function EditExpensePage() {
         </div>
 
         <div>
-          <FieldLabel text="Description" edited={edited.description} />
+          <FieldLabel text="Description" />
           <input value={description} onChange={(e) => setDescription(e.target.value)} disabled={isBlocking} enterKeyHint="done" onKeyDown={blurOnEnter} className={cn('form-input', editedRing(edited.description))} />
           {edited.description && orig && <EditedDiff from={orEmpty(orig.description)} to={orEmpty(description)} onUndo={() => setDescription(orig.description)} />}
         </div>
 
         <div>
-          <FieldLabel text="Cashback (₹)" hint="Optional" edited={edited.cashback} />
+          <FieldLabel text="Cashback (₹)" hint="Optional" />
           <input
             type="number"
             inputMode="decimal"
@@ -446,7 +439,7 @@ export default function EditExpensePage() {
         </div>
 
         <div>
-          <FieldLabel text="Date & Time" edited={edited.when} />
+          <FieldLabel text="Date & Time" />
           <div className={cn('rounded-xl', editedRing(edited.when))}>
             <DateTimePicker
               date={date || new Date().toISOString().slice(0, 10)}
@@ -465,7 +458,7 @@ export default function EditExpensePage() {
         </div>
 
         <div>
-          <FieldLabel text="Category" edited={edited.category} />
+          <FieldLabel text="Category" />
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setCategoryId('')}
@@ -494,7 +487,7 @@ export default function EditExpensePage() {
         </div>
 
         <div>
-          <FieldLabel text="Note" hint="Optional" edited={edited.note} />
+          <FieldLabel text="Note" hint="Optional" />
           <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={isBlocking} rows={2} enterKeyHint="done" onKeyDown={blurOnEnter} className={cn('form-input resize-none', editedRing(edited.note))} />
           {edited.note && orig && <EditedDiff from={orEmpty(orig.note)} to={orEmpty(note)} onUndo={() => setNote(orig.note)} />}
         </div>
