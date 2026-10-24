@@ -29,6 +29,10 @@ const label = (table: string) => TABLE_LABEL[table] ?? table;
 function DriveSection({ returning }: { returning: boolean }) {
   const status = useDriveStatus();
   useRefetchOnFocus(status);
+  // Coming back from Google, the saved status is out of date, so wait for a fresh one — but only for that
+  // first answer. Once data newer than this visit has arrived, later refreshes keep the card on screen.
+  const openedAt = useRef(Date.now());
+  const waitingForFresh = returning && status.dataUpdatedAt < openedAt.current && !status.isError;
   const connect = useConnectDrive();
   const run = useRunDriveBackup();
   const setAuto = useSetDriveAuto();
@@ -44,8 +48,8 @@ function DriveSection({ returning }: { returning: boolean }) {
         <h2 className="text-sm font-bold">Google Drive</h2>
       </div>
 
-      {status.isLoading || (returning && status.isFetching) ? (
-        <div className="h-16 rounded-xl bg-secondary/60 animate-pulse" />
+      {status.isLoading || waitingForFresh ? (
+        <div className="h-40 rounded-xl bg-secondary/60 animate-pulse" />
       ) : !d ? (
         <p className="text-xs text-muted-foreground">Couldn't load the Google Drive status.</p>
       ) : !d.configured ? (
