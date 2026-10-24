@@ -45,6 +45,10 @@ export default {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
         },
+        edited: {
+          DEFAULT: 'hsl(var(--edited))',
+          foreground: 'hsl(var(--edited-foreground))',
+        },
         warning: {
           DEFAULT: 'hsl(var(--warning))',
           foreground: 'hsl(var(--warning-foreground))',

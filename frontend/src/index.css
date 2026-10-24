@@ -56,6 +56,10 @@ input[type=number] {
     --border: 240 10% 82.9%;
     --input: 240 7% 63.1%;
     --ring: 263 70% 50.4%;
+    /* Marks a field changed since it was loaded (Edit Expense): a calm blue, distinct from the violet
+       accent, success green and destructive red. 6.9:1 against white. */
+    --edited: 201 90% 31%;
+    --edited-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -92,6 +96,8 @@ input[type=number] {
     --border: 0 0% 16%;
     --input: 0 0% 14%;
     --ring: 263 70% 65%;
+    --edited: 199 89% 62%;
+    --edited-foreground: 0 0% 6%;
   }
 }
 
