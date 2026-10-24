@@ -40,13 +40,16 @@ export interface TableSummary {
     rows: number;
 }
 
+// Never backed up and never touched by a restore: it holds the Google Drive connection.
+export const EXCLUDED_TABLES = new Set(['backup_settings']);
+
 const quote = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
 export async function listTables(q: Queryable): Promise<string[]> {
     const rows = await q.query(
         `select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by table_name`,
     );
-    return rows.map((r) => r.table_name as string);
+    return rows.map((r) => r.table_name as string).filter((t) => !EXCLUDED_TABLES.has(t));
 }
 
 /** Tables ordered so that every table comes after the tables it has foreign keys to. */
@@ -138,7 +141,7 @@ export interface RestoreResult {
  */
 export async function restoreBackup(db: TransactionRunner, file: BackupFile, dryRun: boolean): Promise<RestoreResult> {
     const inDb = new Set(await listTables(db));
-    const names = Object.keys(file.tables);
+    const names = Object.keys(file.tables).filter((n) => !EXCLUDED_TABLES.has(n));
     const unknown = names.filter((n) => !inDb.has(n));
     if (unknown.length) throw new ApiError(`The backup has tables this database doesn't: ${unknown.join(', ')}`, 400);
 

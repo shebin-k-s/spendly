@@ -13,7 +13,7 @@ import expenseRoutes from './modules/expenses/expense.routes';
 import peopleRoutes from './modules/people/people.routes';
 import merchantRuleRoutes from './modules/merchants/merchant-rule.routes';
 import webauthnRoutes from './modules/webauthn/webauthn.routes';
-import backupRoutes from './modules/backup/backup.routes';
+import backupRoutes, { backupHooksRouter } from './modules/backup/backup.routes';
 
 const app = express();
 
@@ -45,6 +45,9 @@ app.use(morgan('dev'));
 
 // Public routes
 app.use('/api/v1/auth', authRoutes);
+
+// Backup hooks that can't carry a login: Google's redirect after approval, and the daily scheduler (shared key)
+app.use('/api/v1/backup-hooks', backupHooksRouter);
 
 // Protected routes
 app.use('/api/v1/categories', protect, categoryRoutes);

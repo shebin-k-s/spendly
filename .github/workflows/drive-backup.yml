@@ -1,0 +1,26 @@
+name: Daily backup to Google Drive
+
+# Asks the backend to back up to Drive. Safe to run more often than needed: the backend
+# skips it when automatic backup is off or a backup from the last day already exists.
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   BACKEND_URL      e.g. https://spendly-api.onrender.com   (no trailing slash)
+#   BACKUP_CRON_KEY  the same value as the backend's BACKUP_CRON_KEY
+on:
+  schedule:
+    - cron: '30 19 * * *' # 01:00 IST
+  workflow_dispatch: # also runnable by hand from the Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the backup
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          BACKUP_CRON_KEY: ${{ secrets.BACKUP_CRON_KEY }}
+        run: |
+          # The server may be asleep (free hosting): allow a slow first response and retry a few times.
+          curl --fail-with-body --silent --show-error \
+            --retry 4 --retry-delay 30 --retry-all-errors --max-time 150 \
+            -X POST -H "x-backup-key: $BACKUP_CRON_KEY" \
+            "$BACKEND_URL/api/v1/backup-hooks/scheduled"

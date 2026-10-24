@@ -53,3 +53,56 @@ export function useRestoreBackup() {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 }
+
+export function useDriveStatus() {
+  return useQuery({
+    queryKey: [...BACKUP_KEY, 'drive'],
+    queryFn: backupApi.driveStatus,
+    staleTime: 30_000,
+  });
+}
+
+// Sends the browser to Google to approve access; Google then returns to the Backup page.
+export function useConnectDrive() {
+  return useMutation({
+    mutationFn: async () => {
+      window.location.href = await backupApi.driveConnectUrl();
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+}
+
+export function useRunDriveBackup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: backupApi.driveRun,
+    onSuccess: (r) => toast.success(`Backed up to Google Drive (${r.fileName})`),
+    onError: (error) => toast.error(getErrorMessage(error)),
+    // Success or failure, the "last backup" line changed.
+    onSettled: () => qc.invalidateQueries({ queryKey: [...BACKUP_KEY, 'drive'] }),
+  });
+}
+
+export function useSetDriveAuto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) => backupApi.driveSetAuto(enabled),
+    onSuccess: (status) => {
+      qc.setQueryData([...BACKUP_KEY, 'drive'], status);
+      toast.success(status.autoEnabled ? 'Automatic daily backup is on' : 'Automatic backup is off');
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+}
+
+export function useDisconnectDrive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: backupApi.driveDisconnect,
+    onSuccess: (status) => {
+      qc.setQueryData([...BACKUP_KEY, 'drive'], status);
+      toast.success('Google Drive disconnected');
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
+  });
+}
