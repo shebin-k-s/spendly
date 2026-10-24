@@ -47,11 +47,23 @@ export const backupApi = {
   // dryRun: load it inside a transaction and roll back — proves the file will work, changes nothing.
   // A real restore replaces ALL current data and must carry the RESTORE confirmation.
   async restore(file: File, dryRun: boolean): Promise<RestoreResult> {
-    const form = new FormData();
-    form.append('file', file);
-    if (!dryRun) form.append('confirm', 'RESTORE');
-    const { data } = await apiClient.post<RestoreResult>(`/backup/restore${dryRun ? '?dryRun=true' : ''}`, form, { timeout: 120_000 });
-    return data;
+    // The server may be asleep (free hosting) and then doesn't answer the first try. Retrying is safe even
+    // for a real restore: it replaces everything with this same file, so doing it twice ends identically.
+    const attempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        if (!dryRun) form.append('confirm', 'RESTORE');
+        const { data } = await apiClient.post<RestoreResult>(`/backup/restore${dryRun ? '?dryRun=true' : ''}`, form, { timeout: 120_000 });
+        return data;
+      } catch (err) {
+        const status = (err as { response?: { status?: number } }).response?.status;
+        const transient = status === undefined || status === 502 || status === 503 || status === 504;
+        if (!transient || attempt >= attempts) throw err;
+        await new Promise((r) => setTimeout(r, 3_000 * attempt));
+      }
+    }
   },
 
   async driveStatus(): Promise<DriveStatus> {

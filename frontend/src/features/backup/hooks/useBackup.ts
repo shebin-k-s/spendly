@@ -2,9 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { backupApi } from '../api/backupApi';
+import axios from 'axios';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
 const BACKUP_KEY = ['backup'] as const;
+
+// "Network Error" tells nobody anything: say what it usually means here.
+function restoreErrorMessage(error: unknown): string {
+  if (axios.isAxiosError(error) && !error.response) {
+    return "Couldn't reach the server — it may be waking up. Wait a moment and try again.";
+  }
+  return getErrorMessage(error);
+}
 
 export function useBackupSummary() {
   return useQuery({
@@ -37,7 +46,7 @@ export function useDownloadBackup() {
 export function useCheckBackup() {
   return useMutation({
     mutationFn: (file: File) => backupApi.restore(file, true),
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(restoreErrorMessage(error)),
   });
 }
 
@@ -50,15 +59,18 @@ export function useRestoreBackup() {
       qc.invalidateQueries();
       toast.success('Backup restored — all data replaced');
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    onError: (error) => toast.error(restoreErrorMessage(error)),
   });
 }
 
+// Always re-checked when the page opens: this status changes outside the app (the Google
+// sign-in happens on another site), so a saved copy of "not connected" must never be shown as current.
 export function useDriveStatus() {
   return useQuery({
     queryKey: [...BACKUP_KEY, 'drive'],
     queryFn: backupApi.driveStatus,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -66,7 +78,9 @@ export function useDriveStatus() {
 export function useConnectDrive() {
   return useMutation({
     mutationFn: async () => {
-      window.location.href = await backupApi.driveConnectUrl();
+      // replace, not assign: the Backup page is swapped for Google's page instead of being kept in the
+      // history behind it, so Back after returning can't land on an old copy of this page.
+      window.location.replace(await backupApi.driveConnectUrl());
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });

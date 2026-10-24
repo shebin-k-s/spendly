@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, Upload, ShieldAlert, Loader2, CheckCircle2, FileArchive, Cloud, ExternalLink, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useBackupSummary, useDownloadBackup, useCheckBackup, useRestoreBackup, useDriveStatus, useConnectDrive, useRunDriveBackup, useSetDriveAuto, useDisconnectDrive } from '../hooks/useBackup';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useQueryFreshness } from '@/hooks/useQueryFreshness';
+import { useRefetchOnFocus } from '@/hooks/useRefetchOnFocus';
 import { DataFreshnessIndicator } from '@/components/DataFreshnessIndicator';
 import { cn } from '@/lib/utils';
+import { readFileBytes } from '@/utils/readFile';
 
 const TABLE_LABEL: Record<string, string> = {
   expenses: 'Expenses',
@@ -23,8 +26,9 @@ const TABLE_LABEL: Record<string, string> = {
 };
 const label = (table: string) => TABLE_LABEL[table] ?? table;
 
-function DriveSection() {
+function DriveSection({ returning }: { returning: boolean }) {
   const status = useDriveStatus();
+  useRefetchOnFocus(status);
   const connect = useConnectDrive();
   const run = useRunDriveBackup();
   const setAuto = useSetDriveAuto();
@@ -40,7 +44,7 @@ function DriveSection() {
         <h2 className="text-sm font-bold">Google Drive</h2>
       </div>
 
-      {status.isLoading ? (
+      {status.isLoading || (returning && status.isFetching) ? (
         <div className="h-16 rounded-xl bg-secondary/60 animate-pulse" />
       ) : !d ? (
         <p className="text-xs text-muted-foreground">Couldn't load the Google Drive status.</p>
@@ -131,14 +135,21 @@ export default function BackupPage() {
   const restore = useRestoreBackup();
 
   // Google sends the browser back here with ?drive=connected or ?drive=error&message=…
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
+  const qc = useQueryClient();
+  // True for this visit if we came back from Google: the card then waits for the real status instead of showing a stale one.
+  const [returning] = useState(() => !!params.get('drive'));
   useEffect(() => {
     const result = params.get('drive');
     if (!result) return;
+    qc.invalidateQueries({ queryKey: ['backup'] });
     if (result === 'connected') toast.success('Google Drive connected');
     else toast.error(params.get('message') || 'Could not connect Google Drive');
-    setParams({}, { replace: true });
-  }, [params, setParams]);
+    // The browser's Back would otherwise walk back through Google's sign-in pages. Rewrite the top of the
+    // history to "Dashboard, then Backup" (this also clears ?drive=… from the address), so Back goes to the app.
+    navigate('/', { replace: true });
+    navigate('/backup');
+  }, [params, navigate, qc]);
 
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -149,12 +160,25 @@ export default function BackupPage() {
   const checked = check.data;
   const busy = download.isPending || check.isPending || restore.isPending;
 
-  const pickFile = (f: File | null) => {
-    setFile(f);
+  const pickFile = async (picked: File | null) => {
     setConfirmText('');
     check.reset();
     restore.reset();
-    if (f) check.mutate(f);
+    if (!picked) {
+      setFile(null);
+      return;
+    }
+    try {
+      // A file picked from Google Drive (or another cloud app) is only a link until it is read, and reading
+      // it later — when the upload starts — often fails as a "Network Error". Read it now, while it is
+      // available, and upload this in-memory copy instead.
+      const copy = new File([await readFileBytes(picked)], picked.name, { type: picked.type });
+      setFile(copy);
+      check.mutate(copy);
+    } catch {
+      setFile(null);
+      toast.error("Couldn't read that file. Download it to your phone first, then choose it from Downloads.");
+    }
   };
 
   const reset = () => {
@@ -185,7 +209,7 @@ export default function BackupPage() {
       </div>
 
       <div className="page-content space-y-5">
-        <DriveSection />
+        <DriveSection returning={returning} />
 
         {/* Backup */}
         <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
@@ -222,7 +246,10 @@ export default function BackupPage() {
             type="file"
             accept=".gz,.json,application/gzip,application/json"
             className="hidden"
-            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const picked = e.target.files?.[0] ?? null;
+              void pickFile(picked).finally(() => { e.target.value = ''; }); // so choosing the same file again still triggers
+            }}
           />
           <button
             type="button"
