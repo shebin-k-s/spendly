@@ -100,8 +100,9 @@ export async function disconnect(): Promise<void> {
 export async function setAuto(enabled: boolean): Promise<void> {
     const s = await getSettings();
     if (enabled && !s.refreshTokenEnc) throw new ApiError('Connect Google Drive first', 400);
-    s.autoEnabled = enabled;
-    await repo().save(s);
+    // Write only this one column. Saving the whole row could put back old values of other fields — and a
+    // backup that is running right now must not be able to put back the old value of this switch either.
+    await repo().update({ id: 'default' }, { autoEnabled: enabled });
 }
 
 export interface DriveRunResult {
@@ -124,24 +125,21 @@ export async function runBackup(): Promise<DriveRunResult> {
         const fileName = `${drive.BACKUP_PREFIX}${dateString}-${timeString.replace(':', '')}.json.gz`;
 
         const accessToken = await drive.accessTokenFor(decrypt(s.refreshTokenEnc));
-        s.folderId = await drive.ensureFolder(accessToken, s.folderId);
-        await drive.uploadFile(accessToken, s.folderId, fileName, bytes);
+        const folderId = await drive.ensureFolder(accessToken, s.folderId);
+        if (folderId !== s.folderId) await repo().update({ id: 'default' }, { folderId });
+        await drive.uploadFile(accessToken, folderId, fileName, bytes);
 
-        const files = await drive.listBackups(accessToken, s.folderId);
+        const files = await drive.listBackups(accessToken, folderId);
         const old = files.slice(KEEP_BACKUPS);
         for (const f of old) await drive.deleteFile(accessToken, f.id);
 
-        s.lastRunAt = new Date();
-        s.lastStatus = 'ok';
-        s.lastMessage = `Uploaded ${fileName}`;
-        s.lastFileName = fileName;
-        await repo().save(s);
+        // Only the result fields — never the whole row, which may have changed (e.g. the switch) since this run began.
+        await repo().update({ id: 'default' }, { lastRunAt: new Date(), lastStatus: 'ok', lastMessage: `Uploaded ${fileName}`, lastFileName: fileName });
         return { fileName, sizeBytes: bytes.length, kept: Math.min(files.length, KEEP_BACKUPS), deleted: old.length };
     } catch (err) {
-        s.lastRunAt = new Date();
-        s.lastStatus = 'error';
-        s.lastMessage = err instanceof Error ? err.message.slice(0, 300) : 'Backup failed';
-        await repo().save(s).catch(() => undefined);
+        await repo()
+            .update({ id: 'default' }, { lastRunAt: new Date(), lastStatus: 'error', lastMessage: err instanceof Error ? err.message.slice(0, 300) : 'Backup failed' })
+            .catch(() => undefined);
         throw err;
     } finally {
         running = false;

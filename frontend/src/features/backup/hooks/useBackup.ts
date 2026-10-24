@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { backupApi } from '../api/backupApi';
+import { backupApi, type DriveStatus } from '../api/backupApi';
 import axios from 'axios';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
@@ -99,13 +99,24 @@ export function useRunDriveBackup() {
 
 export function useSetDriveAuto() {
   const qc = useQueryClient();
+  const key = [...BACKUP_KEY, 'drive'];
   return useMutation({
     mutationFn: (enabled: boolean) => backupApi.driveSetAuto(enabled),
+    // Flip the switch on screen at once; put it back if the server says no.
+    onMutate: async (enabled) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<DriveStatus>(key);
+      qc.setQueryData<DriveStatus>(key, (old) => (old ? { ...old, autoEnabled: enabled } : old));
+      return { previous };
+    },
+    onError: (error, _enabled, context) => {
+      if (context?.previous) qc.setQueryData(key, context.previous);
+      toast.error(getErrorMessage(error));
+    },
     onSuccess: (status) => {
-      qc.setQueryData([...BACKUP_KEY, 'drive'], status);
+      qc.setQueryData(key, status);
       toast.success(status.autoEnabled ? 'Automatic daily backup is on' : 'Automatic backup is off');
     },
-    onError: (error) => toast.error(getErrorMessage(error)),
   });
 }
 
