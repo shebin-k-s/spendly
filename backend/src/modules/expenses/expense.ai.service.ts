@@ -579,6 +579,7 @@ How the speaker separates transactions:
 - If the speaker never uses a marker, put everything on ONE line.
 - "next" is only a marker when it introduces the next transaction. If it is part of ordinary speech ("next to the shop"), keep it as normal text.
 - The plain words "item" / "items" are NOT markers. When the speaker says "items soap chapati" or "item milk" they are just introducing what was bought; keep those words with the line they belong to. A marker needs "next" or an ordinal/number ("first item", "item 2").
+- A transaction has exactly ONE date. If the speaker switches to a different day ("yesterday ... and today ...", "last Monday ... today ..."), that starts a NEW line even though no marker word was said. Keep a time they say with the day ("10pm", "night") on that day's line.
 - A transaction always has an amount. If a stretch of speech has no amount (for example just the names of things bought), it belongs to the transaction before it. Never start a new line for it.
 
 Writing each line:
@@ -594,6 +595,10 @@ auto 150
 
 Example 2: the speaker says "150 for ayaan yesterday 10 pm items soap chapati" (no marker anywhere) and you write exactly ONE line:
 150 for ayaan yesterday 10 pm items soap chapati
+
+Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 45rs dosa and idli" and you write exactly TWO lines (a different day starts a new transaction; the first has no amount, which is fine):
+yesterday night 10pm ayaans item chapath
+today 45 dosa and idli
 
 Return ONLY the lines, with no numbering, bullets, quotes or explanation. If nothing intelligible was said, return an empty response.`;
     }

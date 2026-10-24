@@ -12,6 +12,31 @@ const TRAILING_MARKERS = new RegExp(String.raw`[\s,.:;-]*(?:${MARKER})[\s,.:;-]*
 const INLINE_MARKERS = new RegExp(String.raw`[\s,.;]*\b(?:next\s+(?:item|one)|(?:${ORDINAL_WORDS}|\d+(?:st|nd|rd|th))\s+item|item\s+(?:\d+|${NUMBER_WORDS}))\b[\s,.:;-]*`, 'gi');
 const LIST_PREFIX = /^\s*(?:\d+[.)]|[-*•])\s*/;
 
+// A transaction has exactly one date, so a second date word in the same line
+// ("yesterday ... and today ...") means the speaker moved on to a new one. A time
+// said right before the date word ("10pm today") travels with it.
+const DATE_WORD = String.raw`(?:day\s+before\s+yesterday|yesterday|today|last\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))`;
+const DATE_SWITCH = new RegExp(String.raw`(?:\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\s+)?\b${DATE_WORD}\b`, 'gi');
+const CONNECTOR_END = /[\s,.;-]*\b(?:and|then|also|plus)\b[\s,.;-]*$/i;
+const CONNECTOR_START = /^[\s,.;-]*(?:(?:and|then|also|plus)\b[\s,.;-]*)+/i;
+
+function splitOnDateSwitch(line: string): string[] {
+    const cuts: number[] = [];
+    let seen = 0;
+    for (const m of line.matchAll(DATE_SWITCH)) {
+        seen += 1;
+        if (seen > 1) cuts.push(m.index!);
+    }
+    if (cuts.length === 0) return [line];
+    const pieces: string[] = [];
+    let from = 0;
+    for (const cut of [...cuts, line.length]) {
+        pieces.push(line.slice(from, cut).replace(CONNECTOR_END, '').replace(CONNECTOR_START, ''));
+        from = cut;
+    }
+    return pieces.filter((p) => p.trim());
+}
+
 // "10 pm", "10:30", "10 o'clock" are times, not amounts.
 const TIME_EXPR = /\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|o'?clock)(?!\w)|\b\d{1,2}:\d{2}\b/gi;
 const hasAmount = (line: string) => /\d/.test(line.replace(TIME_EXPR, ' '));
@@ -36,8 +61,22 @@ export function cleanTranscriptLines(text: string): string[] {
                 .replace(TRAILING_MARKERS, '')
                 .replace(/\s+/g, ' ')
                 .trim();
-            if (line) entries.push({ text: line, forced });
+            if (!line) return;
+            const parts = splitOnDateSwitch(line);
+            // Pieces split off by a date switch are real, separate transactions —
+            // even a piece with no amount yet must not be glued back on.
+            parts.forEach((part) => entries.push({ text: part.trim(), forced: forced || parts.length > 1 }));
         });
+    }
+
+    // Two neighbouring lines that each name their own day are two transactions,
+    // whatever their amounts.
+    const hasDate = (line: string) => new RegExp(DATE_SWITCH.source, 'i').test(line);
+    for (let i = 1; i < entries.length; i++) {
+        if (hasDate(entries[i].text) && hasDate(entries[i - 1].text)) {
+            entries[i].forced = true;
+            entries[i - 1].forced = true;
+        }
     }
 
     const merged: { text: string; forced: boolean }[] = [];
