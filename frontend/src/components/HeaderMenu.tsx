@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { Settings, Check, LogOut } from 'lucide-react';
+import { Settings, Check, LogOut, DatabaseBackup } from 'lucide-react';
 import { useTheme, THEMES, type Theme } from '@/context/ThemeContext';
 import apiClient, { notifySwLogout } from '@/lib/apiClient';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -76,6 +76,13 @@ export default function HeaderMenu() {
               </DropdownMenu.Item>
             ))}
             <DropdownMenu.Separator className="h-px bg-border my-1" />
+            <DropdownMenu.Item
+              onSelect={() => navigate('/backup')}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm outline-none cursor-pointer data-[highlighted]:bg-muted"
+            >
+              <DatabaseBackup className="w-4 h-4" />
+              Backup & restore
+            </DropdownMenu.Item>
             <DropdownMenu.Item
               onSelect={() => setConfirmOpen(true)}
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm text-destructive outline-none cursor-pointer data-[highlighted]:bg-destructive/10"

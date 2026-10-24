@@ -45,6 +45,10 @@ export class WebauthnService {
     // unavoidable network round trip to the browser.
     private static credentialsCache: WebauthnCredential[] | null = null;
 
+    static clearCache() {
+        WebauthnService.credentialsCache = null;
+    }
+
     private async getCachedCredentials(): Promise<WebauthnCredential[]> {
         if (!WebauthnService.credentialsCache) {
             WebauthnService.credentialsCache = await this.repo.find();

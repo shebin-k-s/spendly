@@ -31,6 +31,7 @@ import PersonDetailsPage from '@/features/people/pages/PersonDetailsPage';
 import EditPersonPage from '@/features/people/pages/EditPersonPage';
 import ShareToPeoplePage from '@/features/people/pages/ShareToPeoplePage';
 import MerchantRulesPage from '@/features/merchants/pages/MerchantRulesPage';
+import BackupPage from '@/features/backup/pages/BackupPage';
 
 const CACHE_MAX_AGE = 1000 * 60 * 60 * 24 * 7; // Keep cache for 7 days
 
@@ -90,6 +91,7 @@ export default function App() {
               <Route path="people/:id/edit" element={<EditPersonPage />} />
               <Route path="share-to-people" element={<ShareToPeoplePage />} />
               <Route path="share-pending" element={<PendingSharesPage />} />
+              <Route path="backup" element={<BackupPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

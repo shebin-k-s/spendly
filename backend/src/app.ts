@@ -13,6 +13,7 @@ import expenseRoutes from './modules/expenses/expense.routes';
 import peopleRoutes from './modules/people/people.routes';
 import merchantRuleRoutes from './modules/merchants/merchant-rule.routes';
 import webauthnRoutes from './modules/webauthn/webauthn.routes';
+import backupRoutes from './modules/backup/backup.routes';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/v1/expenses', protect, expenseRoutes);
 app.use('/api/v1/people', protect, peopleRoutes);
 app.use('/api/v1/merchant-rules', protect, merchantRuleRoutes);
 app.use('/api/v1/webauthn', protect, webauthnRoutes);
+app.use('/api/v1/backup', protect, backupRoutes);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok', app: 'spendly-api' }));
