@@ -19,8 +19,29 @@ jobs:
           BACKEND_URL: ${{ secrets.BACKEND_URL }}
           BACKUP_CRON_KEY: ${{ secrets.BACKUP_CRON_KEY }}
         run: |
-          # The server may be asleep (free hosting): allow a slow first response and retry a few times.
-          curl --fail-with-body --silent --show-error \
-            --retry 4 --retry-delay 30 --retry-all-errors --max-time 150 \
-            -X POST -H "x-backup-key: $BACKUP_CRON_KEY" \
-            "$BACKEND_URL/api/v1/backup-hooks/scheduled"
+          if [ -z "$BACKEND_URL" ] || [ -z "$BACKUP_CRON_KEY" ]; then
+            echo "::error::Add the repository secrets BACKEND_URL and BACKUP_CRON_KEY (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          # Tolerate a trailing slash, or the API path pasted into the secret.
+          BASE="${BACKEND_URL%/}"
+          BASE="${BASE%/api/v1}"
+          URL="$BASE/api/v1/backup-hooks/scheduled"
+          echo "Calling $URL"
+          # The server may be asleep (free hosting): the first tries can time out or fail, so try up to 5 times.
+          # The reply is printed: {"ran":true,...} means a backup was made; {"ran":false,"reason":"..."} says
+          # why not (Drive not connected, automatic backup turned off, or one already made in the last day).
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -sS -o reply.txt -w '%{http_code}' --max-time 150 -X POST -H "x-backup-key: $BACKUP_CRON_KEY" "$URL" || echo 000)
+            echo "attempt $attempt: HTTP $code"
+            cat reply.txt 2>/dev/null; echo
+            case "$code" in
+              2*) exit 0 ;;
+              401|403) echo "::error::The backend refused the key — BACKUP_CRON_KEY here must equal BACKUP_CRON_KEY on the server"; exit 1 ;;
+              404) echo "::error::Address not found — check the BACKEND_URL secret"; exit 1 ;;
+              503) if grep -q "not set up" reply.txt 2>/dev/null; then echo "::error::The server has no BACKUP_CRON_KEY set"; exit 1; fi ;;
+            esac
+            [ "$attempt" -lt 5 ] && sleep "${RETRY_SLEEP:-30}"
+          done
+          echo "::error::The backend did not answer successfully after 5 attempts"
+          exit 1
