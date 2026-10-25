@@ -751,11 +751,13 @@ export class ExpenseController {
         }
         const base64 = file.buffer.toString('base64');
         const mimeType = file.mimetype || 'audio/wav';
-        const vocab = await loadSpeechVocabulary();
+        // ?scope=lending: the words are for the lent/returned ledger (people), not for an expense.
+        const lending = req.query.scope === 'lending';
+        const vocab = await loadSpeechVocabulary(lending ? 'lending' : 'expense');
         // ?mode=instruction: a spoken correction for one expense ("make it 45") —
         // transcribed verbatim, not split into a list of expenses.
         if (instructionMode) {
-            reply(await aiService.transcribeInstruction(base64, mimeType, trace, vocab));
+            reply(await aiService.transcribeInstruction(base64, mimeType, trace, vocab, lending ? 'people they lend to or get money back from, and what it was for' : undefined));
             return;
         }
         // The lines already on screen, if any: then speech may also EDIT or REMOVE them ("in the 2nd one add banana").

@@ -571,9 +571,9 @@ Write like a friend who actually studied your numbers and is telling you what th
     }
 
     // The speaker's own names, so the model can match what it hears to a known spelling.
-    private vocabBlock(vocab: string[]): string {
+    private vocabBlock(vocab: string[], what = 'shops, categories, things they buy'): string {
         if (!vocab.length) return '';
-        return `Names and words this speaker uses often (shops, categories, things they buy). When something you hear sounds like one of these, write it EXACTLY as spelled here: ${vocab.join(', ')}.\n\n`;
+        return `Names and words this speaker uses often (${what}). When something you hear sounds like one of these, write it EXACTLY as spelled here: ${vocab.join(', ')}.\n\n`;
     }
 
     private buildTranscribePrompt(vocab: string[] = []): string {
@@ -711,7 +711,7 @@ These examples only show the format — NEVER output any of their words unless t
         return text.trim() === '' || /no[_\s-]?speech/i.test(text);
     }
 
-    private buildTranscribeInstructionPrompt(vocab: string[] = []): string {
+    private buildTranscribeInstructionPrompt(vocab: string[] = [], what?: string): string {
         return `Transcribe this short audio recording word for word. The speaker usually speaks Indian English.
 
 Rules:
@@ -721,12 +721,12 @@ Rules:
 - If a part is unclear, leave it out.
 - Spell names of dishes, shops, places and people properly (for example "Alfaham", not "Alfan"), never as a phonetic guess.
 
-${this.vocabBlock(vocab)}Return ONLY the transcribed words, with no quotes, labels or explanation.
+${this.vocabBlock(vocab, what)}Return ONLY the transcribed words, with no quotes, labels or explanation.
 If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
     }
 
-    async transcribeInstruction(audioBase64: string, mimeType: string, trace?: AiTrace, vocab: string[] = []): Promise<{ text: string }> {
-        const prompt = this.buildTranscribeInstructionPrompt(vocab);
+    async transcribeInstruction(audioBase64: string, mimeType: string, trace?: AiTrace, vocab: string[] = [], what?: string): Promise<{ text: string }> {
+        const prompt = this.buildTranscribeInstructionPrompt(vocab, what);
         const rawText = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
         if (trace) Object.assign(trace, { prompt, rawText });
         if (this.isNoSpeech(rawText)) return { text: '' };
