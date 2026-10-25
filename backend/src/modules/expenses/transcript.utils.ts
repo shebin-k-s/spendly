@@ -37,9 +37,11 @@ function splitOnDateSwitch(line: string): string[] {
 
     const cuts: number[] = [];
     let segStart = 0;
+    const dayKey = (m: RegExpMatchArray) => (m[0].match(new RegExp(DATE_WORD, 'i'))?.[0] ?? '').toLowerCase().replace(/\s+/g, ' ');
     for (let i = 0; i < matches.length - 1; i++) {
         const cur = matches[i];
         const next = matches[i + 1];
+        if (cur.index! < segStart) continue; // already used up as the tail of the previous transaction
         const curEnd = cur.index! + cur[0].length;
         const nextStart = next.index!;
         const nextEnd = nextStart + next[0].length;
@@ -50,8 +52,19 @@ function splitOnDateSwitch(line: string): string[] {
             hasAmount(line.slice(curEnd, nextStart)) &&
             (!hasAmount(line.slice(nextEnd, after)) || /^\s*(?:and|then|also|plus)\b/i.test(line.slice(nextEnd, after)));
 
+        // "yesterday 23rs tiffen yesterday 9pm and then 250rs …": the same day said again, with just a time and then a
+        // connector, is the tail of the transaction before it — not the start of a new one.
+        const nextTimeLen = line.slice(nextEnd).match(TRAILING_TIME)?.[0].length ?? 0;
+        const sameDayTail =
+            dayKey(cur) === dayKey(next) &&
+            hasAmount(line.slice(curEnd, nextStart)) &&
+            !hasAmount(line.slice(nextEnd, nextEnd + nextTimeLen)) &&
+            /^\s*(?:and|then|also|plus)\b/i.test(line.slice(nextEnd + nextTimeLen));
+
         let cut = nextStart;
-        if (trailingStyle) {
+        if (sameDayTail) {
+            cut = nextEnd + nextTimeLen;
+        } else if (trailingStyle) {
             cut = Math.min(curEnd + (line.slice(curEnd).match(TRAILING_TIME)?.[0].length ?? 0), nextStart);
         }
         cuts.push(cut);
@@ -87,7 +100,8 @@ const hasAmount = (line: string) => /\d/.test(line.replace(TIME_EXPR, ' '));
  * joined back — unless the speaker explicitly said a marker right before it.
  */
 export function cleanTranscriptLines(text: string): string[] {
-    const entries: { text: string; forced: boolean }[] = [];
+    // `marker`: the speaker explicitly said "next / second item" before it, so it stays separate whatever it holds.
+    const entries: { text: string; forced: boolean; marker: boolean }[] = [];
     for (const rawLine of text.split(/\r?\n/)) {
         const pieces = rawLine.split(INLINE_MARKERS);
         pieces.forEach((piece, idx) => {
@@ -96,13 +110,15 @@ export function cleanTranscriptLines(text: string): string[] {
             const line = normalizeCurrency(stripped
                 .replace(LEADING_MARKERS, '')
                 .replace(TRAILING_MARKERS, '')
+                .replace(CONNECTOR_START, '') // "and then 250rs for…" — a spoken connector, not part of the line
+                .replace(CONNECTOR_END, '')
                 .replace(/\s+/g, ' ')
                 .trim());
             if (!line) return;
             const parts = splitOnDateSwitch(line);
             // Pieces split off by a date switch are real, separate transactions —
             // even a piece with no amount yet must not be glued back on.
-            parts.forEach((part) => entries.push({ text: part.trim(), forced: forced || parts.length > 1 }));
+            parts.forEach((part) => entries.push({ text: part.trim(), forced: forced || parts.length > 1, marker: forced }));
         });
     }
 
@@ -116,11 +132,15 @@ export function cleanTranscriptLines(text: string): string[] {
         }
     }
 
+    // The same day said twice ("yesterday 23rs tiffen … yesterday 9pm") is ONE transaction: an amountless piece that
+    // names the same day as the line before it is that line's tail, not a new transaction.
+    const dayOf = (line: string) => line.match(new RegExp(DATE_WORD, 'i'))?.[0].toLowerCase().replace(/\s+/g, ' ') ?? null;
     const merged: { text: string; forced: boolean }[] = [];
     let carry = ''; // amountless words seen before any transaction
     for (const entry of entries) {
         const last = merged[merged.length - 1];
-        if (!entry.forced && !hasAmount(entry.text)) {
+        const sameDayTail = !entry.marker && !!last && dayOf(entry.text) !== null && dayOf(entry.text) === dayOf(last.text);
+        if ((!entry.forced || sameDayTail) && !hasAmount(entry.text)) {
             if (last) last.text += ` ${entry.text}`;
             else carry = carry ? `${carry} ${entry.text}` : entry.text;
             continue;

@@ -582,6 +582,7 @@ How the speaker separates transactions:
 - The plain words "item" / "items" are NOT markers. When the speaker says "items soap chapati" or "item milk" they are just introducing what was bought; keep those words with the line they belong to. A marker needs "next" or an ordinal/number ("first item", "item 2").
 - Date and time can be said ANYWHERE in a transaction: at the start ("yesterday 10pm tea 20"), in the middle ("150 for ayaan yesterday 10pm soap"), or at the end ("tea 20 yesterday 10pm"). Keep them on the line of the transaction they describe, in the order the speaker said them. Use the amounts to decide where one transaction stops and the next starts: each transaction has its own amount.
 - A transaction has exactly ONE date. If the speaker switches to a different day ("yesterday ... and today ...", "last Monday ... today ..."), that starts a NEW line even though no marker word was said. Keep a time they say with the day ("10pm", "night") on that day's line.
+- Saying the SAME day again with a time ("yesterday 23rs tiffen from the post office yesterday 9pm") is still ONE transaction: the second "yesterday 9pm" is just that transaction's time. Never put a day/time on a line of its own. Linking words between transactions ("and", "and then", "also") are not part of any line — leave them out.
 - A transaction always has an amount. If a stretch of speech has no amount (for example just the names of things bought), it belongs to the transaction before it. Never start a new line for it.
 
 Writing each line:
@@ -605,6 +606,11 @@ auto 30rs today
 Example 3b: the speaker says "at 3pm today lunch 180 rupees next item tea 20 rs yesterday" and you write exactly TWO lines:
 at 3pm today lunch 180rs
 tea 20rs yesterday
+
+Example 3c: the speaker says "yesterday 40rs parcel from the post office yesterday 9pm and then 120rs for the hotel yesterday 3pm and today 1pm biriyani 90rs" and you write exactly THREE lines:
+yesterday 40rs parcel from the post office yesterday 9pm
+120rs for the hotel yesterday 3pm
+today 1pm biriyani 90rs
 
 Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 45 dosa and idli" and you write exactly TWO lines (a different day starts a new transaction; the first has no amount, which is fine; the second gets rs even though the speaker did not say it):
 yesterday night 10pm ayaans item chapath
