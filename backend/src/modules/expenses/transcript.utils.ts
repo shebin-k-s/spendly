@@ -208,6 +208,7 @@ export function applyVoiceOps(current: string[], ops: VoiceOp[]): { lines: strin
     const changes: VoiceChanges = { edited: [], removed: [], added: 0, skipped: [] };
     const removed = new Set<number>();
     const appended: string[] = [];
+    let unchanged = 0;
     const valid = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= current.length;
 
     for (const op of ops) {
@@ -216,7 +217,7 @@ export function applyVoiceOps(current: string[], ops: VoiceOp[]): { lines: strin
             if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} in the list`);
             else if (!text) changes.skipped.push(`Item ${op.line}: nothing to change it to`);
             // The model sometimes "edits" a line to what it already says (e.g. when it heard nothing): not a change.
-            else if (text === current[op.line - 1].trim()) continue;
+            else if (text === current[op.line - 1].trim()) unchanged++;
             else if (!changes.edited.includes(op.line)) { lines[op.line - 1] = text; changes.edited.push(op.line); }
         } else if (op.op === 'remove') {
             if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} to remove`);
@@ -232,5 +233,8 @@ export function applyVoiceOps(current: string[], ops: VoiceOp[]): { lines: strin
     changes.edited = changes.edited.filter((n) => !removed.has(n)).sort((a, b) => a - b);
     const added = cleanTranscriptLines(appended.join('\n'));
     changes.added = added.length;
+    if (unchanged && !changes.edited.length && !changes.removed.length && !added.length && !changes.skipped.length) {
+        changes.skipped.push('Nothing to change — the list is already like that');
+    }
     return { lines: [...lines.filter((_, i) => !removed.has(i + 1)), ...added], changes };
 }

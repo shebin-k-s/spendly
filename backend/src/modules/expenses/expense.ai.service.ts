@@ -641,7 +641,8 @@ The examples above only illustrate the format — NEVER output any of their word
         return `You are helping someone build a list of expenses by voice. They already have a numbered list on screen and now they speak. Everything they say is one or more of:
  (A) NEW expenses to add to the end of the list,
  (B) an EDIT of one existing line (add something to it, change its amount, swap a word),
- (C) REMOVING one existing line.
+ (C) REMOVING one existing line,
+ (D) a request about the WHOLE list: "update the list properly", "correct the list", "fix the spelling", "fix everything", "clean it up", "make it proper".
 
 THE LIST ON SCREEN NOW:
 ${list}
@@ -649,6 +650,7 @@ ${list}
 How to tell them apart:
 - EDIT or REMOVE: the speaker points at an existing line by its number or position ("in the 2nd one", "second one", "for the third", "item 2", "the last one", "the first") AND says what to do with it: add, include, put, change, make, set, update, replace, correct, edit, remove, delete, drop, cancel, "should be", "instead". For example "in the 2nd one add butter", "third one change the amount to 60", "make the first one 50 rupees", "change the amount of the last one to 75", "remove the first one", "delete the second item".
 - NEW: everything else — including ordinals used only as separators without an action ("first item tea 20, second item auto 150" are two NEW items).
+- WHOLE LIST (D): the speaker asks for the list as a whole to be corrected without naming a line. Look at EVERY line and fix what is wrong: misspelt names of dishes, shops, places and people (use the speaker's known names below; e.g. "Alfan" → "Alfaham"), amounts not written as digits followed by rs, stray or garbled words. Give an "edit" only for lines that really change, with the complete corrected text. Never invent amounts, items or dates, never remove a line, and keep every word that is already right. If nothing needs fixing, give one skip with the reason "The list already looks correct".
 - The speaker can mix them in one go, in any order ("in the second one add butter, next item juice 30").
 
 For an EDIT, give the COMPLETE new text of that line: the old line with ONLY the asked change applied.
@@ -677,6 +679,7 @@ Sample list: "1. 40rs milk", "2. bread 30rs", "3. soap 55rs".
 - Speaker: "eggs twelve next item salt ten" → {"ops":[{"op":"append","text":"eggs 12rs"},{"op":"append","text":"salt 10rs"}]}
 - Speaker: "in the first one add curd, next item rice 90" → {"ops":[{"op":"edit","line":1,"text":"milk curd 40rs"},{"op":"append","text":"rice 90rs"}]}
 - Speaker: "first item tea 20" → {"ops":[{"op":"append","text":"tea 20rs"}]}
+- Speaker: "update the list properly" with list "1. 40rs mlik", "2. bread 30" → {"ops":[{"op":"edit","line":1,"text":"40rs milk"},{"op":"edit","line":2,"text":"bread 30rs"}]}
 - Speaker: "in the ninth one add oil" (there are only 3 lines) → {"ops":[{"op":"skip","reason":"There is no item 9"}]}
 - Speaker: "make it seventy" (no line named) → {"ops":[{"op":"skip","reason":"Say which item to change"}]}
 These examples only show the format — NEVER output any of their words unless the speaker really said them.`;
