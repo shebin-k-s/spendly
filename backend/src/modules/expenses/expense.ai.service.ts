@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, Part, type GenerationConfig } from '@google/generative-ai';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
+import { matchCategoryByName } from './category-match';
 import { cleanTranscriptLines, applyVoiceOps, type VoiceOp, type VoiceChanges } from './transcript.utils';
 
 export interface CategoryOption { id: string; name: string; icon: string; }
@@ -197,7 +198,7 @@ Field rules (per expense):
   - time: if explicitly mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned but a meal is referenced, infer a typical time: breakfast → "08:30", morning tea/coffee → "09:00", lunch → "13:00", evening tea/snack → "16:30", dinner → "20:00". Only fall back to ${currentTime} if no time or meal context exists.
   - cashback: extract any cashback or reward amount.
   - note: list EVERY item mentioned in the input — do NOT skip any item. Format per item: "[qty] Item ₹Price" — include only the parts known for that item. If the user says "each" (e.g. "2 idli each 20rs"), append "each" after the price: "2 Idli ₹20 each". Join items with ", " but put "and" before the FINAL item so it reads as a complete list (e.g. "Milk ₹24, Chocolate ₹10, Onion, Kadala, Snacks and Pickle ₹5"). If there are only two items, join them with "and" (e.g. "Burger ₹150 and Coke ₹50"). End the note with a full stop "." and never a trailing comma (e.g. "Milk ₹24, Chocolate ₹10, Snacks and Pickle ₹5."). CRITICAL: include every item word AND every specific name / title / brand / model / event the user mentioned — never drop an identifying detail (e.g. "Blast movie ticket" → keep "Blast", giving "Blast movie ticket.", NOT "Movie ticket."). CRITICAL: never turn a place into a priced item (never "Ayaans ₹400"). If the user names the actual STORE / SHOP they bought from (e.g. "Ayaans", "Amazon"), append "from <Store>" at the END of the note so the user knows where (e.g. "Milk and Butter from Ayaans."). But a CATEGORY name is NOT a store: if the named place matches one of the available categories (e.g. "Chanthavila Grocery"), it is a category, NOT a store — NEVER put a category name in the note; only append an actual store/shop the user named. Do NOT multiply or recalculate prices. Never mention cashback amounts here.
-  - category_id: pick the best matching category id.
+  - category_id: the best matching category id — never null when a category reasonably fits. If the item text contains every word of a category's name (e.g. "abhi vehicle petrol" for "Abhi Petrol"), that category MUST be chosen; prefer a specific category over a broad one.
   - transfer_person: extract ONLY when the text names an individual. Return ONLY the display name (e.g. "Rahul"). If the input contains a UPI ID (e.g. "rahul@okaxis"), use just the prefix capitalized. Never include @domain. Never returns the user themselves.
   - transfer_phone: Look for a 10-digit number. Digits only.
   - transfer_direction: sent = user paid/sent money out. received = user got/received money. CRITICAL: "got", "received", "collected", "took" always mean received (e.g. "got 500 to shee" → received).
@@ -243,7 +244,7 @@ Rules:
 - time: if explicitly mentioned, resolve to 24h format ("3pm" → "15:00", "noon" → "12:00"). If not mentioned but a meal is referenced, infer a typical time: breakfast → "08:30", morning tea/coffee → "09:00", lunch → "13:00", evening tea/snack → "16:30", dinner → "20:00". Only fall back to ${currentTime} if no time or meal context exists
 - cashback: extract any cashback or reward amount. Return as string or null.
 - note: list EVERY item mentioned in the input — do NOT skip any item, even if it has no price or quantity. Format per item: "[qty] Item ₹Price" — include only the parts known for that item. If the user says "each" (e.g. "2 idli each 20rs"), append "each" after the price: "2 Idli ₹20 each". Join items with ", " but put "and" before the FINAL item so it reads as a complete list; if there are only two items, join them with "and". End the note with a full stop "." and never a trailing comma. Examples: "2 idli each 20rs and 1 tea, 5 dosa" → "2 Idli ₹20 each, 1 Tea and 5 Dosa." | "burger 150 coke 50" → "Burger ₹150 and Coke ₹50." | "2 eggs 3 bread" → "2 Eggs and 3 Bread." | "idli dosa vada" → "Idli, Dosa and Vada." CRITICAL: scan the entire input from start to finish and include every item word AND every specific name / title / brand / model / event mentioned (e.g. "Blast movie ticket" → keep "Blast": "Blast movie ticket.") — never drop an identifying detail and never stop after the first item. CRITICAL: never turn a place into a priced item (never "Ayaans ₹400"). If the user names the actual STORE / SHOP they bought from (e.g. "Ayaans", "Amazon"), append "from <Store>" at the END of the note so the user knows where (e.g. "Milk and Butter from Ayaans."). But a CATEGORY name is NOT a store: if the named place matches one of the available categories (e.g. "Chanthavila Grocery"), it is a category, NOT a store — NEVER put a category name in the note; only append an actual store/shop the user named. Do NOT multiply or recalculate prices. If no specific items were mentioned at all, return null. Never mention cashback amounts here.
-- category_id: pick the best matching category
+- category_id: ALWAYS choose a category when any of them reasonably fits — null only if truly none does. If the input contains every word of a category's name (e.g. "abhi vehicle petrol" for a category named "Abhi Petrol"), that category MUST be chosen: the user created it for exactly this. Prefer a specific category over a broad one ("Abhi Petrol" over "Transport")
 - transfer_person: extract ONLY when the text names an individual receiving or sending money. CRITICAL: Identify the OTHER person involved. Return ONLY the display name (e.g. "Rahul"). If the input contains a UPI ID (e.g. "rahul@okaxis"), use just the prefix before @ capitalized. Never include @domain, never combine name and UPI. Never return the user themselves.
 - transfer_phone: Extract ONLY for personal transfers. Look for a 10-digit number mentioned directly or inside a UPI ID (e.g. "9876543210@okaxis" → "9876543210"). Return digits only. null if not present.
 - transfer_direction: Determine from the USER's perspective ONLY. sent = user paid/sent money out to someone. received = user got/received money from someone. CRITICAL: The verb "got", "received", "collected", "took" always means received, even if "to" or a person's name follows (e.g. "got 500 to shee" → received, "shee gave me 200" → received, "sent 300 to rahul" → sent, "gave priya 100" → sent). Do NOT let the word "to" override a receive-verb.
@@ -543,6 +544,13 @@ Write like a friend who actually studied your numbers and is telling you what th
         return { amount, description, date, time, cashback, category_id, category_name, note, transfer_person, transfer_phone, transfer_direction, suggested_flow };
     }
 
+    // The model sometimes leaves a clear match uncategorised; fall back to the category whose name the text spells out.
+    private fillMissingCategory(payload: Record<string, unknown>, text: string, categories: CategoryOption[]): Record<string, unknown> {
+        if (payload.category_id || payload.suggested_flow === 'transfer') return payload;
+        const match = matchCategoryByName(text, categories);
+        return match ? { ...payload, category_id: match.id, category_name: match.name } : payload;
+    }
+
     async parseReceipt(imageBase64: string, mimeType: string, categories: CategoryOption[], merchantRules: MerchantRuleOption[], debug = false) {
         const prompt = this.buildImagePrompt(categories, merchantRules);
         const rawText = await this.runModel([prompt, { inlineData: { data: imageBase64, mimeType } }]);
@@ -557,7 +565,7 @@ Write like a friend who actually studied your numbers and is telling you what th
         const prompt = this.buildTextPrompt(text, categories, merchantRules, dateString, timeString);
         const rawText = await this.runModel([prompt]);
         const raw = this.extractJson(rawText);
-        const payload: Record<string, unknown> = this.parseAiResponse(raw, categories);
+        const payload: Record<string, unknown> = this.fillMissingCategory(this.parseAiResponse(raw, categories), text, categories);
         if (debug) payload._debug = { prompt, rawText };
         return payload;
     }
@@ -740,7 +748,10 @@ If the recording has no intelligible speech (silence, noise, a tone, or you are 
         } catch {
             throw new ApiError('AI returned an unreadable response', 422);
         }
-        const items = rawArray.map(raw => this.parseAiResponse(raw, categories));
+        const items = rawArray.map(raw => {
+            const item = this.parseAiResponse(raw, categories);
+            return this.fillMissingCategory(item, `${item.description ?? ''} ${raw.note ?? ''}`, categories);
+        });
         if (debug) return { items, _debug: { prompt, rawText } };
         return { items };
     }
