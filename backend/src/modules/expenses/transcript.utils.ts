@@ -91,6 +91,60 @@ export function normalizeCurrency(line: string): string {
 const TIME_EXPR = /\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|o'?clock)(?!\w)|\b\d{1,2}:\d{2}\b/gi;
 const hasAmount = (line: string) => /\d/.test(line.replace(TIME_EXPR, ' '));
 
+// ---- Tidying one line so it reads as a proper statement ---------------------------------------------------
+
+const TIME_PART = String.raw`\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?!\w)`;
+// "[9pm ]yesterday[ night][ 9pm]": group 1 = time said before the day, 2 = the day, 3 = time of day / clock time after it.
+const DAY_WITH_TIME = new RegExp(
+    String.raw`(?:(\b${TIME_PART})\s+)?\b(${DATE_WORD})\b((?:\s+(?:night|morning|evening|afternoon))?(?:\s+(?:at\s+)?${TIME_PART})?)`,
+    'gi',
+);
+const DANGLING_END = /[\s,.;-]*\b(?:from|at|in|for|to|of|on|with|and|then|also|plus)\b[\s,.;-]*$/i;
+const norm = (x: string) => x.toLowerCase().replace(/\s+/g, ' ').trim();
+
+// The same day said twice in one transaction ("yesterday 23rs tiffin … yesterday 9pm") is ONE day: keep it where it was
+// first said, give it the time, and drop the repeat.
+function mergeRepeatedDay(line: string): string {
+    const found = [...line.matchAll(DAY_WITH_TIME)];
+    if (found.length < 2) return line;
+    const first = found[0];
+    const timeOf = (m: RegExpMatchArray) => (m[1] ?? '') || m[3].trim();
+    let firstTime = timeOf(first);
+    let addTime = '';
+    const drop: RegExpMatchArray[] = [];
+    for (const m of found.slice(1)) {
+        if (norm(m[2]) !== norm(first[2])) continue; // a different day starts another transaction elsewhere
+        const t = timeOf(m);
+        if (firstTime && t && norm(firstTime) !== norm(t)) continue; // two different times: don't guess
+        if (!firstTime && t) { firstTime = t; addTime = t; }
+        drop.push(m);
+    }
+    if (!drop.length) return line;
+    let out = line;
+    for (const m of [...drop].reverse()) out = out.slice(0, m.index!) + ' ' + out.slice(m.index! + m[0].length);
+    if (addTime) {
+        const at = first.index! + first[0].length;
+        out = `${out.slice(0, at)} ${addTime}${out.slice(at)}`;
+    }
+    return out;
+}
+
+// "Alfaham Alfaham hotel" → "Alfaham hotel", "post office post office" → "post office". Words only: numbers and
+// amounts are left alone, and the same item on different LINES is untouched (this works on one line).
+function dropRepeats(line: string): string {
+    return line
+        .replace(/\b((?:[A-Za-z][A-Za-z'’]*\s+){1,2}[A-Za-z][A-Za-z'’]*)\s+\1\b/gi, '$1')
+        .replace(/\b([A-Za-z][A-Za-z'’]*)(?:\s+\1\b)+/gi, '$1');
+}
+
+/** One transaction line as a clean statement: repeated day merged, repeated words dropped, no dangling "from"/"and". */
+export function tidyLine(line: string): string {
+    let out = mergeRepeatedDay(line);
+    out = dropRepeats(out);
+    out = out.replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim().replace(DANGLING_END, '').replace(CONNECTOR_START, '').trim();
+    return out;
+}
+
 /**
  * Safety net applied to the model's transcript: one clean transaction per
  * entry, with list numbering and any leftover spoken markers removed.
@@ -149,7 +203,7 @@ export function cleanTranscriptLines(text: string): string[] {
         carry = '';
     }
     if (carry) merged.push({ text: carry, forced: true });
-    return merged.map((e) => e.text);
+    return merged.map((e) => tidyLine(e.text)).filter(Boolean);
 }
 
 /**
@@ -213,7 +267,7 @@ export function applyVoiceOps(current: string[], ops: VoiceOp[]): { lines: strin
 
     for (const op of ops) {
         if (op.op === 'edit') {
-            const text = typeof op.text === 'string' ? normalizeCurrency(stripListPrefix(op.text)) : '';
+            const text = typeof op.text === 'string' ? tidyLine(normalizeCurrency(stripListPrefix(op.text))) : '';
             if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} in the list`);
             else if (!text) changes.skipped.push(`Item ${op.line}: nothing to change it to`);
             // The model sometimes "edits" a line to what it already says (e.g. when it heard nothing): not a change.

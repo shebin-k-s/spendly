@@ -595,6 +595,8 @@ Writing each line:
 - Keep the speaker's own words for the items and the shop. Do not translate, summarise, add or invent anything.
 - Write numbers as digits: "fifty" → 50, "one fifty" → 150, "1.5k" → 1500. EVERY AMOUNT IS IN RUPEES, so ALWAYS write each amount as the number followed directly by "rs" — even when the speaker did not say rs or rupees at all ("auto 30" → "auto 30rs", "tea twenty" → "tea 20rs"). Quantities and times are NOT amounts and stay plain ("2 idli", "10pm"). For instance — "fifty rupees" → 50rs, "50 rs" → 50rs, "rs 50" → 50rs, "one fifty rs" → 150rs, "two hundred rupees" → 200rs, "1.5k rs" → 1500rs. Never write ₹, "Rs." or "rupees". If the speaker said no currency word, write only the number. Never write ₹ or "Rs." or "rupees".
 - SPELLING: write names of dishes, shops, places and people in their proper, standard spelling — never a phonetic guess. Many are Kerala / Indian: "Alfaham" (not "Alfan"), "Shawarma", "Kuzhimandi", "Biriyani", "Parotta", "Payasam", "Puttu". If it sounds like one of the speaker's own known names (given below, when present), use that exact spelling. If you cannot tell what a name is, write what you best heard instead of inventing one.
+- Each line must read as a clean, proper statement: correct spelling, no word or item repeated inside the line ("Alfaham Alfaham hotel" → "Alfaham hotel"), no dangling words at the end ("tiffin from" with nothing after it → "tiffin"). The SAME item may of course appear on different lines — each line is its own transaction.
+- A day said twice in one transaction ("yesterday 23rs tiffin … yesterday 9pm") is written ONCE, with its time: "yesterday 9pm 23rs tiffin".
 - Drop filler such as "uh", "um", "okay", "so".
 - If a part is unclear, leave it out rather than guessing.
 
@@ -615,7 +617,7 @@ at 3pm today lunch 180rs
 tea 20rs yesterday
 
 Example 3c: the speaker says "yesterday 40rs parcel from the post office yesterday 9pm and then 120rs for the hotel yesterday 3pm and today 1pm biriyani 90rs" and you write exactly THREE lines:
-yesterday 40rs parcel from the post office yesterday 9pm
+yesterday 9pm 40rs parcel from the post office
 120rs for the hotel yesterday 3pm
 today 1pm biriyani 90rs
 
