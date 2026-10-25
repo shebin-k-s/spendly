@@ -750,6 +750,23 @@ export class ExpenseController {
             res.json(await aiService.transcribeInstruction(base64, mimeType));
             return;
         }
+        // The lines already on screen, if any: then speech may also EDIT or REMOVE them ("in the 2nd one add banana").
+        const current = this.parseCurrentLines(req.body?.current);
+        if (current.length > 0) {
+            res.json({ replaced: true, ...(await aiService.transcribeBulkWithList(base64, mimeType, current)) });
+            return;
+        }
         res.json(await aiService.transcribeBulkAudio(base64, mimeType));
+    };
+
+    // `current` arrives as a JSON array of the list's lines; anything malformed counts as "no list".
+    private parseCurrentLines = (raw: unknown): string[] => {
+        try {
+            const parsed = JSON.parse(String(raw ?? '[]'));
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter((l): l is string => typeof l === 'string').map((l) => l.trim().slice(0, 300)).filter(Boolean).slice(0, 100);
+        } catch {
+            return [];
+        }
     };
 }

@@ -6,12 +6,13 @@ const URL = '/expenses';
 // A sleeping server (Render free tier) can take a minute to wake: wait long enough,
 // and retry a couple of times on timeouts / gateway errors rather than making the
 // user say it all again.
-async function postAudio<T>(wav: Blob, query: string): Promise<T> {
+async function postAudio<T>(wav: Blob, query: string, fields: Record<string, string> = {}): Promise<T> {
   const attempts = 3;
   for (let attempt = 1; ; attempt++) {
     try {
       const formData = new FormData();
       formData.append('audio', wav, 'speech.wav');
+      for (const [name, value] of Object.entries(fields)) formData.append(name, value);
       const { data } = await apiClient.post<T>(`${URL}/transcribe${query}`, formData, { timeout: 90_000 });
       return data;
     } catch (err) {
@@ -21,6 +22,12 @@ async function postAudio<T>(wav: Blob, query: string): Promise<T> {
       await new Promise((r) => setTimeout(r, 3_000 * attempt));
     }
   }
+}
+
+export interface BulkVoiceResult {
+  lines: string[];
+  replaced?: boolean;
+  changes?: { edited: number[]; removed: number[]; added: number; skipped: string[] };
 }
 
 export const expensesApi = {
@@ -113,8 +120,10 @@ export const expensesApi = {
   },
 
   // Voice note → one line per transaction (the speaker says "next" between them).
-  async transcribeAudio(wav: Blob): Promise<{ lines: string[] }> {
-    return postAudio<{ lines: string[] }>(wav, '');
+  // With `current` (the lines already on screen) the speaker can also change or remove an existing line
+  // ("in the 2nd one add banana"): the reply is then the whole updated list, with `replaced: true`.
+  async transcribeAudio(wav: Blob, current: string[] = []): Promise<BulkVoiceResult> {
+    return postAudio<BulkVoiceResult>(wav, '', current.length ? { current: JSON.stringify(current) } : {});
   },
 
   // Voice note → the spoken correction as text ("make it 45"), for editing one expense.

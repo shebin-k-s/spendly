@@ -159,3 +159,56 @@ export function wavLooksSilent(buf: Buffer, rmsThreshold = 0.008): boolean {
     }
     return false;
 }
+
+// ---- Spoken changes to a list that is already on screen ----------------------------------------------------
+
+/** One thing the speaker asked for, as understood by the model (line numbers are 1-based, as shown on screen). */
+export interface VoiceOp {
+    op: 'append' | 'edit' | 'remove' | 'skip';
+    line?: number;
+    text?: string;
+    reason?: string;
+}
+
+export interface VoiceChanges {
+    edited: number[];
+    removed: number[];
+    added: number;
+    skipped: string[]; // things that could not be done, in words the user can read
+}
+
+const stripListPrefix = (t: string) => t.replace(LIST_PREFIX, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Applies the model's ops to the current list in plain code, so a line the speaker did not mention can never
+ * be touched, and an impossible request (a line that does not exist) is skipped, not guessed.
+ */
+export function applyVoiceOps(current: string[], ops: VoiceOp[]): { lines: string[]; changes: VoiceChanges } {
+    const lines = [...current];
+    const changes: VoiceChanges = { edited: [], removed: [], added: 0, skipped: [] };
+    const removed = new Set<number>();
+    const appended: string[] = [];
+    const valid = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= current.length;
+
+    for (const op of ops) {
+        if (op.op === 'edit') {
+            const text = typeof op.text === 'string' ? normalizeCurrency(stripListPrefix(op.text)) : '';
+            if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} in the list`);
+            else if (!text) changes.skipped.push(`Item ${op.line}: nothing to change it to`);
+            else if (!changes.edited.includes(op.line)) { lines[op.line - 1] = text; changes.edited.push(op.line); }
+        } else if (op.op === 'remove') {
+            if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} to remove`);
+            else removed.add(op.line);
+        } else if (op.op === 'append') {
+            if (typeof op.text === 'string' && op.text.trim()) appended.push(op.text);
+        } else if (op.op === 'skip') {
+            changes.skipped.push(op.reason?.trim() || "Couldn't tell which item to change");
+        }
+    }
+
+    changes.removed = [...removed].sort((a, b) => a - b);
+    changes.edited = changes.edited.filter((n) => !removed.has(n)).sort((a, b) => a - b);
+    const added = cleanTranscriptLines(appended.join('\n'));
+    changes.added = added.length;
+    return { lines: [...lines.filter((_, i) => !removed.has(i + 1)), ...added], changes };
+}

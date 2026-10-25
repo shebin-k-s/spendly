@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, Part, type GenerationConfig } from '@google/generative-ai';
 import { ApiError } from '../../common/middlewares/error.middleware';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
-import { cleanTranscriptLines } from './transcript.utils';
+import { cleanTranscriptLines, applyVoiceOps, type VoiceOp, type VoiceChanges } from './transcript.utils';
 
 export interface CategoryOption { id: string; name: string; icon: string; }
 
@@ -611,6 +611,74 @@ today 45rs dosa and idli
 
 Return ONLY the lines, with no numbering, bullets, quotes or explanation.
 The examples above only illustrate the format — NEVER output any of their words unless the speaker actually said them. If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
+    }
+
+    // The shared rules for turning speech into expense lines (markers, dates, amounts, "rs"), without the
+    // output-format instructions, so the "list already on screen" prompt can reuse them.
+    private transcribeRules(): string {
+        const full = this.buildTranscribePrompt();
+        const start = full.indexOf('How the speaker separates transactions:');
+        const end = full.indexOf('Return ONLY the lines');
+        return full.slice(start, end).trim();
+    }
+
+    private buildBulkVoicePrompt(current: string[]): string {
+        const list = current.map((line, i) => `${i + 1}. ${line}`).join('\n');
+        return `You are helping someone build a list of expenses by voice. They already have a numbered list on screen and now they speak. Everything they say is one or more of:
+ (A) NEW expenses to add to the end of the list,
+ (B) an EDIT of one existing line (add something to it, change its amount, swap a word),
+ (C) REMOVING one existing line.
+
+THE LIST ON SCREEN NOW:
+${list}
+
+How to tell them apart:
+- EDIT or REMOVE: the speaker points at an existing line by its number or position ("in the 2nd one", "second one", "for the third", "item 2", "the last one", "the first") AND says what to do with it: add, include, put, change, make, set, update, replace, correct, edit, remove, delete, drop, cancel, "should be", "instead". For example "in the 2nd one add butter", "third one change the amount to 60", "make the first one 50 rupees", "change the amount of the last one to 75", "remove the first one", "delete the second item".
+- NEW: everything else — including ordinals used only as separators without an action ("first item tea 20, second item auto 150" are two NEW items).
+- The speaker can mix them in one go, in any order ("in the second one add butter, next item juice 30").
+
+For an EDIT, give the COMPLETE new text of that line: the old line with ONLY the asked change applied.
+- "add butter" keeps everything and adds the item.
+- "change the amount to 60" replaces only the amount and keeps every other word.
+- "change X to Y" swaps just that.
+- Never drop other words or the amount unless asked to. Keep the line style below (amounts as digits followed by rs).
+- "the last one" is the last line on screen, "the first one" is line 1.
+If the speaker names a position that is not on the list, or asks for a change without saying which line and it is not obvious, do NOT guess: give a skip with a short reason.
+
+Rules for the text of NEW lines and edited lines:
+${this.transcribeRules()}
+
+OUTPUT: return ONLY JSON, no markdown, in exactly this shape:
+{"ops":[{"op":"edit","line":2,"text":"..."},{"op":"remove","line":4},{"op":"append","text":"..."},{"op":"skip","reason":"..."}]}
+- "append": one op per NEW expense, in the order spoken, written by the rules above.
+- Line numbers are the numbers shown in THE LIST ON SCREEN NOW (before any change you make).
+- If there is no intelligible speech (silence, noise, a tone, or you are unsure), return exactly {"ops":[]}.
+
+Examples, using a different sample list so you never copy its words:
+Sample list: "1. 40rs milk", "2. bread 30rs", "3. soap 55rs".
+- Speaker: "in the 2nd one add butter" → {"ops":[{"op":"edit","line":2,"text":"bread butter 30rs"}]}
+- Speaker: "third one change the amount to sixty" → {"ops":[{"op":"edit","line":3,"text":"soap 60rs"}]}
+- Speaker: "make the first one fifty rupees" → {"ops":[{"op":"edit","line":1,"text":"50rs milk"}]}
+- Speaker: "remove the second one" → {"ops":[{"op":"remove","line":2}]}
+- Speaker: "eggs twelve next item salt ten" → {"ops":[{"op":"append","text":"eggs 12rs"},{"op":"append","text":"salt 10rs"}]}
+- Speaker: "in the first one add curd, next item rice 90" → {"ops":[{"op":"edit","line":1,"text":"milk curd 40rs"},{"op":"append","text":"rice 90rs"}]}
+- Speaker: "first item tea 20" → {"ops":[{"op":"append","text":"tea 20rs"}]}
+- Speaker: "in the ninth one add oil" (there are only 3 lines) → {"ops":[{"op":"skip","reason":"There is no item 9"}]}
+- Speaker: "make it seventy" (no line named) → {"ops":[{"op":"skip","reason":"Say which item to change"}]}
+These examples only show the format — NEVER output any of their words unless the speaker really said them.`;
+    }
+
+    /**
+     * Speech when a list is already on screen: new items are added, spoken edits and removals are applied to the
+     * lines they name. The model only says WHAT to change; applying it is done in plain code (applyVoiceOps).
+     */
+    async transcribeBulkWithList(audioBase64: string, mimeType: string, current: string[]): Promise<{ lines: string[]; changes: VoiceChanges }> {
+        const raw = await this.runModel([this.buildBulkVoicePrompt(current), { inlineData: { data: audioBase64, mimeType } }], { temperature: 0, responseMimeType: 'application/json' });
+        const none = { lines: current, changes: { edited: [], removed: [], added: 0, skipped: [] } as VoiceChanges };
+        if (this.isNoSpeech(raw) && !raw.includes('{')) return none;
+        const parsed = this.extractJson(raw) as { ops?: unknown };
+        const ops = Array.isArray(parsed.ops) ? (parsed.ops.filter((o) => o && typeof o === 'object') as VoiceOp[]) : [];
+        return ops.length ? applyVoiceOps(current, ops) : none;
     }
 
     async transcribeBulkAudio(audioBase64: string, mimeType: string): Promise<{ lines: string[] }> {

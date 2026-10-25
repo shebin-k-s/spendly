@@ -306,8 +306,30 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
   const transcribe = async (wav: Blob) => {
     setTranscribing(true);
     try {
-      const { lines } = await expensesApi.transcribeAudio(wav);
+      // The lines already in the box (without their "1." numbers): lets the speaker change one by voice.
+      const current = text.split('\n').map((l) => l.replace(/^\s*\d+\.\s*/, '').trim()).filter(Boolean);
+      const result = await expensesApi.transcribeAudio(wav, current);
       setPendingWav(null);
+      if (result.replaced && result.changes) {
+        // The server answered with the WHOLE updated list: spoken edits/removals applied, new items added.
+        const c = result.changes;
+        const plural = (n: number[]) => (n.length > 1 ? 'items' : 'item');
+        const done = [
+          c.edited.length ? `Updated ${plural(c.edited)} ${c.edited.join(', ')}` : '',
+          c.removed.length ? `Removed ${plural(c.removed)} ${c.removed.join(', ')}` : '',
+          c.added ? `Added ${c.added} new` : '',
+        ].filter(Boolean);
+        if (c.skipped.length) toast.error(c.skipped.join(' · '));
+        if (done.length === 0) {
+          if (!c.skipped.length) toast.error("Couldn't hear any items — try again");
+          return;
+        }
+        setText(result.lines.map((line, i) => `${i + 1}. ${line}`).join('\n'));
+        setStatus((s) => (s === 'idle' ? s : 'idle'));
+        toast.success(done.join(' · '));
+        return;
+      }
+      const { lines } = result;
       if (lines.length === 0) {
         toast.error("Couldn't hear any items — try again");
         return;
@@ -884,7 +906,7 @@ export function BulkParseModal({ open, onClose, onAllSaved, initialItems, title,
                 className="form-input resize-none text-sm leading-relaxed"
               />
               <p className="text-[11px] text-center text-muted-foreground">
-                Tap the <Mic className="inline w-3 h-3 -mt-0.5" /> at the top to speak — say <span className="font-semibold">"next"</span> or <span className="font-semibold">"next item"</span> between items, or "first item", "second item"
+                Tap the <Mic className="inline w-3 h-3 -mt-0.5" /> at the top to speak — say <span className="font-semibold">"next"</span> or <span className="font-semibold">"next item"</span> between items, or "first item", "second item". To change an item, say e.g. <span className="font-semibold">"in the 2nd one add banana"</span> or <span className="font-semibold">"third one change the amount to 180"</span>.
               </p>
               {status === 'error' && (
                 <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-destructive/10 border border-destructive/20">
