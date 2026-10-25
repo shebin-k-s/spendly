@@ -43,25 +43,15 @@ export interface AiTrace { prompt?: string; rawText?: string }
 
 export class ExpenseAiService {
     private readonly timeoutMs = 25_000;
+    // Tried in order; the next one is used when a model is rate-limited (free tier: a small daily quota PER model),
+    // overloaded or times out. Only models this API key can actually call — the 1.5 / 2.0 families no longer exist.
+    // Benchmarked on 12 text-parse cases: 3.5-flash-lite 12/12, 3.1-flash-lite 12/12 (the bigger flash models were out of
+    // free quota that day, so they sit after as extra capacity), 2.5-flash-lite was the weakest and is gone.
     private readonly modelFallbacks = [
-        // CURRENT BEST FREE-TIER PRIMARY
-        'gemini-2.5-flash',
-
-        // NEWEST STABLE HIGH-VOLUME MODEL
+        'gemini-3.5-flash-lite',
         'gemini-3.1-flash-lite',
-
-        // CHEAP + FAST
-        'gemini-2.5-flash-lite',
-
-        // OLDER BUT VERY STABLE
-        'gemini-1.5-flash',
-
-        // LIGHTWEIGHT FALLBACK
-        'gemini-1.5-flash-8b',
-
-        // LEGACY FALLBACKS (deprecated soon)
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-lite',
+        'gemini-3.8-flash',
+        'gemini-2.5-flash',
     ];
 
     private readonly itemCategoryHints = [
