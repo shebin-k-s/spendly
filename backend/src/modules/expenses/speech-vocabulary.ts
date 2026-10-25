@@ -2,13 +2,12 @@ import { MoreThanOrEqual } from 'typeorm';
 import { AppDataSource } from '../../config/data.source';
 import { getISTDateString } from '../../common/utils/date.utils';
 import { Expense } from './expense.entity';
-import { Person } from '../people/person.entity';
 import { MerchantRule } from '../merchants/merchant-rule.entity';
 import { Category } from '../categories/category.entity';
 import { addDays } from './missed-habits';
 
-// The spelling of the names this speaker actually uses — shops, people, categories and the words that keep showing
-// up in their expenses — so a speech model writes "Alfaham" (known) instead of a phonetic guess like "Alfan".
+// The spelling of the names this speaker actually uses in EXPENSES — shops, categories and the words that keep showing
+// up in their expenses (people and the lent/returned ledger are a separate flow and are deliberately left out) — so a speech model writes "Alfaham" (known) instead of a phonetic guess like "Alfan".
 
 const LOOKBACK_DAYS = 180;
 const MAX_FREQUENT = 80;
@@ -26,9 +25,8 @@ export async function loadSpeechVocabulary(): Promise<string[]> {
     if (cache && Date.now() - cache.at < CACHE_MS) return cache.terms;
     try {
         const since = addDays(getISTDateString().slice(0, 10), -LOOKBACK_DAYS);
-        const [rules, people, categories, expenses] = await Promise.all([
+        const [rules, categories, expenses] = await Promise.all([
             AppDataSource.getRepository(MerchantRule).find(),
-            AppDataSource.getRepository(Person).find(),
             AppDataSource.getRepository(Category).find(),
             AppDataSource.getRepository(Expense).find({ where: { date: MoreThanOrEqual(since) }, select: { description: true, note: true } }),
         ]);
@@ -36,7 +34,6 @@ export async function loadSpeechVocabulary(): Promise<string[]> {
         // Names first (they matter most), then the most frequent words of recent expenses.
         const named = [
             ...rules.flatMap((r) => [r.name, ...(r.aliases ?? [])]),
-            ...people.map((p) => p.name),
             ...categories.map((c) => c.name),
         ];
         const counts = new Map<string, { n: number; forms: Map<string, number> }>();

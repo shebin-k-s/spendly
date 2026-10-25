@@ -573,7 +573,7 @@ Write like a friend who actually studied your numbers and is telling you what th
     // The speaker's own names, so the model can match what it hears to a known spelling.
     private vocabBlock(vocab: string[]): string {
         if (!vocab.length) return '';
-        return `Names and words this speaker uses often (shops, people, categories, things they buy). When something you hear sounds like one of these, write it EXACTLY as spelled here: ${vocab.join(', ')}.\n\n`;
+        return `Names and words this speaker uses often (shops, categories, things they buy). When something you hear sounds like one of these, write it EXACTLY as spelled here: ${vocab.join(', ')}.\n\n`;
     }
 
     private buildTranscribePrompt(vocab: string[] = []): string {
