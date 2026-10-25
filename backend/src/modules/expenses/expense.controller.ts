@@ -7,6 +7,7 @@ import { MerchantRuleService } from '../merchants/merchant-rule.service';
 import { ExpenseAiService, type AiTrace, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
 import { wavLooksSilent } from './transcript.utils';
+import { loadSpeechVocabulary } from './speech-vocabulary';
 import { learnHabits, suggestionsOn, addDays, dayOfWeek, LOOKBACK_DAYS, type HabitExpense } from './missed-habits';
 
 const log = {
@@ -750,19 +751,20 @@ export class ExpenseController {
         }
         const base64 = file.buffer.toString('base64');
         const mimeType = file.mimetype || 'audio/wav';
+        const vocab = await loadSpeechVocabulary();
         // ?mode=instruction: a spoken correction for one expense ("make it 45") —
         // transcribed verbatim, not split into a list of expenses.
         if (instructionMode) {
-            reply(await aiService.transcribeInstruction(base64, mimeType, trace));
+            reply(await aiService.transcribeInstruction(base64, mimeType, trace, vocab));
             return;
         }
         // The lines already on screen, if any: then speech may also EDIT or REMOVE them ("in the 2nd one add banana").
         const current = this.parseCurrentLines(req.body?.current);
         if (current.length > 0) {
-            reply({ replaced: true, ...(await aiService.transcribeBulkWithList(base64, mimeType, current, trace)) }, { current });
+            reply({ replaced: true, ...(await aiService.transcribeBulkWithList(base64, mimeType, current, trace, vocab)) }, { current });
             return;
         }
-        reply(await aiService.transcribeBulkAudio(base64, mimeType, trace));
+        reply(await aiService.transcribeBulkAudio(base64, mimeType, trace, vocab));
     };
 
     // `current` arrives as a JSON array of the list's lines; anything malformed counts as "no list".

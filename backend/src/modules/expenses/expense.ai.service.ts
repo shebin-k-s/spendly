@@ -570,7 +570,13 @@ Write like a friend who actually studied your numbers and is telling you what th
         return payload;
     }
 
-    private buildTranscribePrompt(): string {
+    // The speaker's own names, so the model can match what it hears to a known spelling.
+    private vocabBlock(vocab: string[]): string {
+        if (!vocab.length) return '';
+        return `Names and words this speaker uses often (shops, people, categories, things they buy). When something you hear sounds like one of these, write it EXACTLY as spelled here: ${vocab.join(', ')}.\n\n`;
+    }
+
+    private buildTranscribePrompt(vocab: string[] = []): string {
         return `You are transcribing a short voice note in which a person dictates their expenses, usually in Indian English. Write down what they said as a plain list: ONE LINE PER TRANSACTION.
 
 How the speaker separates transactions:
@@ -588,6 +594,7 @@ How the speaker separates transactions:
 Writing each line:
 - Keep the speaker's own words for the items and the shop. Do not translate, summarise, add or invent anything.
 - Write numbers as digits: "fifty" → 50, "one fifty" → 150, "1.5k" → 1500. EVERY AMOUNT IS IN RUPEES, so ALWAYS write each amount as the number followed directly by "rs" — even when the speaker did not say rs or rupees at all ("auto 30" → "auto 30rs", "tea twenty" → "tea 20rs"). Quantities and times are NOT amounts and stay plain ("2 idli", "10pm"). For instance — "fifty rupees" → 50rs, "50 rs" → 50rs, "rs 50" → 50rs, "one fifty rs" → 150rs, "two hundred rupees" → 200rs, "1.5k rs" → 1500rs. Never write ₹, "Rs." or "rupees". If the speaker said no currency word, write only the number. Never write ₹ or "Rs." or "rupees".
+- SPELLING: write names of dishes, shops, places and people in their proper, standard spelling — never a phonetic guess. Many are Kerala / Indian: "Alfaham" (not "Alfan"), "Shawarma", "Kuzhimandi", "Biriyani", "Parotta", "Payasam", "Puttu". If it sounds like one of the speaker's own known names (given below, when present), use that exact spelling. If you cannot tell what a name is, write what you best heard instead of inventing one.
 - Drop filler such as "uh", "um", "okay", "so".
 - If a part is unclear, leave it out rather than guessing.
 
@@ -616,7 +623,7 @@ Example 3: the speaker says "yesterday night 10pm ayaans item chapath and today 
 yesterday night 10pm ayaans item chapath
 today 45rs dosa and idli
 
-Return ONLY the lines, with no numbering, bullets, quotes or explanation.
+${this.vocabBlock(vocab)}Return ONLY the lines, with no numbering, bullets, quotes or explanation.
 The examples above only illustrate the format — NEVER output any of their words unless the speaker actually said them. If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
     }
 
@@ -629,7 +636,7 @@ The examples above only illustrate the format — NEVER output any of their word
         return full.slice(start, end).trim();
     }
 
-    private buildBulkVoicePrompt(current: string[]): string {
+    private buildBulkVoicePrompt(current: string[], vocab: string[] = []): string {
         const list = current.map((line, i) => `${i + 1}. ${line}`).join('\n');
         return `You are helping someone build a list of expenses by voice. They already have a numbered list on screen and now they speak. Everything they say is one or more of:
  (A) NEW expenses to add to the end of the list,
@@ -655,7 +662,7 @@ If the speaker names a position that is not on the list, or asks for a change wi
 Rules for the text of NEW lines and edited lines:
 ${this.transcribeRules()}
 
-OUTPUT: return ONLY JSON, no markdown, in exactly this shape:
+${this.vocabBlock(vocab)}OUTPUT: return ONLY JSON, no markdown, in exactly this shape:
 {"ops":[{"op":"edit","line":2,"text":"..."},{"op":"remove","line":4},{"op":"append","text":"..."},{"op":"skip","reason":"..."}]}
 - "append": one op per NEW expense, in the order spoken, written by the rules above.
 - Line numbers are the numbers shown in THE LIST ON SCREEN NOW (before any change you make).
@@ -679,8 +686,8 @@ These examples only show the format — NEVER output any of their words unless t
      * Speech when a list is already on screen: new items are added, spoken edits and removals are applied to the
      * lines they name. The model only says WHAT to change; applying it is done in plain code (applyVoiceOps).
      */
-    async transcribeBulkWithList(audioBase64: string, mimeType: string, current: string[], trace?: AiTrace): Promise<{ lines: string[]; changes: VoiceChanges }> {
-        const prompt = this.buildBulkVoicePrompt(current);
+    async transcribeBulkWithList(audioBase64: string, mimeType: string, current: string[], trace?: AiTrace, vocab: string[] = []): Promise<{ lines: string[]; changes: VoiceChanges }> {
+        const prompt = this.buildBulkVoicePrompt(current, vocab);
         const raw = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0, responseMimeType: 'application/json' });
         if (trace) Object.assign(trace, { prompt, rawText: raw });
         const none = { lines: current, changes: { edited: [], removed: [], added: 0, skipped: [] } as VoiceChanges };
@@ -690,8 +697,8 @@ These examples only show the format — NEVER output any of their words unless t
         return ops.length ? applyVoiceOps(current, ops) : none;
     }
 
-    async transcribeBulkAudio(audioBase64: string, mimeType: string, trace?: AiTrace): Promise<{ lines: string[] }> {
-        const prompt = this.buildTranscribePrompt();
+    async transcribeBulkAudio(audioBase64: string, mimeType: string, trace?: AiTrace, vocab: string[] = []): Promise<{ lines: string[] }> {
+        const prompt = this.buildTranscribePrompt(vocab);
         const rawText = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
         if (trace) Object.assign(trace, { prompt, rawText });
         if (this.isNoSpeech(rawText)) return { lines: [] };
@@ -704,7 +711,7 @@ These examples only show the format — NEVER output any of their words unless t
         return text.trim() === '' || /no[_\s-]?speech/i.test(text);
     }
 
-    private buildTranscribeInstructionPrompt(): string {
+    private buildTranscribeInstructionPrompt(vocab: string[] = []): string {
         return `Transcribe this short audio recording word for word. The speaker usually speaks Indian English.
 
 Rules:
@@ -712,13 +719,14 @@ Rules:
 - Write spoken numbers as digits (for example "forty five" becomes 45).
 - Drop filler words such as "uh", "um" and "okay".
 - If a part is unclear, leave it out.
+- Spell names of dishes, shops, places and people properly (for example "Alfaham", not "Alfan"), never as a phonetic guess.
 
-Return ONLY the transcribed words, with no quotes, labels or explanation.
+${this.vocabBlock(vocab)}Return ONLY the transcribed words, with no quotes, labels or explanation.
 If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
     }
 
-    async transcribeInstruction(audioBase64: string, mimeType: string, trace?: AiTrace): Promise<{ text: string }> {
-        const prompt = this.buildTranscribeInstructionPrompt();
+    async transcribeInstruction(audioBase64: string, mimeType: string, trace?: AiTrace, vocab: string[] = []): Promise<{ text: string }> {
+        const prompt = this.buildTranscribeInstructionPrompt(vocab);
         const rawText = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
         if (trace) Object.assign(trace, { prompt, rawText });
         if (this.isNoSpeech(rawText)) return { text: '' };
