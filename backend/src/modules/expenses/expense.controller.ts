@@ -4,7 +4,7 @@ import { ExpenseService } from './expense.service';
 import { CategoryService } from '../categories/category.service';
 import { CategoryGroupService } from '../category-groups/categoryGroup.service';
 import { MerchantRuleService } from '../merchants/merchant-rule.service';
-import { ExpenseAiService, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
+import { ExpenseAiService, type AiTrace, type MonthAnalysisInput, type CurrentExpenseFields, type CategoryOption, type MerchantRuleOption } from './expense.ai.service';
 import { getISTParts, getRelativeDateHints } from '../../common/utils/date.utils';
 import { wavLooksSilent } from './transcript.utils';
 import { learnHabits, suggestionsOn, addDays, dayOfWeek, LOOKBACK_DAYS, type HabitExpense } from './missed-habits';
@@ -737,9 +737,15 @@ export class ExpenseController {
             return;
         }
         const instructionMode = req.query.mode === 'instruction';
+        // ?debug=true (AI playground): also return what was sent to Gemini and what it answered.
+        const debug = req.query.debug === 'true';
+        const trace: AiTrace = {};
+        const reply = (body: object, extra: object = {}) => {
+            res.json(debug ? { ...body, _debug: { mode: instructionMode ? 'instruction' : 'bulk', audioBytes: file.size, ...trace, ...extra } } : body);
+        };
         // A silent recording would make the model invent words — answer "nothing heard" without asking it.
         if (wavLooksSilent(file.buffer)) {
-            res.json(instructionMode ? { text: '' } : { lines: [] });
+            reply(instructionMode ? { text: '' } : { lines: [] }, { silentGate: true });
             return;
         }
         const base64 = file.buffer.toString('base64');
@@ -747,16 +753,16 @@ export class ExpenseController {
         // ?mode=instruction: a spoken correction for one expense ("make it 45") —
         // transcribed verbatim, not split into a list of expenses.
         if (instructionMode) {
-            res.json(await aiService.transcribeInstruction(base64, mimeType));
+            reply(await aiService.transcribeInstruction(base64, mimeType, trace));
             return;
         }
         // The lines already on screen, if any: then speech may also EDIT or REMOVE them ("in the 2nd one add banana").
         const current = this.parseCurrentLines(req.body?.current);
         if (current.length > 0) {
-            res.json({ replaced: true, ...(await aiService.transcribeBulkWithList(base64, mimeType, current)) });
+            reply({ replaced: true, ...(await aiService.transcribeBulkWithList(base64, mimeType, current, trace)) }, { current });
             return;
         }
-        res.json(await aiService.transcribeBulkAudio(base64, mimeType));
+        reply(await aiService.transcribeBulkAudio(base64, mimeType, trace));
     };
 
     // `current` arrives as a JSON array of the list's lines; anything malformed counts as "no list".

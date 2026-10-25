@@ -195,6 +195,8 @@ export function applyVoiceOps(current: string[], ops: VoiceOp[]): { lines: strin
             const text = typeof op.text === 'string' ? normalizeCurrency(stripListPrefix(op.text)) : '';
             if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} in the list`);
             else if (!text) changes.skipped.push(`Item ${op.line}: nothing to change it to`);
+            // The model sometimes "edits" a line to what it already says (e.g. when it heard nothing): not a change.
+            else if (text === current[op.line - 1].trim()) continue;
             else if (!changes.edited.includes(op.line)) { lines[op.line - 1] = text; changes.edited.push(op.line); }
         } else if (op.op === 'remove') {
             if (!valid(op.line)) changes.skipped.push(`There is no item ${op.line ?? '?'} to remove`);

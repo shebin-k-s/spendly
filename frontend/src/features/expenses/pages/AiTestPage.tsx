@@ -1,9 +1,13 @@
 import { useState } from 'react';
-import { ArrowLeft, Image, Type } from 'lucide-react';
+import { ArrowLeft, Image, Mic, Square, Type } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/lib/apiClient';
+import { expensesApi } from '../api/expensesApi';
+import { useVoiceRecorder } from '../hooks/useVoiceRecorder';
+import { audioToWav } from '../utils/audioToWav';
 
-type Mode = 'image' | 'text';
+type Mode = 'image' | 'text' | 'voice';
+type VoiceKind = 'bulk' | 'instruction';
 
 function parseRawText(rawText: string): unknown {
   const stripped = rawText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
@@ -15,14 +19,14 @@ function ResultPanel({ result }: { result: any }) {
   return (
     <div className="space-y-4">
       <div>
-        <div className="text-emerald-500/70 mb-1 font-bold">RAW JSON RESPONSE:</div>
+        <div className="text-emerald-500/70 mb-1 font-bold">WHAT GEMINI SENT BACK (RAW):</div>
         <pre className="whitespace-pre-wrap word-break text-foreground">
-          {JSON.stringify(rawJson, null, 2)}
+          {typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson, null, 2)}
         </pre>
       </div>
       {result._debug?.rawText && (
         <div className="pt-4 border-t border-emerald-500/20">
-          <div className="text-emerald-500/70 mb-1 font-bold">MAPPED FRONTEND PAYLOAD:</div>
+          <div className="text-emerald-500/70 mb-1 font-bold">WHAT WE DO WITH IT (SENT TO THE APP):</div>
           <pre className="whitespace-pre-wrap text-foreground">
             {JSON.stringify({ ...result, _debug: undefined }, null, 2)}
           </pre>
@@ -47,6 +51,31 @@ export default function AiTestPage() {
   const [textLoading, setTextLoading] = useState(false);
   const [textResult, setTextResult] = useState<any>(null);
   const [textError, setTextError] = useState<string | null>(null);
+
+  // Voice mode state
+  const [voiceKind, setVoiceKind] = useState<VoiceKind>('bulk');
+  const [voiceCurrent, setVoiceCurrent] = useState('');
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceResult, setVoiceResult] = useState<any>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  const runVoice = async (clip: Blob) => {
+    setAudioUrl(URL.createObjectURL(clip));
+    setVoiceLoading(true);
+    setVoiceResult(null);
+    setVoiceError(null);
+    try {
+      const wav = await audioToWav(clip);
+      const current = voiceCurrent.split('\n').map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
+      setVoiceResult(await expensesApi.transcribeDebug(wav, voiceKind, current));
+    } catch (err: any) {
+      setVoiceError(err.response?.data?.message || err.message || 'Error occurred while transcribing');
+    } finally {
+      setVoiceLoading(false);
+    }
+  };
+  const recorder = useVoiceRecorder((clip) => { void runVoice(clip); });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -82,7 +111,7 @@ export default function AiTestPage() {
     }
   };
 
-  const result = mode === 'image' ? imageResult : textResult;
+  const result = mode === 'image' ? imageResult : mode === 'text' ? textResult : voiceResult;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -106,6 +135,12 @@ export default function AiTestPage() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${mode === 'text' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
           >
             <Type className="w-3.5 h-3.5" /> Text
+          </button>
+          <button
+            onClick={() => setMode('voice')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${mode === 'voice' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+          >
+            <Mic className="w-3.5 h-3.5" /> Voice
           </button>
         </div>
 
@@ -146,6 +181,56 @@ export default function AiTestPage() {
                 </div>
               )}
             </>
+          ) : mode === 'voice' ? (
+            <>
+              <div className="flex items-center bg-secondary rounded-xl p-1 gap-1 self-start">
+                {([['bulk', 'Bulk Add'], ['instruction', 'Edit expense']] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => setVoiceKind(k)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${voiceKind === k ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {voiceKind === 'bulk' && (
+                <>
+                  <label className="text-xs text-muted-foreground">List already on screen (optional, one item per line). Filled = "in the 2nd one add banana" style editing; empty = plain list.</label>
+                  <textarea
+                    value={voiceCurrent}
+                    onChange={(e) => setVoiceCurrent(e.target.value)}
+                    rows={5}
+                    placeholder={'40rs milk\nbread 30rs\nsoap 55rs'}
+                    className="w-full bg-background border border-secondary rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={recorder.state === 'recording' ? recorder.stop : () => void recorder.start()}
+                  disabled={voiceLoading}
+                  className={`px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-40 ${recorder.state === 'recording' ? 'bg-destructive text-white' : 'bg-primary text-primary-foreground'}`}
+                >
+                  {recorder.state === 'recording'
+                    ? <><Square className="w-3.5 h-3.5 fill-current" /> Stop {recorder.seconds}s</>
+                    : <><Mic className="w-4 h-4" /> Record</>}
+                </button>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  disabled={voiceLoading || recorder.state === 'recording'}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void runVoice(f); e.target.value = ''; }}
+                  className="text-xs file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:font-semibold file:bg-secondary file:text-foreground cursor-pointer"
+                />
+              </div>
+              {voiceLoading && (
+                <div className="bg-primary/10 text-primary p-4 rounded-xl border border-primary/20 animate-pulse font-medium">
+                  Sending the clip to Gemini...
+                </div>
+              )}
+              {voiceError && (
+                <div className="bg-destructive/10 text-destructive p-4 rounded-xl border border-destructive/20 font-medium text-sm">{voiceError}</div>
+              )}
+              {audioUrl && <audio src={audioUrl} controls className="w-full" />}
+            </>
           ) : (
             <>
               <textarea
@@ -174,14 +259,21 @@ export default function AiTestPage() {
 
         {/* Middle Column: Prompt */}
         <div className="p-4 border-b lg:border-b-0 lg:border-r border-secondary flex flex-col gap-2">
-          <h2 className="font-semibold text-lg">AI Prompt (System Instructions)</h2>
+          <h2 className="font-semibold text-lg">What we send to Gemini</h2>
           <div className="bg-secondary/20 p-4 rounded-xl border border-secondary flex-1">
             {!result ? (
               <p className="text-muted-foreground italic">Waiting for execution...</p>
             ) : (
-              <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap word-break">
-                {result._debug?.prompt || 'Prompt not returned.'}
-              </pre>
+              <>
+                <pre className="text-xs font-mono text-muted-foreground whitespace-pre-wrap word-break">
+                  {result._debug?.silentGate
+                    ? 'Nothing was sent: the recording was silent, so the server answered "nothing heard" without asking Gemini.'
+                    : (result._debug?.prompt || 'Prompt not returned.')}
+                </pre>
+                {mode === 'voice' && result._debug && (
+                  <p className="mt-3 text-xs text-muted-foreground">+ the audio clip ({Math.round((result._debug.audioBytes || 0) / 1024)} KB)</p>
+                )}
+              </>
             )}
           </div>
         </div>

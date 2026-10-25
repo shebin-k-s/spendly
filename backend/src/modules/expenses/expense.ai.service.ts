@@ -37,6 +37,9 @@ export interface MonthAnalysisInput {
     unusualExpenses: { dayLabel: string; description: string; amount: number; categoryName: string }[];
 }
 
+/** What was sent to Gemini and what it answered, filled in for the playground (?debug=true). */
+export interface AiTrace { prompt?: string; rawText?: string }
+
 export class ExpenseAiService {
     private readonly timeoutMs = 25_000;
     private readonly modelFallbacks = [
@@ -672,8 +675,10 @@ These examples only show the format — NEVER output any of their words unless t
      * Speech when a list is already on screen: new items are added, spoken edits and removals are applied to the
      * lines they name. The model only says WHAT to change; applying it is done in plain code (applyVoiceOps).
      */
-    async transcribeBulkWithList(audioBase64: string, mimeType: string, current: string[]): Promise<{ lines: string[]; changes: VoiceChanges }> {
-        const raw = await this.runModel([this.buildBulkVoicePrompt(current), { inlineData: { data: audioBase64, mimeType } }], { temperature: 0, responseMimeType: 'application/json' });
+    async transcribeBulkWithList(audioBase64: string, mimeType: string, current: string[], trace?: AiTrace): Promise<{ lines: string[]; changes: VoiceChanges }> {
+        const prompt = this.buildBulkVoicePrompt(current);
+        const raw = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0, responseMimeType: 'application/json' });
+        if (trace) Object.assign(trace, { prompt, rawText: raw });
         const none = { lines: current, changes: { edited: [], removed: [], added: 0, skipped: [] } as VoiceChanges };
         if (this.isNoSpeech(raw) && !raw.includes('{')) return none;
         const parsed = this.extractJson(raw) as { ops?: unknown };
@@ -681,8 +686,10 @@ These examples only show the format — NEVER output any of their words unless t
         return ops.length ? applyVoiceOps(current, ops) : none;
     }
 
-    async transcribeBulkAudio(audioBase64: string, mimeType: string): Promise<{ lines: string[] }> {
-        const rawText = await this.runModel([this.buildTranscribePrompt(), { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
+    async transcribeBulkAudio(audioBase64: string, mimeType: string, trace?: AiTrace): Promise<{ lines: string[] }> {
+        const prompt = this.buildTranscribePrompt();
+        const rawText = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
+        if (trace) Object.assign(trace, { prompt, rawText });
         if (this.isNoSpeech(rawText)) return { lines: [] };
         return { lines: cleanTranscriptLines(rawText) };
     }
@@ -706,8 +713,10 @@ Return ONLY the transcribed words, with no quotes, labels or explanation.
 If the recording has no intelligible speech (silence, noise, a tone, or you are unsure), output exactly: NO_SPEECH`;
     }
 
-    async transcribeInstruction(audioBase64: string, mimeType: string): Promise<{ text: string }> {
-        const rawText = await this.runModel([this.buildTranscribeInstructionPrompt(), { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
+    async transcribeInstruction(audioBase64: string, mimeType: string, trace?: AiTrace): Promise<{ text: string }> {
+        const prompt = this.buildTranscribeInstructionPrompt();
+        const rawText = await this.runModel([prompt, { inlineData: { data: audioBase64, mimeType } }], { temperature: 0 });
+        if (trace) Object.assign(trace, { prompt, rawText });
         if (this.isNoSpeech(rawText)) return { text: '' };
         return { text: rawText.replace(/^["'“”\s]+|["'“”\s]+$/g, '').replace(/\s+/g, ' ') };
     }

@@ -127,6 +127,12 @@ export const expensesApi = {
   },
 
   // Voice note → the spoken correction as text ("make it 45"), for editing one expense.
+  // AI playground: the same call plus what was sent to Gemini and what it answered.
+  async transcribeDebug(wav: Blob, mode: 'bulk' | 'instruction', current: string[] = []): Promise<Record<string, unknown>> {
+    const fields = mode === 'bulk' && current.length ? { current: JSON.stringify(current) } : {};
+    return postAudio<Record<string, unknown>>(wav, `?debug=true${mode === 'instruction' ? '&mode=instruction' : ''}`, fields);
+  },
+
   async transcribeInstruction(wav: Blob): Promise<{ text: string }> {
     return postAudio<{ text: string }>(wav, '?mode=instruction');
   },
